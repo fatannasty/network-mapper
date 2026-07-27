@@ -1008,6 +1008,11 @@
   document.getElementById('btn-scan-real').addEventListener('dblclick', (e) => {
     e.preventDefault();
     cidrContainer.classList.toggle('hidden');
+    if (!cidrContainer.classList.contains('hidden')) {
+      fetch('/api/info').then(r => r.json()).then(info => {
+        if (!cidrInput.value) cidrInput.placeholder = info.suggestedCIDR || 'e.g. 192.168.0.0/24';
+      });
+    }
   });
 
   document.getElementById('btn-scan-real').addEventListener('contextmenu', (e) => {
