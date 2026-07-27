@@ -17,6 +17,7 @@ app.get('/api/info', (req, res) => {
   res.json({
     localIP: scanner.getLocalIP(),
     subnet: scanner.getSubnet(),
+    suggestedCIDR: `${scanner.getSubnet()}.0/24`,
     interfaces: scanner.getNetworkInterfaces(),
   });
 });
