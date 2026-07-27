@@ -173,6 +173,70 @@ header h1 {
   background: #2563eb;
 }
 
+.locations {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.location-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 12px;
+  border: 1px solid transparent;
+}
+
+.location-item:hover {
+  background: #334155;
+  border-color: #475569;
+}
+
+.location-item.active {
+  background: #1d4ed8;
+  border-color: #2563eb;
+}
+
+.location-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  flex-shrink: 0;
+}
+
+.location-dot.stale {
+  background: #f59e0b;
+}
+
+.location-dot.offline {
+  background: #64748b;
+}
+
+.location-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.location-name {
+  font-weight: 500;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.location-meta {
+  font-size: 10px;
+  color: #64748b;
+}
+
 .properties {
   background: #0f172a;
   border-radius: 6px;
