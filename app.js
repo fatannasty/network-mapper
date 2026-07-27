@@ -453,9 +453,17 @@
       const a = devices.find(d => d.id === connectStart);
       if (a) {
         ctx.beginPath();
+        ctx.arc(a.x, a.y, DEVICE_RADIUS + 8, 0, Math.PI * 2);
+        ctx.strokeStyle = '#22d3ee';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(mousePos.x, mousePos.y);
-        ctx.strokeStyle = '#38bdf8';
+        ctx.strokeStyle = '#22d3ee';
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 4]);
         ctx.stroke();
