@@ -280,22 +280,22 @@ function lookupMacVendor(mac) {
 }
 
 async function discoverNetwork(options = {}) {
-  const { onProgress, onDeviceFound } = options;
-  const subnet = getSubnet();
+  const { onProgress, onDeviceFound, cidr } = options;
   const localIP = getLocalIP();
+  const targetCIDR = cidr || `${getSubnet()}.0/24`;
 
-  console.log(`Scanning subnet: ${subnet}.0/24`);
+  console.log(`Scanning: ${targetCIDR}`);
   console.log(`Local IP: ${localIP}`);
 
-  if (onProgress) onProgress({ phase: 'arp', percent: 0 });
+  if (onProgress) onProgress({ phase: 'arp', percent: 0, scanned: 0, total: 0, found: 0 });
 
   let devices = scanArpTable();
   console.log(`ARP table: ${devices.size} devices found`);
 
-  if (onProgress) onProgress({ phase: 'ping', percent: 0 });
+  if (onProgress) onProgress({ phase: 'ping', percent: 0, scanned: 0, total: 0, found: 0 });
 
-  const pingDevices = await pingSweep(subnet, percent => {
-    if (onProgress) onProgress({ phase: 'ping', percent });
+  const pingDevices = await pingSweep(targetCIDR, progress => {
+    if (onProgress) onProgress({ phase: 'ping', ...progress });
   });
   console.log(`Ping sweep: ${pingDevices.size} hosts alive`);
 
