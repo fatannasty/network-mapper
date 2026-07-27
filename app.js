@@ -822,6 +822,7 @@
 
   // ── Real Network Scan ──
 
+  const WORKER_API = 'https://network-mapper-api.fatannasty.workers.dev';
   const scanProgress = document.getElementById('scan-progress');
   const scanStatus = document.getElementById('scan-status');
   const scanDetail = document.getElementById('scan-detail');
