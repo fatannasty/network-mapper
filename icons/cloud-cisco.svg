@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Cisco Cloud/WAN Icon -->
+  <defs>
+    <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#0891b2;stop-opacity:0.1"/>
+    </linearGradient>
+  </defs>
+  <!-- Cloud shape -->
+  <path d="M30,70 Q10,70 10,52 Q10,36 28,32 Q30,18 48,16 Q64,14 72,28 Q82,20 96,28 Q108,36 104,52 Q104,70 84,72 L30,72 Z" fill="url(#cloudGrad)" stroke="#06b6d4" stroke-width="2.5"/>
+  <!-- Internet symbol -->
+  <circle cx="60" cy="48" r="16" fill="none" stroke="#22d3ee" stroke-width="1.5" opacity="0.6"/>
+  <ellipse cx="60" cy="48" rx="8" ry="16" fill="none" stroke="#22d3ee" stroke-width="1.5" opacity="0.6"/>
+  <line x1="44" y1="48" x2="76" y2="48" stroke="#22d3ee" stroke-width="1.5" opacity="0.6"/>
+  <!-- Connection points -->
+  <circle cx="60" cy="72" r="4" fill="#06b6d4"/>
+  <circle cx="60" cy="72" r="2" fill="#fff"/>
+  <!-- Label -->
+  <text x="60" y="96" font-family="Arial" font-size="7" fill="#06b6d4" text-anchor="middle" font-weight="bold">INTERNET / WAN</text>
+</svg>
