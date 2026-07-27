@@ -99,28 +99,64 @@ function pingHost(ip) {
   });
 }
 
-function pingSweep(subnet, onProgress) {
+function generateIPs(cidr) {
+  const parts = cidr.split('/');
+  const baseIP = parts[0];
+  const prefix = parseInt(parts[1]) || 24;
+
+  if (prefix < 1 || prefix > 30) return [];
+
+  const ipNum = baseIP.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet), 0);
+  const hostBits = 32 - prefix;
+  const networkAddr = ipNum & (0xFFFFFFFF << hostBits);
+  const broadcastAddr = networkAddr | ((1 << hostBits) - 1);
+  const ips = [];
+
+  for (let i = networkAddr + 1; i < broadcastAddr; i++) {
+    const ip = [
+      (i >>> 24) & 0xFF,
+      (i >>> 16) & 0xFF,
+      (i >>> 8) & 0xFF,
+      i & 0xFF
+    ].join('.');
+    ips.push(ip);
+  }
+  return ips;
+}
+
+function pingSweep(cidr, onProgress) {
   return new Promise(async resolve => {
     const devices = new Map();
-    const hosts = [];
+    const hosts = generateIPs(cidr);
 
-    for (let i = 1; i <= 254; i++) {
-      hosts.push(`${subnet}.${i}`);
+    if (hosts.length === 0) {
+      resolve(devices);
+      return;
     }
 
-    const batchSize = 30;
+    const totalHosts = hosts.length;
+    const batchSize = 50;
     let completed = 0;
+    let found = 0;
 
     for (let i = 0; i < hosts.length; i += batchSize) {
       const batch = hosts.slice(i, i + batchSize);
       const results = await Promise.all(batch.map(async ip => {
         const alive = await pingHost(ip);
         completed++;
-        if (onProgress) onProgress(Math.round((completed / hosts.length) * 100));
+        if (onProgress) onProgress({
+          percent: Math.round((completed / totalHosts) * 100),
+          scanned: completed,
+          total: totalHosts,
+          found
+        });
         return { ip, alive };
       }));
       results.forEach(r => {
-        if (r.alive) devices.set(r.ip, { ip: r.ip, source: 'ping' });
+        if (r.alive) {
+          devices.set(r.ip, { ip: r.ip, source: 'ping' });
+          found++;
+        }
       });
     }
 
