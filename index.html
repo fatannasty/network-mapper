@@ -10,7 +10,8 @@
   <header>
     <h1>Network Topology Mapper</h1>
     <div class="header-actions">
-      <button id="btn-discover" title="Simulate network discovery">Discover Network</button>
+      <button id="btn-scan-real" class="btn-primary" title="Scan your real network">Scan Network</button>
+      <button id="btn-discover" title="Simulate network discovery">Demo</button>
       <button id="btn-save" title="Save topology to file">Save</button>
       <button id="btn-load" title="Load topology from file">Load</button>
       <button id="btn-clear" title="Clear all devices">Clear</button>
@@ -69,6 +70,12 @@
     <main class="canvas-area">
       <canvas id="topology-canvas"></canvas>
       <div id="tooltip" class="tooltip hidden"></div>
+      <div id="scan-progress" class="scan-progress hidden">
+        <div class="scan-status" id="scan-status">Scanning...</div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="scan-detail" id="scan-detail"></div>
+      </div>
+      <div id="device-count" class="device-count"></div>
     </main>
   </div>
 

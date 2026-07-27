@@ -508,6 +508,171 @@
     connections.push({ from: fromId, to: toId, label: label || '' });
   }
 
+  // ── Real Network Scan ──
+
+  const scanProgress = document.getElementById('scan-progress');
+  const scanStatus = document.getElementById('scan-status');
+  const scanDetail = document.getElementById('scan-detail');
+  const progressFill = document.getElementById('progress-fill');
+  const deviceCountEl = document.getElementById('device-count');
+  let ws = null;
+  let scanRunning = false;
+
+  function updateDeviceCount() {
+    if (devices.length > 0) {
+      const counts = {};
+      devices.forEach(d => { counts[d.type] = (counts[d.type] || 0) + 1; });
+      const parts = Object.entries(counts).map(([t, c]) => `${c} ${DEVICE_NAMES[t] || t}`);
+      deviceCountEl.textContent = `${devices.length} devices: ${parts.join(', ')}`;
+      deviceCountEl.classList.remove('hidden');
+    } else {
+      deviceCountEl.classList.add('hidden');
+    }
+  }
+
+  function showProgress(phase, percent, detail) {
+    scanProgress.classList.remove('hidden');
+    const phaseLabels = {
+      arp: 'Reading ARP table...',
+      ping: 'Pinging hosts...',
+      identify: 'Identifying devices...',
+      done: 'Scan complete!'
+    };
+    scanStatus.textContent = phaseLabels[phase] || phase;
+    progressFill.style.width = percent + '%';
+    if (detail) scanDetail.textContent = detail;
+  }
+
+  function hideProgress() {
+    setTimeout(() => scanProgress.classList.add('hidden'), 2000);
+  }
+
+  function connectWebSocket() {
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${protocol}//${location.host}`);
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'device-found' && msg.device) {
+          const dev = msg.device;
+          const canvasW = canvas.width / devicePixelRatio;
+          const canvasH = canvas.height / devicePixelRatio;
+          const idx = devices.length;
+          const angle = (2 * Math.PI * idx) / 20;
+          const radius = Math.min(canvasW, canvasH) * 0.35;
+          const cx = canvasW / 2;
+          const cy = canvasH / 2;
+
+          const device = {
+            id: nextId++,
+            type: dev.type || 'pc',
+            name: dev.hostname || `${dev.type}-${idx + 1}`,
+            x: snapToGrid(cx + radius * Math.cos(angle)),
+            y: snapToGrid(cy + radius * Math.sin(angle)),
+            ip: dev.ip,
+            mac: dev.mac || '',
+            vendor: dev.vendor || '',
+            notes: dev.openPorts ? `Ports: ${dev.openPorts.join(', ')}` : '',
+          };
+          devices.push(device);
+          updateDeviceCount();
+          draw();
+        }
+      } catch (e) {}
+    };
+
+    ws.onclose = () => setTimeout(connectWebSocket, 3000);
+    ws.onerror = () => {};
+  }
+
+  async function realScan() {
+    if (scanRunning) return;
+    if (devices.length > 0 && !confirm('This will replace current topology. Continue?')) return;
+
+    scanRunning = true;
+    devices = [];
+    connections = [];
+    nextId = 1;
+    updateDeviceCount();
+    draw();
+
+    showProgress('arp', 0, 'Starting...');
+    document.getElementById('btn-scan-real').disabled = true;
+    document.getElementById('btn-scan-real').textContent = 'Scanning...';
+
+    try {
+      const res = await fetch('/api/scan', { method: 'POST' });
+      const data = await res.json();
+
+      if (data.error) {
+        alert('Scan error: ' + data.error);
+        return;
+      }
+
+      devices = [];
+      connections = [];
+      nextId = 1;
+
+      const canvasW = canvas.width / devicePixelRatio;
+      const canvasH = canvas.height / devicePixelRatio;
+      const cx = canvasW / 2;
+      const cy = canvasH / 2;
+      const radius = Math.min(canvasW, canvasH) * 0.35;
+      const total = data.devices.length;
+
+      data.devices.forEach((dev, i) => {
+        const angle = (2 * Math.PI * i) / total - Math.PI / 2;
+        const device = {
+          id: nextId++,
+          type: dev.type || 'pc',
+          name: dev.hostname || `${dev.type}-${i + 1}`,
+          x: snapToGrid(cx + radius * Math.cos(angle)),
+          y: snapToGrid(cy + radius * Math.sin(angle)),
+          ip: dev.ip,
+          mac: dev.mac || '',
+          vendor: dev.vendor || '',
+          notes: dev.openPorts ? `Ports: ${dev.openPorts.join(', ')}` : '',
+        };
+        devices.push(device);
+      });
+
+      if (data.connections) {
+        data.connections.forEach(conn => {
+          const fromDev = devices.find(d => d.ip === conn.from);
+          const toDev = devices.find(d => d.ip === conn.to);
+          if (fromDev && toDev) {
+            connections.push({ from: fromDev.id, to: toDev.id, label: conn.label || '' });
+          }
+        });
+      }
+
+      showProgress('done', 100, `Found ${devices.length} devices`);
+      updateDeviceCount();
+      draw();
+      autoLayout();
+      hideProgress();
+
+    } catch (err) {
+      showProgress('done', 0, 'Error: ' + err.message);
+      hideProgress();
+    } finally {
+      scanRunning = false;
+      document.getElementById('btn-scan-real').disabled = false;
+      document.getElementById('btn-scan-real').textContent = 'Scan Network';
+    }
+  }
+
+  document.getElementById('btn-scan-real').addEventListener('click', realScan);
+
+  const origDraw = draw;
+  draw = function() {
+    origDraw();
+    updateDeviceCount();
+  };
+
+  connectWebSocket();
+
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
 })();
