@@ -491,6 +491,21 @@
         <label>Link Label
           <input type="text" id="prop-conn-label" value="${conn.label || ''}" placeholder="e.g. Trunk, 1Gbps">
         </label>
+        <label>Cable Type
+          <select id="prop-conn-cable">
+            <option value="unknown" ${!conn.cableType || conn.cableType === 'unknown' ? 'selected' : ''}>Unknown</option>
+            <option value="fiber" ${conn.cableType === 'fiber' ? 'selected' : ''}>Fiber</option>
+            <option value="cat6" ${conn.cableType === 'cat6' ? 'selected' : ''}>Cat6</option>
+            <option value="cat6a" ${conn.cableType === 'cat6a' ? 'selected' : ''}>Cat6a</option>
+            <option value="dac" ${conn.cableType === 'dac' ? 'selected' : ''}>DAC</option>
+          </select>
+        </label>
+        <label>Port A (${fromDev ? fromDev.name : '?'})
+          <input type="text" id="prop-conn-porta" value="${conn.portA || ''}" placeholder="e.g. GI1/0/1">
+        </label>
+        <label>Port B (${toDev ? toDev.name : '?'})
+          <input type="text" id="prop-conn-portb" value="${conn.portB || ''}" placeholder="e.g. TE1/1/1">
+        </label>
         <label>Uplink VLAN
           <input type="text" id="prop-conn-vlanup" value="${conn.vlanUp || ''}" placeholder="e.g. 10, 20, 100">
         </label>
@@ -501,6 +516,18 @@
       `;
       document.getElementById('prop-conn-label').addEventListener('input', e => {
         conn.label = e.target.value;
+        draw();
+      });
+      document.getElementById('prop-conn-cable').addEventListener('change', e => {
+        conn.cableType = e.target.value;
+        draw();
+      });
+      document.getElementById('prop-conn-porta').addEventListener('input', e => {
+        conn.portA = e.target.value;
+        draw();
+      });
+      document.getElementById('prop-conn-portb').addEventListener('input', e => {
+        conn.portB = e.target.value;
         draw();
       });
       document.getElementById('prop-conn-vlanup').addEventListener('input', e => {
