@@ -955,14 +955,14 @@
     draw();
   }
 
-  function addDevice(type, name, x, y, ip) {
-    const d = { id: nextId++, type, name, x: snapToGrid(x), y: snapToGrid(y), ip, notes: '' };
+  function addDevice(type, name, x, y, ip, location, model) {
+    const d = { id: nextId++, type, name, x: snapToGrid(x), y: snapToGrid(y), ip, notes: '', location: location || '', model: model || '', ports: [] };
     devices.push(d);
     return d;
   }
 
-  function addConnection(fromId, toId, label, vlanUp, vlanDown) {
-    connections.push({ from: fromId, to: toId, label: label || '', vlanUp: vlanUp || '', vlanDown: vlanDown || '' });
+  function addConnection(fromId, toId, label, vlanUp, vlanDown, cableType, portA, portB) {
+    connections.push({ from: fromId, to: toId, label: label || '', vlanUp: vlanUp || '', vlanDown: vlanDown || '', cableType: cableType || 'unknown', portA: portA || '', portB: portB || '' });
   }
 
   // ── Real Network Scan ──
