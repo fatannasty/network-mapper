@@ -68,6 +68,10 @@
     </aside>
 
     <main class="canvas-area">
+      <div class="cidr-input hidden" id="cidr-input-container">
+        <label for="cidr-input">Target Subnet (CIDR)</label>
+        <input type="text" id="cidr-input" placeholder="e.g. 192.168.0.0/24 or 10.0.0.0/16">
+      </div>
       <canvas id="topology-canvas"></canvas>
       <div id="tooltip" class="tooltip hidden"></div>
       <div id="scan-progress" class="scan-progress hidden">
