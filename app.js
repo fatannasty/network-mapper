@@ -193,6 +193,20 @@
       yOffset += 12;
     }
 
+    if (d.location) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = '8px sans-serif';
+      ctx.fillText(d.location, d.x, d.y + yOffset);
+      yOffset += 10;
+    }
+
+    if (d.model) {
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '7px monospace';
+      ctx.fillText(d.model, d.x, d.y + yOffset);
+      yOffset += 10;
+    }
+
     if (d.ports && d.ports.length > 0) {
       ctx.fillStyle = '#38bdf8';
       ctx.font = '8px monospace';
