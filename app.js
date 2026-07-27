@@ -108,16 +108,31 @@
       if (!a || !b) return;
 
       const isSelected = selectedConnection === conn;
+      const isHovered = hoveredConnection === conn;
       const cable = CABLE_TYPES[conn.cableType] || CABLE_TYPES.unknown;
 
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = isSelected ? '#38bdf8' : (cable.color || '#475569');
-      ctx.lineWidth = isSelected ? 3 : 2;
-      if (cable.dash) ctx.setLineDash(cable.dash);
+
+      if (isSelected) {
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 8;
+      } else if (isHovered) {
+        ctx.strokeStyle = '#60a5fa';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#60a5fa';
+        ctx.shadowBlur = 6;
+      } else {
+        ctx.strokeStyle = cable.color || '#475569';
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 0;
+      }
+
       ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.shadowBlur = 0;
 
       const mx = (a.x + b.x) / 2;
       const my = (a.y + b.y) / 2;
