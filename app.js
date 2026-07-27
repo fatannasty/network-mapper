@@ -1147,6 +1147,87 @@
     updateDeviceCount();
   };
 
+  // ── Catalyst Center Integration ──
+
+  const catcUrl = document.getElementById('catc-url');
+  const catcUser = document.getElementById('catc-user');
+  const catcPass = document.getElementById('catc-pass');
+
+  const savedCatc = localStorage.getItem('catc-config');
+  if (savedCatc) {
+    try {
+      const cfg = JSON.parse(savedCatc);
+      if (cfg.url) catcUrl.value = cfg.url;
+      if (cfg.user) catcUser.value = cfg.user;
+      if (cfg.pass) catcPass.value = cfg.pass;
+    } catch {}
+  }
+
+  [catcUrl, catcUser, catcPass].forEach(el => {
+    el.addEventListener('input', () => {
+      localStorage.setItem('catc-config', JSON.stringify({
+        url: catcUrl.value, user: catcUser.value, pass: catcPass.value
+      }));
+    });
+  });
+
+  document.getElementById('btn-catc-test').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-catc-test');
+    btn.textContent = 'Testing...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/api/catc/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: catcUrl.value, user: catcUser.value, pass: catcPass.value }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        btn.textContent = `OK: ${data.deviceCount} devices`;
+        btn.style.background = '#059669';
+      } else {
+        btn.textContent = `Error: ${data.error}`;
+        btn.style.background = '#991b1b';
+      }
+    } catch (e) {
+      btn.textContent = 'Connection failed';
+      btn.style.background = '#991b1b';
+    }
+
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = 'Test Connection'; btn.style.background = ''; }, 5000);
+  });
+
+  document.getElementById('btn-catc-scan').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-catc-scan');
+    btn.textContent = 'Scanning...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/api/catc/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: catcUrl.value, user: catcUser.value, pass: catcPass.value }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        btn.textContent = `Done: ${data.locationCount} locations`;
+        btn.style.background = '#059669';
+        refreshLocations();
+      } else {
+        btn.textContent = `Error: ${data.error}`;
+        btn.style.background = '#991b1b';
+      }
+    } catch (e) {
+      btn.textContent = 'Scan failed';
+      btn.style.background = '#991b1b';
+    }
+
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = 'Scan via Cat Center'; btn.style.background = '#059669'; }, 5000);
+  });
+
   connectWebSocket();
 
   window.addEventListener('resize', resizeCanvas);
