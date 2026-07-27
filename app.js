@@ -538,6 +538,12 @@
           ).join('')}
         </select>
       </label>
+      <label>Location / Site
+        <input type="text" id="prop-location" value="${d.location || ''}" placeholder="e.g. Miami Station">
+      </label>
+      <label>Model
+        <input type="text" id="prop-model" value="${d.model || ''}" placeholder="e.g. C9300-48T">
+      </label>
       <label>Notes
         <input type="text" id="prop-notes" value="${d.notes || ''}" placeholder="Optional notes">
       </label>
@@ -557,6 +563,14 @@
     });
     document.getElementById('prop-type').addEventListener('change', e => {
       d.type = e.target.value;
+      draw();
+    });
+    document.getElementById('prop-location').addEventListener('input', e => {
+      d.location = e.target.value;
+      draw();
+    });
+    document.getElementById('prop-model').addEventListener('input', e => {
+      d.model = e.target.value;
       draw();
     });
     document.getElementById('prop-notes').addEventListener('input', e => {
