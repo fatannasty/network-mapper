@@ -15,6 +15,7 @@
   let mousePos = { x: 0, y: 0 };
   let hoveredDevice = null;
   let selectedConnection = null;
+  let hoveredConnection = null;
   let nextId = 1;
 
   const GRID_SIZE = 20;
