@@ -31,6 +31,14 @@
       <h2>Devices</h2>
       <p class="hint">Drag onto the canvas</p>
       <div class="device-list">
+        <div class="device-template" draggable="true" data-type="core-switch">
+          <img src="icons/core-switch.svg" class="device-icon" alt="Core Switch" draggable="false">
+          <span>Core Switch</span>
+        </div>
+        <div class="device-template" draggable="true" data-type="access-switch">
+          <img src="icons/access-switch.svg" class="device-icon" alt="Access Switch" draggable="false">
+          <span>Access Switch</span>
+        </div>
         <div class="device-template" draggable="true" data-type="router">
           <img src="icons/router.svg" class="device-icon" alt="Router" draggable="false">
           <span>Router</span>
@@ -59,6 +67,14 @@
           <img src="icons/cloud-cisco.svg" class="device-icon" alt="Cloud" draggable="false">
           <span>Cloud / WAN</span>
         </div>
+      </div>
+
+      <h2>Cable Types</h2>
+      <div class="cable-legend">
+        <div class="cable-item"><span class="cable-dot" style="background:#a855f7"></span> Fiber</div>
+        <div class="cable-item"><span class="cable-dot" style="background:#22c55e"></span> Cat6</div>
+        <div class="cable-item"><span class="cable-dot" style="background:#f59e0b"></span> Cat6a</div>
+        <div class="cable-item"><span class="cable-dot" style="background:#ef4444"></span> DAC</div>
       </div>
 
       <h2>Mode</h2>
