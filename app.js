@@ -901,6 +901,15 @@
 
   async function realScan() {
     if (scanRunning) return;
+
+    try {
+      const testRes = await fetch('/api/info', { signal: AbortSignal.timeout(3000) });
+      if (!testRes.ok) throw new Error('Backend not available');
+    } catch (e) {
+      alert('Backend server not available.\n\nTo scan your network, run:\n  npm start\n\nThen open http://localhost:7777\n\nThe Demo button works without the server.');
+      return;
+    }
+
     if (devices.length > 0 && !confirm('This will replace current topology. Continue?')) return;
 
     scanRunning = true;

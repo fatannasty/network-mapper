@@ -8,10 +8,14 @@
     "scan": "node server.js --scan-only",
     "watch": "./auto-push.sh",
     "tunnel": "cloudflared tunnel --config cloudflared-config.yml run",
-    "setup-tunnel": "./setup-tunnel.sh"
+    "setup-tunnel": "./setup-tunnel.sh",
+    "deploy": "./deploy.sh"
   },
   "dependencies": {
     "express": "^4.18.0",
     "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.114.0"
   }
 }
