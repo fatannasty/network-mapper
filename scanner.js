@@ -24,11 +24,26 @@ function getNetworkInterfaces() {
       }
     }
   }
+  results.sort((a, b) => {
+    const aPrivate = isPrivateIP(a.address) ? 0 : 1;
+    const bPrivate = isPrivateIP(b.address) ? 0 : 1;
+    return aPrivate - bPrivate;
+  });
   return results;
+}
+
+function isPrivateIP(ip) {
+  const parts = ip.split('.').map(Number);
+  if (parts[0] === 10) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  return false;
 }
 
 function getLocalIP() {
   const ifaces = getNetworkInterfaces();
+  const privateIface = ifaces.find(i => isPrivateIP(i.address));
+  if (privateIface) return privateIface.address;
   return ifaces.length > 0 ? ifaces[0].address : '127.0.0.1';
 }
 
@@ -53,36 +68,22 @@ function getSubnetCIDR() {
 function scanArpTable() {
   const devices = new Map();
   try {
-    let output;
-    if (process.platform === 'darwin') {
-      output = execSync('arp -a', { timeout: 5000 }).toString();
-      const regex = /\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-f:]{17}|(?:incomplete))/gi;
-      let match;
-      while ((match = regex.exec(output)) !== null) {
-        const ip = match[1];
-        const mac = match[2];
-        if (mac !== '(incomplete)' && mac !== 'ff:ff:ff:ff:ff:ff') {
-          devices.set(ip, { ip, mac, source: 'arp' });
-        }
-      }
-    } else if (process.platform === 'linux') {
-      output = execSync('arp -an', { timeout: 5000 }).toString();
-      const regex = /\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-f:]{17})/gi;
-      let match;
-      while ((match = regex.exec(output)) !== null) {
-        devices.set(match[1], { ip: match[1], mac: match[2], source: 'arp' });
-      }
-    } else if (process.platform === 'win32') {
-      output = execSync('arp -a', { timeout: 5000 }).toString();
-      const regex = /(\d+\.\d+\.\d+\.\d+)\s+([0-9a-f-]{17})/gi;
-      let match;
-      while ((match = regex.exec(output)) !== null) {
-        const mac = match[2].replace(/-/g, ':');
-        devices.set(match[1], { ip: match[1], mac, source: 'arp' });
-      }
+    const       output = execSync('arp -an', { timeout: 5000, stdio: ['pipe', 'pipe', 'ignore'] }).toString();
+    const regex = /\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-f:]+)\s+on\s+(\S+)/gi;
+    let match;
+    while ((match = regex.exec(output)) !== null) {
+      const ip = match[1];
+      const mac = match[2];
+      const parts = ip.split('.').map(Number);
+      if (mac.toLowerCase() === 'incomplete') continue;
+      if (mac === 'ff:ff:ff:ff:ff:ff') continue;
+      if (parts[0] === 169 && parts[1] === 254) continue;
+      if (parts[0] >= 224) continue;
+      if (parts[3] === 255) continue;
+      devices.set(ip, { ip, mac, source: 'arp' });
     }
   } catch (e) {
-    console.error('ARP scan error:', e.message);
+    console.log('ARP table unavailable (will use ping sweep instead)');
   }
   return devices;
 }
@@ -91,8 +92,8 @@ function pingHost(ip) {
   return new Promise(resolve => {
     const cmd = process.platform === 'win32'
       ? `ping -n 1 -w ${PING_TIMEOUT} ${ip}`
-      : `ping -c 1 -W ${Math.ceil(PING_TIMEOUT / 1000)} ${ip}`;
-    exec(cmd, { timeout: PING_TIMEOUT + 500 }, (err) => {
+      : `ping -c 1 -W 2000 ${ip}`;
+    exec(cmd, { timeout: 5000 }, (err) => {
       resolve(!err);
     });
   });

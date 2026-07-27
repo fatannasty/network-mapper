@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 7777;
 
 app.use(express.static(__dirname));
 app.use(express.json());
@@ -59,10 +59,15 @@ function broadcast(data) {
 }
 
 server.listen(PORT, () => {
+  const localIP = scanner.getLocalIP();
+  const subnet = scanner.getSubnet();
+  const ifaces = scanner.getNetworkInterfaces();
   console.log(`\n  Network Topology Mapper`);
   console.log(`  ───────────────────────`);
   console.log(`  Server:  http://localhost:${PORT}`);
-  console.log(`  Network: ${scanner.getSubnet()}.0/24`);
-  console.log(`  Local:   ${scanner.getLocalIP()}`);
+  console.log(`  Local:   ${localIP}`);
+  console.log(`  Subnet:  ${subnet}.0/24`);
+  console.log(`  Interfaces:`);
+  ifaces.forEach(i => console.log(`    - ${i.name}: ${i.address}/${i.netmask}`));
   console.log(`\n  Open the URL above in your browser.\n`);
 });
