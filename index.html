@@ -3,19 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Network Topology Mapper</title>
+  <title>NetMap — Network Topology Mapper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <h1>Network Topology Mapper</h1>
+    <div style="display:flex;align-items:center;gap:10px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z"/><path d="M2 12h20"/></svg>
+      <h1>NetMap</h1>
+    </div>
     <div class="header-actions">
       <button id="btn-scan-real" class="btn-primary" title="Scan your real network">Scan Network</button>
       <button id="btn-discover" title="Simulate network discovery">Demo</button>
       <button id="btn-save" title="Save topology to file">Save</button>
       <button id="btn-load" title="Load topology from file">Load</button>
       <button id="btn-clear" title="Clear all devices">Clear</button>
-      <button id="btn-auto-layout" title="Auto-arrange devices">Auto Layout</button>
+      <button id="btn-auto-layout" title="Auto-arrange devices">Layout</button>
       <input type="file" id="file-input" accept=".json" hidden>
     </div>
   </header>
@@ -23,7 +29,7 @@
   <div class="container">
     <aside class="sidebar">
       <h2>Devices</h2>
-      <p class="hint">Drag a device onto the canvas</p>
+      <p class="hint">Drag onto the canvas</p>
       <div class="device-list">
         <div class="device-template" draggable="true" data-type="router">
           <svg viewBox="0 0 64 64" class="device-icon"><circle cx="32" cy="32" r="26" fill="#3b82f6" stroke="#1e40af" stroke-width="2"/><circle cx="32" cy="32" r="14" stroke="#fff" stroke-width="2" fill="none"/><line x1="22" y1="32" x2="42" y2="32" stroke="#fff" stroke-width="1.5"/><line x1="32" y1="22" x2="32" y2="42" stroke="#fff" stroke-width="1.5"/><line x1="18" y1="32" x2="14" y2="32" stroke="#fff" stroke-width="2"/><line x1="46" y1="32" x2="50" y2="32" stroke="#fff" stroke-width="2"/><line x1="32" y1="18" x2="32" y2="14" stroke="#fff" stroke-width="2"/><line x1="32" y1="46" x2="32" y2="50" stroke="#fff" stroke-width="2"/></svg>
@@ -62,23 +68,20 @@
       </div>
 
       <h2>Locations</h2>
-      <p class="hint">Data from scanner agents or Cat Center</p>
+      <p class="hint">From agents or Cat Center</p>
       <div id="locations-panel" class="locations">
         <p class="hint">No locations yet</p>
       </div>
-      <button id="btn-refresh-locations" class="mode-btn" style="width:100%;margin-top:4px">Refresh</button>
+      <button id="btn-refresh-locations" class="mode-btn" style="width:100%;margin-top:6px">Refresh</button>
 
       <h2>Catalyst Center</h2>
       <div class="cat-center-config">
-        <label>URL
-          <input type="text" id="catc-url" placeholder="https://sandboxdnac.cisco.com">
-        </label>
-        <label>Username
-          <input type="text" id="catc-user" placeholder="admin">
-        </label>
-        <label>Password
-          <input type="password" id="catc-pass" placeholder="password">
-        </label>
+        <label>URL</label>
+        <input type="text" id="catc-url" placeholder="https://sandboxdnac.cisco.com">
+        <label>Username</label>
+        <input type="text" id="catc-user" placeholder="admin">
+        <label>Password</label>
+        <input type="password" id="catc-pass" placeholder="password">
         <button id="btn-catc-test" class="mode-btn" style="width:100%">Test Connection</button>
         <button id="btn-catc-scan" class="mode-btn" style="width:100%;margin-top:4px;background:#059669;border-color:#047857">Scan via Cat Center</button>
       </div>
@@ -91,7 +94,7 @@
 
     <main class="canvas-area">
       <div class="cidr-input hidden" id="cidr-input-container">
-        <label for="cidr-input">Target Subnet (CIDR)</label>
+        <label for="cidr-input">Target Subnet</label>
         <input type="text" id="cidr-input" placeholder="e.g. 192.168.0.0/24 or 10.0.0.0/16">
         <select id="interface-select">
           <option value="">Auto-detect</option>
