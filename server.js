@@ -14,11 +14,13 @@ app.use(express.static(__dirname));
 app.use(express.json());
 
 app.get('/api/info', (req, res) => {
+  const ifaces = scanner.getNetworkInterfaces();
   res.json({
     localIP: scanner.getLocalIP(),
     subnet: scanner.getSubnet(),
     suggestedCIDR: `${scanner.getSubnet()}.0/24`,
-    interfaces: scanner.getNetworkInterfaces(),
+    interfaces: ifaces,
+    currentInterface: ifaces[0] ? ifaces[0].name : 'unknown',
   });
 });
 
