@@ -1002,6 +1002,19 @@
 
   document.getElementById('btn-scan-real').addEventListener('click', realScan);
 
+  const cidrContainer = document.getElementById('cidr-input-container');
+  const cidrInput = document.getElementById('cidr-input');
+
+  document.getElementById('btn-scan-real').addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    cidrContainer.classList.toggle('hidden');
+  });
+
+  document.getElementById('btn-scan-real').addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    cidrContainer.classList.toggle('hidden');
+  });
+
   const origDraw = draw;
   draw = function() {
     origDraw();
