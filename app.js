@@ -766,6 +766,43 @@
     draw();
   }
 
+  async function refreshLocations() {
+    const panel = document.getElementById('locations-panel');
+    const locations = await fetchLocations();
+    if (locations.length === 0) {
+      panel.innerHTML = '<p class="hint">No agents registered yet</p>';
+      return;
+    }
+    panel.innerHTML = '';
+    locations.forEach(loc => {
+      const lastSeen = new Date(loc.scannedAt);
+      const age = Date.now() - lastSeen.getTime();
+      const dotClass = age < 600000 ? '' : (age < 3600000 ? 'stale' : 'offline');
+      const timeStr = age < 60000 ? 'just now' : (age < 3600000 ? `${Math.round(age/60000)}m ago` : `${Math.round(age/3600000)}h ago`);
+
+      const item = document.createElement('div');
+      item.className = 'location-item';
+      item.innerHTML = `
+        <div class="location-dot ${dotClass}"></div>
+        <div class="location-info">
+          <div class="location-name">${loc.name || loc.id}</div>
+          <div class="location-meta">${loc.deviceCount} devices | ${timeStr}</div>
+        </div>
+      `;
+      item.addEventListener('click', () => {
+        panel.querySelectorAll('.location-item').forEach(el => el.classList.remove('active'));
+        item.classList.add('active');
+        loadLocation(loc.id);
+      });
+      panel.appendChild(item);
+    });
+  }
+
+  document.getElementById('btn-refresh-locations').addEventListener('click', refreshLocations);
+
+  refreshLocations();
+  setInterval(refreshLocations, 30000);
+
   document.getElementById('btn-discover').addEventListener('click', simulateDiscovery);
 
   function simulateDiscovery() {
