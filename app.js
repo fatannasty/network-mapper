@@ -803,6 +803,8 @@
       ip: '',
       notes: '',
       ports: [],
+      location: '',
+      model: '',
     };
     devices.push(device);
     selectedDevice = device;
