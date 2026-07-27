@@ -237,6 +237,36 @@ header h1 {
   color: #64748b;
 }
 
+.cat-center-config {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cat-center-config label {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+
+.cat-center-config input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-family: monospace;
+  margin-bottom: 4px;
+}
+
+.cat-center-config input:focus {
+  outline: none;
+  border-color: #38bdf8;
+}
+
 .properties {
   background: #0f172a;
   border-radius: 6px;
