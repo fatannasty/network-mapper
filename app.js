@@ -725,18 +725,32 @@
     }
 
     const d = deviceAt(pos.x, pos.y);
-    if (d !== hoveredDevice) {
+    const c = d ? null : connectionAt(pos.x, pos.y);
+
+    if (d !== hoveredDevice || c !== hoveredConnection) {
       hoveredDevice = d;
+      hoveredConnection = c;
       if (mode === 'connect') {
-        canvas.style.cursor = d ? 'pointer' : 'crosshair';
+        canvas.style.cursor = d ? 'pointer' : (c ? 'pointer' : 'crosshair');
       } else {
-        canvas.style.cursor = d ? 'grab' : 'default';
+        canvas.style.cursor = d ? 'grab' : (c ? 'pointer' : 'default');
       }
       if (d) {
         let tipText = `${d.name} (${d.ip || 'no IP'})`;
+        if (d.location) tipText += ` | ${d.location}`;
         if (d.ports && d.ports.length > 0) {
           tipText += ' | Ports: ' + d.ports.join(', ');
         }
+        tooltip.textContent = tipText;
+        tooltip.style.left = (pos.x + 16) + 'px';
+        tooltip.style.top = (pos.y - 10) + 'px';
+        tooltip.classList.remove('hidden');
+      } else if (c) {
+        const fromDev = devices.find(dev => dev.id === c.from);
+        const toDev = devices.find(dev => dev.id === c.to);
+        let tipText = `${fromDev?.name || '?'} ↔ ${toDev?.name || '?'}`;
+        if (c.cableType && c.cableType !== 'unknown') tipText += ` | ${CABLE_TYPES[c.cableType]?.label || c.cableType}`;
+        if (c.portA || c.portB) tipText += ` | ${c.portA || '?'} ↔ ${c.portB || '?'}`;
         tooltip.textContent = tipText;
         tooltip.style.left = (pos.x + 16) + 'px';
         tooltip.style.top = (pos.y - 10) + 'px';
