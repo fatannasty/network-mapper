@@ -57,7 +57,7 @@
   function drawGrid() {
     const w = canvas.width / devicePixelRatio;
     const h = canvas.height / devicePixelRatio;
-    ctx.strokeStyle = '#1e293b';
+    ctx.strokeStyle = 'rgba(42, 42, 58, 0.3)';
     ctx.lineWidth = 0.5;
     for (let x = 0; x <= w; x += GRID_SIZE) {
       ctx.beginPath();
