@@ -846,13 +846,20 @@
     scanProgress.classList.remove('hidden');
     const phaseLabels = {
       arp: 'Reading ARP table...',
-      ping: 'Pinging hosts...',
+      ping: 'Scanning network...',
       identify: 'Identifying devices...',
       done: 'Scan complete!'
     };
     scanStatus.textContent = phaseLabels[phase] || phase;
-    progressFill.style.width = percent + '%';
-    if (detail) scanDetail.textContent = detail;
+
+    let pct = typeof percent === 'object' ? percent.percent : percent;
+    progressFill.style.width = (pct || 0) + '%';
+
+    if (typeof percent === 'object' && percent.scanned !== undefined) {
+      scanDetail.textContent = `${percent.scanned.toLocaleString()} / ${percent.total.toLocaleString()} hosts scanned | ${percent.found} devices found`;
+    } else if (detail) {
+      scanDetail.textContent = detail;
+    }
   }
 
   function hideProgress() {
