@@ -471,7 +471,8 @@
       const d = devices[i];
       const dx = d.x - x;
       const dy = d.y - y;
-      if (dx * dx + dy * dy <= DEVICE_RADIUS * DEVICE_RADIUS) return d;
+      const hitRadius = iconsLoaded ? DEVICE_RADIUS * 1.3 : DEVICE_RADIUS;
+      if (dx * dx + dy * dy <= hitRadius * hitRadius) return d;
     }
     return null;
   }
