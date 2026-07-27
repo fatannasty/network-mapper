@@ -1,0 +1,9 @@
+services:
+  network-mapper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: network-mapper
+    ports:
+      - "7777:7777"
+    restart: unless-stopped
