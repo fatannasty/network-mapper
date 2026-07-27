@@ -907,6 +907,57 @@
     ws.onerror = () => {};
   }
 
+  async function fetchLocations() {
+    try {
+      const res = await fetch(`${WORKER_API}/api/locations`);
+      if (!res.ok) throw new Error('API unavailable');
+      return await res.json();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async function loadLocation(locationId) {
+    try {
+      const res = await fetch(`${WORKER_API}/api/location/${locationId}`);
+      if (!res.ok) throw new Error('Not found');
+      const data = await res.json();
+
+      devices = [];
+      connections = [];
+      nextId = 1;
+
+      const canvasW = canvas.width / devicePixelRatio;
+      const canvasH = canvas.height / devicePixelRatio;
+      const cx = canvasW / 2;
+      const cy = canvasH / 2;
+      const radius = Math.min(canvasW, canvasH) * 0.35;
+
+      data.devices.forEach((dev, i) => {
+        const angle = (2 * Math.PI * i) / data.devices.length - Math.PI / 2;
+        devices.push({
+          id: nextId++,
+          type: dev.type || 'pc',
+          name: dev.hostname || `${dev.type}-${i + 1}`,
+          x: snapToGrid(cx + radius * Math.cos(angle)),
+          y: snapToGrid(cy + radius * Math.sin(angle)),
+          ip: dev.ip,
+          mac: dev.mac || '',
+          vendor: dev.vendor || '',
+          notes: '',
+          ports: dev.openPorts || [],
+        });
+      });
+
+      updateDeviceCount();
+      draw();
+      return data;
+    } catch (e) {
+      console.error('Failed to load location:', e);
+      return null;
+    }
+  }
+
   async function realScan() {
     if (scanRunning) return;
 
