@@ -107,18 +107,22 @@
       if (!a || !b) return;
 
       const isSelected = selectedConnection === conn;
+      const cable = CABLE_TYPES[conn.cableType] || CABLE_TYPES.unknown;
+
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = isSelected ? '#38bdf8' : '#475569';
+      ctx.strokeStyle = isSelected ? '#38bdf8' : (cable.color || '#475569');
       ctx.lineWidth = isSelected ? 3 : 2;
+      if (cable.dash) ctx.setLineDash(cable.dash);
       ctx.stroke();
+      ctx.setLineDash([]);
 
       const mx = (a.x + b.x) / 2;
       const my = (a.y + b.y) / 2;
       const angle = Math.atan2(b.y - a.y, b.x - a.x);
-      const perpX = -Math.sin(angle) * 12;
-      const perpY = Math.cos(angle) * 12;
+      const perpX = -Math.sin(angle) * 14;
+      const perpY = Math.cos(angle) * 14;
 
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -126,7 +130,20 @@
       if (conn.label) {
         ctx.fillStyle = '#94a3b8';
         ctx.font = '10px sans-serif';
-        ctx.fillText(conn.label, mx, my - 10);
+        ctx.fillText(conn.label, mx + perpX * 0.5, my + perpY * 0.5 - 8);
+      }
+
+      if (conn.cableType && conn.cableType !== 'unknown') {
+        ctx.fillStyle = cable.color;
+        ctx.font = 'bold 8px monospace';
+        ctx.fillText(cable.label, mx + perpX * 0.5, my + perpY * 0.5);
+      }
+
+      if (conn.portA || conn.portB) {
+        ctx.fillStyle = '#60a5fa';
+        ctx.font = '8px monospace';
+        const portLabel = `${conn.portA || '?'} ↔ ${conn.portB || '?'}`;
+        ctx.fillText(portLabel, mx + perpX * 0.5, my + perpY * 0.5 + 10);
       }
 
       if (conn.vlanUp) {
