@@ -21,13 +21,23 @@
   const DEVICE_RADIUS = 24;
 
   const DEVICE_COLORS = {
-    router:     { fill: '#3b82f6', stroke: '#1e40af', icon: 'R', svg: 'icons/router.svg' },
-    switch:     { fill: '#10b981', stroke: '#047857', icon: 'S', svg: 'icons/switch-catalyst9000.svg' },
-    accesspoint:{ fill: '#f59e0b', stroke: '#d97706', icon: 'AP', svg: 'icons/accesspoint-cisco.svg' },
-    firewall:   { fill: '#ef4444', stroke: '#b91c1c', icon: 'FW', svg: 'icons/firewall-cisco.svg' },
-    server:     { fill: '#8b5cf6', stroke: '#6d28d9', icon: 'SV', svg: 'icons/server-cisco.svg' },
-    pc:         { fill: '#6366f1', stroke: '#4338ca', icon: 'PC', svg: 'icons/pc-cisco.svg' },
-    cloud:      { fill: '#06b6d4', stroke: '#0891b2', icon: '☁', svg: 'icons/cloud-cisco.svg' },
+    router:       { fill: '#3b82f6', stroke: '#1e40af', icon: 'R', svg: 'icons/router.svg' },
+    'core-switch':{ fill: '#f97316', stroke: '#c2410c', icon: 'CS', svg: 'icons/core-switch.svg' },
+    'access-switch':{ fill: '#22d3ee', stroke: '#0891b2', icon: 'AS', svg: 'icons/access-switch.svg' },
+    switch:       { fill: '#10b981', stroke: '#047857', icon: 'S', svg: 'icons/switch-catalyst9000.svg' },
+    accesspoint:  { fill: '#f59e0b', stroke: '#d97706', icon: 'AP', svg: 'icons/accesspoint-cisco.svg' },
+    firewall:     { fill: '#ef4444', stroke: '#b91c1c', icon: 'FW', svg: 'icons/firewall-cisco.svg' },
+    server:       { fill: '#8b5cf6', stroke: '#6d28d9', icon: 'SV', svg: 'icons/server-cisco.svg' },
+    pc:           { fill: '#6366f1', stroke: '#4338ca', icon: 'PC', svg: 'icons/pc-cisco.svg' },
+    cloud:        { fill: '#06b6d4', stroke: '#0891b2', icon: '☁', svg: 'icons/cloud-cisco.svg' },
+  };
+
+  const CABLE_TYPES = {
+    fiber:  { color: '#a855f7', label: 'Fiber', dash: '' },
+    cat6:   { color: '#22c55e', label: 'Cat6', dash: '' },
+    cat6a:  { color: '#f59e0b', label: 'Cat6a', dash: '' },
+    dac:    { color: '#ef4444', label: 'DAC', dash: '' },
+    unknown:{ color: '#64748b', label: '', dash: '' },
   };
 
   const iconImages = {};
