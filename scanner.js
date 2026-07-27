@@ -349,7 +349,9 @@ function buildConnections(devices) {
   return connections.map(c => ({
     from: c.from.ip,
     to: c.to.ip,
-    label: c.label
+    label: c.label,
+    vlanUp: '',
+    vlanDown: ''
   }));
 }
 

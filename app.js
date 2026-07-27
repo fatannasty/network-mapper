@@ -14,6 +14,7 @@
   let connectStart = null;
   let mousePos = { x: 0, y: 0 };
   let hoveredDevice = null;
+  let selectedConnection = null;
   let nextId = 1;
 
   const GRID_SIZE = 20;
@@ -78,20 +79,39 @@
       const b = devices.find(d => d.id === conn.to);
       if (!a || !b) return;
 
+      const isSelected = selectedConnection === conn;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = '#475569';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = isSelected ? '#38bdf8' : '#475569';
+      ctx.lineWidth = isSelected ? 3 : 2;
       ctx.stroke();
 
       const mx = (a.x + b.x) / 2;
       const my = (a.y + b.y) / 2;
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '10px sans-serif';
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      const perpX = -Math.sin(angle) * 12;
+      const perpY = Math.cos(angle) * 12;
+
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      if (conn.label) ctx.fillText(conn.label, mx, my - 8);
+
+      if (conn.label) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px sans-serif';
+        ctx.fillText(conn.label, mx, my - 10);
+      }
+
+      if (conn.vlanUp) {
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(`VLAN ${conn.vlanUp}`, mx + perpX, my + perpY - 6);
+      }
+      if (conn.vlanDown) {
+        ctx.fillStyle = '#10b981';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(`VLAN ${conn.vlanDown}`, mx + perpX, my + perpY + 6);
+      }
     });
   }
 
@@ -190,8 +210,46 @@
   }
 
   function updateProperties() {
+    if (selectedConnection) {
+      const conn = selectedConnection;
+      const fromDev = devices.find(d => d.id === conn.from);
+      const toDev = devices.find(d => d.id === conn.to);
+      propertiesPanel.innerHTML = `
+        <p style="color:#38bdf8;font-weight:600;margin-bottom:6px">Connection</p>
+        <p style="font-size:11px;color:#94a3b8;margin-bottom:8px">${fromDev ? fromDev.name : '?'} ↔ ${toDev ? toDev.name : '?'}</p>
+        <label>Link Label
+          <input type="text" id="prop-conn-label" value="${conn.label || ''}" placeholder="e.g. Trunk, 1Gbps">
+        </label>
+        <label>Uplink VLAN
+          <input type="text" id="prop-conn-vlanup" value="${conn.vlanUp || ''}" placeholder="e.g. 10, 20, 100">
+        </label>
+        <label>Downlink VLAN
+          <input type="text" id="prop-conn-vlandown" value="${conn.vlanDown || ''}" placeholder="e.g. 30, 40, 200">
+        </label>
+        <button class="delete-btn" id="prop-conn-delete">Delete Connection</button>
+      `;
+      document.getElementById('prop-conn-label').addEventListener('input', e => {
+        conn.label = e.target.value;
+        draw();
+      });
+      document.getElementById('prop-conn-vlanup').addEventListener('input', e => {
+        conn.vlanUp = e.target.value;
+        draw();
+      });
+      document.getElementById('prop-conn-vlandown').addEventListener('input', e => {
+        conn.vlanDown = e.target.value;
+        draw();
+      });
+      document.getElementById('prop-conn-delete').addEventListener('click', () => {
+        connections = connections.filter(c => c !== conn);
+        selectedConnection = null;
+        updateProperties();
+        draw();
+      });
+      return;
+    }
     if (!selectedDevice) {
-      propertiesPanel.innerHTML = '<p class="hint">Select a device to edit</p>';
+      propertiesPanel.innerHTML = '<p class="hint">Select a device or link to edit</p>';
       return;
     }
     const d = selectedDevice;
@@ -267,6 +325,27 @@
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
 
+  function connectionAt(x, y) {
+    const threshold = 8;
+    for (let i = connections.length - 1; i >= 0; i--) {
+      const conn = connections[i];
+      const a = devices.find(d => d.id === conn.from);
+      const b = devices.find(d => d.id === conn.to);
+      if (!a || !b) continue;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len2 = dx * dx + dy * dy;
+      if (len2 === 0) continue;
+      let t = ((x - a.x) * dx + (y - a.y) * dy) / len2;
+      t = Math.max(0, Math.min(1, t));
+      const px = a.x + t * dx;
+      const py = a.y + t * dy;
+      const dist = Math.sqrt((x - px) * (x - px) + (y - py) * (y - py));
+      if (dist <= threshold) return conn;
+    }
+    return null;
+  }
+
   canvas.addEventListener('mousedown', e => {
     const pos = getCanvasPos(e);
     const d = deviceAt(pos.x, pos.y);
@@ -274,11 +353,19 @@
     if (mode === 'select') {
       if (d) {
         selectedDevice = d;
+        selectedConnection = null;
         draggingDevice = d;
         dragOffset = { x: pos.x - d.x, y: pos.y - d.y };
         canvas.style.cursor = 'grabbing';
       } else {
-        selectedDevice = null;
+        const conn = connectionAt(pos.x, pos.y);
+        if (conn) {
+          selectedConnection = conn;
+          selectedDevice = null;
+        } else {
+          selectedDevice = null;
+          selectedConnection = null;
+        }
       }
       updateProperties();
       draw();
@@ -292,7 +379,7 @@
             (c.from === d.id && c.to === connectStart)
           );
           if (!exists) {
-            connections.push({ from: connectStart, to: d.id, label: '' });
+            connections.push({ from: connectStart, to: d.id, label: '', vlanUp: '', vlanDown: '' });
           }
           connectStart = null;
           draw();
@@ -503,18 +590,18 @@
     const pc2 = addDevice('pc', 'User-PC1', cx - 140, cy + 220, '10.0.2.101');
     const pc3 = addDevice('pc', 'User-PC2', cx + 140, cy + 220, '10.0.3.100');
 
-    addConnection(cloud.id, fw.id, 'WAN');
-    addConnection(fw.id, r1.id, '1Gbps');
-    addConnection(r1.id, sw1.id, 'Trunk');
-    addConnection(r1.id, sw2.id, 'Trunk');
-    addConnection(r1.id, sw3.id, 'Trunk');
-    addConnection(sw1.id, ap1.id, 'PoE');
-    addConnection(sw2.id, ap2.id, 'PoE');
-    addConnection(sw3.id, s1.id, '1Gbps');
-    addConnection(sw3.id, s2.id, '1Gbps');
-    addConnection(sw1.id, pc1.id, '100Mbps');
-    addConnection(sw1.id, pc2.id, '100Mbps');
-    addConnection(sw2.id, pc3.id, '100Mbps');
+    addConnection(cloud.id, fw.id, 'WAN', '', '');
+    addConnection(fw.id, r1.id, '1Gbps', '', '');
+    addConnection(r1.id, sw1.id, 'Trunk', '10,20', '10,20');
+    addConnection(r1.id, sw2.id, 'Trunk', '30,40', '30,40');
+    addConnection(r1.id, sw3.id, 'Trunk', '50,60', '50,60');
+    addConnection(sw1.id, ap1.id, 'PoE', '', '20');
+    addConnection(sw2.id, ap2.id, 'PoE', '', '40');
+    addConnection(sw3.id, s1.id, '1Gbps', '', '50');
+    addConnection(sw3.id, s2.id, '1Gbps', '', '60');
+    addConnection(sw1.id, pc1.id, '100Mbps', '', '10');
+    addConnection(sw1.id, pc2.id, '100Mbps', '', '10');
+    addConnection(sw2.id, pc3.id, '100Mbps', '', '30');
 
     draw();
   }
@@ -525,8 +612,8 @@
     return d;
   }
 
-  function addConnection(fromId, toId, label) {
-    connections.push({ from: fromId, to: toId, label: label || '' });
+  function addConnection(fromId, toId, label, vlanUp, vlanDown) {
+    connections.push({ from: fromId, to: toId, label: label || '', vlanUp: vlanUp || '', vlanDown: vlanDown || '' });
   }
 
   // ── Real Network Scan ──
@@ -665,7 +752,7 @@
           const fromDev = devices.find(d => d.ip === conn.from);
           const toDev = devices.find(d => d.ip === conn.to);
           if (fromDev && toDev) {
-            connections.push({ from: fromDev.id, to: toDev.id, label: conn.label || '' });
+            connections.push({ from: fromDev.id, to: toDev.id, label: conn.label || '', vlanUp: conn.vlanUp || '', vlanDown: conn.vlanDown || '' });
           }
         });
       }
