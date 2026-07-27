@@ -21,14 +21,29 @@
   const DEVICE_RADIUS = 24;
 
   const DEVICE_COLORS = {
-    router:     { fill: '#3b82f6', stroke: '#1e40af', icon: 'R' },
-    switch:     { fill: '#10b981', stroke: '#047857', icon: 'S' },
-    accesspoint:{ fill: '#f59e0b', stroke: '#d97706', icon: 'AP' },
-    firewall:   { fill: '#ef4444', stroke: '#b91c1c', icon: 'FW' },
-    server:     { fill: '#8b5cf6', stroke: '#6d28d9', icon: 'SV' },
-    pc:         { fill: '#6366f1', stroke: '#4338ca', icon: 'PC' },
-    cloud:      { fill: '#06b6d4', stroke: '#0891b2', icon: '☁' },
+    router:     { fill: '#3b82f6', stroke: '#1e40af', icon: 'R', svg: 'icons/router.svg' },
+    switch:     { fill: '#10b981', stroke: '#047857', icon: 'S', svg: 'icons/switch-catalyst9000.svg' },
+    accesspoint:{ fill: '#f59e0b', stroke: '#d97706', icon: 'AP', svg: 'icons/accesspoint-cisco.svg' },
+    firewall:   { fill: '#ef4444', stroke: '#b91c1c', icon: 'FW', svg: 'icons/firewall-cisco.svg' },
+    server:     { fill: '#8b5cf6', stroke: '#6d28d9', icon: 'SV', svg: 'icons/server-cisco.svg' },
+    pc:         { fill: '#6366f1', stroke: '#4338ca', icon: 'PC', svg: 'icons/pc-cisco.svg' },
+    cloud:      { fill: '#06b6d4', stroke: '#0891b2', icon: '☁', svg: 'icons/cloud-cisco.svg' },
   };
+
+  const iconImages = {};
+  let iconsLoaded = false;
+
+  function loadIcons() {
+    const promises = Object.entries(DEVICE_COLORS).map(([type, colors]) => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { iconImages[type] = img; resolve(); };
+        img.onerror = () => resolve();
+        img.src = colors.svg;
+      });
+    });
+    Promise.all(promises).then(() => { iconsLoaded = true; draw(); });
+  }
 
   const DEVICE_NAMES = {
     router: 'Router',
