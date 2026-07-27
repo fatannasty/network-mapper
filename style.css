@@ -414,6 +414,33 @@ header h1 {
   box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
+/* ── Cable Legend ── */
+
+.cable-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.cable-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.cable-dot {
+  width: 20px;
+  height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
 /* ── Canvas Area ── */
 
 .canvas-area {
