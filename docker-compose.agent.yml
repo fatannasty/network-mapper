@@ -6,17 +6,5 @@ services:
     container_name: network-mapper-agent
     network_mode: host
     restart: unless-stopped
-    environment:
-      # Your Cat Center details
-      CAT_CENTER_URL: "https://your-catc.example.com"
-      CAT_CENTER_USER: "admin"
-      CAT_CENTER_PASS: "your-password"
-
-      # Cloudflare Worker API (pre-configured)
-      API_URL: "https://network-mapper-api.fatannasty.workers.dev"
-
-      # Rescan every 5 minutes
-      SCAN_INTERVAL: "300000"
-
-      # Location identifier
-      LOCATION_PREFIX: ""
+    env_file:
+      - .env.agent
