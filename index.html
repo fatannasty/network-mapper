@@ -62,11 +62,26 @@
       </div>
 
       <h2>Locations</h2>
-      <p class="hint">Data from scanner agents</p>
+      <p class="hint">Data from scanner agents or Cat Center</p>
       <div id="locations-panel" class="locations">
         <p class="hint">No locations yet</p>
       </div>
       <button id="btn-refresh-locations" class="mode-btn" style="width:100%;margin-top:4px">Refresh</button>
+
+      <h2>Catalyst Center</h2>
+      <div class="cat-center-config">
+        <label>URL
+          <input type="text" id="catc-url" placeholder="https://sandboxdnac.cisco.com">
+        </label>
+        <label>Username
+          <input type="text" id="catc-user" placeholder="admin">
+        </label>
+        <label>Password
+          <input type="password" id="catc-pass" placeholder="password">
+        </label>
+        <button id="btn-catc-test" class="mode-btn" style="width:100%">Test Connection</button>
+        <button id="btn-catc-scan" class="mode-btn" style="width:100%;margin-top:4px;background:#059669;border-color:#047857">Scan via Cat Center</button>
+      </div>
 
       <h2>Properties</h2>
       <div id="properties-panel" class="properties">
