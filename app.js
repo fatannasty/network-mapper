@@ -726,7 +726,11 @@
     const d = deviceAt(pos.x, pos.y);
     if (d !== hoveredDevice) {
       hoveredDevice = d;
-      canvas.style.cursor = d ? (mode === 'select' ? 'grab' : 'pointer') : 'default';
+      if (mode === 'connect') {
+        canvas.style.cursor = d ? 'pointer' : 'crosshair';
+      } else {
+        canvas.style.cursor = d ? 'grab' : 'default';
+      }
       if (d) {
         let tipText = `${d.name} (${d.ip || 'no IP'})`;
         if (d.ports && d.ports.length > 0) {
