@@ -133,10 +133,19 @@
     ctx.textBaseline = 'top';
     ctx.fillText(d.name, d.x, d.y + r + 6);
 
+    let yOffset = r + 20;
     if (d.ip) {
       ctx.fillStyle = '#64748b';
       ctx.font = '9px sans-serif';
-      ctx.fillText(d.ip, d.x, d.y + r + 20);
+      ctx.fillText(d.ip, d.x, d.y + yOffset);
+      yOffset += 12;
+    }
+
+    if (d.ports && d.ports.length > 0) {
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '8px monospace';
+      const portsStr = d.ports.join(', ');
+      ctx.fillText(portsStr, d.x, d.y + yOffset);
     }
 
     ctx.restore();
@@ -203,6 +212,9 @@
       <label>Notes
         <input type="text" id="prop-notes" value="${d.notes || ''}" placeholder="Optional notes">
       </label>
+      <label>Open Ports (comma-separated)
+        <input type="text" id="prop-ports" value="${(d.ports || []).join(', ')}" placeholder="e.g. 22, 80, 443">
+      </label>
       <button class="delete-btn" id="prop-delete">Delete Device</button>
     `;
 
@@ -220,6 +232,10 @@
     });
     document.getElementById('prop-notes').addEventListener('input', e => {
       d.notes = e.target.value;
+    });
+    document.getElementById('prop-ports').addEventListener('input', e => {
+      d.ports = e.target.value.split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+      draw();
     });
     document.getElementById('prop-delete').addEventListener('click', () => {
       deleteDevice(d.id);
@@ -304,7 +320,11 @@
       hoveredDevice = d;
       canvas.style.cursor = d ? (mode === 'select' ? 'grab' : 'pointer') : 'default';
       if (d) {
-        tooltip.textContent = `${d.name} (${d.ip || 'no IP'})`;
+        let tipText = `${d.name} (${d.ip || 'no IP'})`;
+        if (d.ports && d.ports.length > 0) {
+          tipText += ' | Ports: ' + d.ports.join(', ');
+        }
+        tooltip.textContent = tipText;
         tooltip.style.left = (pos.x + 16) + 'px';
         tooltip.style.top = (pos.y - 10) + 'px';
         tooltip.classList.remove('hidden');
@@ -383,6 +403,7 @@
       y: snapToGrid(pos.y),
       ip: '',
       notes: '',
+      ports: [],
     };
     devices.push(device);
     selectedDevice = device;
@@ -573,7 +594,8 @@
             ip: dev.ip,
             mac: dev.mac || '',
             vendor: dev.vendor || '',
-            notes: dev.openPorts ? `Ports: ${dev.openPorts.join(', ')}` : '',
+            notes: '',
+            ports: dev.openPorts || [],
           };
           devices.push(device);
           updateDeviceCount();
@@ -632,7 +654,8 @@
           ip: dev.ip,
           mac: dev.mac || '',
           vendor: dev.vendor || '',
-          notes: dev.openPorts ? `Ports: ${dev.openPorts.join(', ')}` : '',
+          notes: '',
+          ports: dev.openPorts || [],
         };
         devices.push(device);
       });
