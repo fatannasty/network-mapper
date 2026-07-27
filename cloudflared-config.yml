@@ -1,0 +1,9 @@
+tunnel: networkmapper
+credentials-file: /Users/fatannasty/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: networkmapper.5cloudmedia.com
+    service: http://localhost:7777
+    originRequest:
+      noTLSVerify: true
+  - service: http_status:404
