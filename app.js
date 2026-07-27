@@ -133,19 +133,7 @@
       ctx.setLineDash([]);
     }
 
-    ctx.beginPath();
-    ctx.arc(d.x, d.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = colors.fill;
-    ctx.fill();
-    ctx.strokeStyle = colors.stroke;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(colors.icon, d.x, d.y);
+    drawDeviceIcon(d.type, d.x, d.y, r, colors);
 
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '11px sans-serif';
@@ -166,6 +154,222 @@
       ctx.font = '8px monospace';
       const portsStr = d.ports.join(', ');
       ctx.fillText(portsStr, d.x, d.y + yOffset);
+    }
+
+    ctx.restore();
+  }
+
+  function drawDeviceIcon(type, x, y, r, colors) {
+    ctx.save();
+    const s = r / 24;
+
+    switch (type) {
+      case 'router':
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = colors.fill;
+        ctx.fill();
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x - r * 0.35, y);
+        ctx.lineTo(x + r * 0.35, y);
+        ctx.moveTo(x, y - r * 0.35);
+        ctx.lineTo(x, y + r * 0.35);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        const arrowLen = r * 0.22;
+        [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dx, dy]) => {
+          const ax = x + dx * r * 0.55;
+          const ay = y + dy * r * 0.55;
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(ax + dx * arrowLen, ay + dy * arrowLen);
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+        break;
+
+      case 'switch':
+        ctx.beginPath();
+        const swW = r * 1.6;
+        const swH = r * 0.9;
+        ctx.roundRect(x - swW / 2, y - swH / 2, swW, swH, 4);
+        ctx.fillStyle = colors.fill;
+        ctx.fill();
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        const portCount = 6;
+        const portSpacing = (swW - 8) / portCount;
+        const portW = portSpacing * 0.5;
+        const portH = swH * 0.35;
+        for (let i = 0; i < portCount; i++) {
+          const px = x - swW / 2 + 4 + portSpacing * i + (portSpacing - portW) / 2;
+          const py = y - portH / 2;
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(px, py, portW, portH);
+        }
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(x - swW / 2 + 6, y + swH / 2 - 4, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#4ade80';
+        ctx.beginPath();
+        ctx.arc(x - swW / 2 + 12, y + swH / 2 - 4, 2, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      case 'accesspoint':
+        ctx.beginPath();
+        ctx.arc(x, y + r * 0.2, r * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = colors.fill;
+        ctx.fill();
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(x, y + r * 0.2, r * 0.15, 0, Math.PI * 2);
+        ctx.fill();
+        [0.35, 0.55, 0.75].forEach(scale => {
+          ctx.beginPath();
+          ctx.arc(x, y + r * 0.2, r * scale, -Math.PI * 0.8, -Math.PI * 0.2);
+          ctx.strokeStyle = colors.fill;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+        ctx.beginPath();
+        ctx.moveTo(x, y + r * 0.2);
+        ctx.lineTo(x, y - r * 0.5);
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        break;
+
+      case 'firewall':
+        ctx.beginPath();
+        const fwW = r * 1.4;
+        const fwH = r * 1.6;
+        ctx.roundRect(x - fwW / 2, y - fwH / 2, fwW, fwH, 3);
+        ctx.fillStyle = colors.fill;
+        ctx.fill();
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        const brickH = fwH / 4;
+        for (let row = 0; row < 4; row++) {
+          const by = y - fwH / 2 + row * brickH + 2;
+          const offset = row % 2 === 0 ? 0 : fwW * 0.25;
+          for (let col = 0; col < 2; col++) {
+            const bx = x - fwW / 2 + 2 + col * fwW * 0.5 + offset;
+            const bw = fwW * 0.5 - 4;
+            ctx.fillRect(bx, by + 1, bw, brickH - 3);
+          }
+        }
+        ctx.fillStyle = colors.fill;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y - r * 0.15);
+        ctx.lineTo(x, y + r * 0.15);
+        ctx.moveTo(x - r * 0.12, y + r * 0.05);
+        ctx.lineTo(x + r * 0.12, y + r * 0.05);
+        ctx.stroke();
+        break;
+
+      case 'server':
+        const rackH = r * 1.6;
+        const rackW = r * 1.2;
+        const unitH = rackH / 3;
+        for (let i = 0; i < 3; i++) {
+          const uy = y - rackH / 2 + i * unitH + 1;
+          ctx.beginPath();
+          ctx.roundRect(x - rackW / 2, uy, rackW, unitH - 2, 2);
+          ctx.fillStyle = i === 0 ? colors.fill : (i === 1 ? colors.fill : colors.fill);
+          ctx.fill();
+          ctx.strokeStyle = colors.stroke;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(x - rackW / 2 + 6, uy + (unitH - 2) / 2, 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#4ade80';
+          ctx.beginPath();
+          ctx.arc(x - rackW / 2 + 12, uy + (unitH - 2) / 2, 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(x - rackW / 2 + 18, uy + 3, rackW * 0.4, 2);
+          ctx.fillRect(x - rackW / 2 + 18, uy + (unitH - 2) / 2 + 2, rackW * 0.3, 2);
+        }
+        break;
+
+      case 'pc':
+        const monW = r * 1.6;
+        const monH = r * 1.1;
+        ctx.beginPath();
+        ctx.roundRect(x - monW / 2, y - monH / 2 - r * 0.15, monW, monH, 3);
+        ctx.fillStyle = '#1e293b';
+        ctx.fill();
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.roundRect(x - monW / 2 + 3, y - monH / 2 - r * 0.15 + 3, monW - 6, monH - 6, 2);
+        ctx.fillStyle = colors.fill;
+        ctx.globalAlpha = 0.3;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = colors.fill;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x - r * 0.25, y + monH / 2 - r * 0.15);
+        ctx.lineTo(x + r * 0.25, y + monH / 2 - r * 0.15);
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.roundRect(x - r * 0.4, y + monH / 2 - r * 0.05, r * 0.8, r * 0.15, 2);
+        ctx.fillStyle = colors.fill;
+        ctx.fill();
+        break;
+
+      case 'cloud':
+        ctx.beginPath();
+        ctx.arc(x - r * 0.3, y + r * 0.1, r * 0.5, Math.PI, 0);
+        ctx.arc(x + r * 0.15, y - r * 0.1, r * 0.6, Math.PI * 1.2, Math.PI * 0.1);
+        ctx.arc(x + r * 0.45, y + r * 0.1, r * 0.4, Math.PI * 1.5, Math.PI * 0.4);
+        ctx.arc(x - r * 0.1, y + r * 0.35, r * 0.55, Math.PI * 1.8, Math.PI * 0.8);
+        ctx.closePath();
+        ctx.fillStyle = colors.fill;
+        ctx.fill();
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        break;
+
+      default:
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = colors.fill;
+        ctx.fill();
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
     }
 
     ctx.restore();
