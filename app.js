@@ -176,6 +176,15 @@
 
   function drawDeviceIcon(type, x, y, r, colors) {
     ctx.save();
+
+    if (iconsLoaded && iconImages[type]) {
+      const img = iconImages[type];
+      const size = r * 2.2;
+      ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+      ctx.restore();
+      return;
+    }
+
     const s = r / 24;
 
     switch (type) {
