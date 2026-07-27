@@ -1020,6 +1020,13 @@
     cidrContainer.classList.toggle('hidden');
   });
 
+  cidrInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      cidrContainer.classList.add('hidden');
+      realScan();
+    }
+  });
+
   const origDraw = draw;
   draw = function() {
     origDraw();
