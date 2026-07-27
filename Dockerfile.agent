@@ -1,0 +1,14 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY catalyst-agent.js .
+COPY catalyst-package.json ./package.json
+
+ENV CAT_CENTER_URL=""
+ENV CAT_CENTER_USER=""
+ENV CAT_CENTER_PASS=""
+ENV API_URL="https://network-mapper-api.fatannasty.workers.dev"
+ENV SCAN_INTERVAL=300000
+
+CMD ["node", "catalyst-agent.js"]
