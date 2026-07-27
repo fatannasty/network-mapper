@@ -647,7 +647,7 @@
   }
 
   function connectionAt(x, y) {
-    const threshold = 8;
+    const threshold = 15;
     for (let i = connections.length - 1; i >= 0; i--) {
       const conn = connections[i];
       const a = devices.find(d => d.id === conn.from);
