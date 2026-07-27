@@ -1254,6 +1254,8 @@
 
   connectWebSocket();
 
+  loadIcons();
+
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
 })();
