@@ -23,8 +23,10 @@ app.get('/api/info', (req, res) => {
 
 app.post('/api/scan', async (req, res) => {
   try {
-    console.log('Starting network scan...');
+    const cidr = req.body.cidr || null;
+    console.log(`Starting network scan${cidr ? ' for ' + cidr : ''}...`);
     const result = await scanner.discoverNetwork({
+      cidr,
       onDeviceFound: (device) => {
         broadcast({ type: 'device-found', device });
       }
