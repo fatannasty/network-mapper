@@ -344,3 +344,17 @@ header h1 {
   outline: none;
   border-color: #38bdf8;
 }
+
+.cidr-input select {
+  background: #0f172a;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: #e2e8f0;
+  font-size: 12px;
+}
+
+.cidr-input select:focus {
+  outline: none;
+  border-color: #38bdf8;
+}
