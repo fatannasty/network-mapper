@@ -716,14 +716,22 @@
             (c.from === d.id && c.to === connectStart)
           );
           if (!exists) {
-            connections.push({ from: connectStart, to: d.id, label: '', vlanUp: '', vlanDown: '' });
+            connections.push({ from: connectStart, to: d.id, label: '', vlanUp: '', vlanDown: '', cableType: 'unknown', portA: '', portB: '' });
           }
           connectStart = null;
           draw();
         }
       } else {
-        connectStart = null;
-        draw();
+        const conn = connectionAt(pos.x, pos.y);
+        if (conn) {
+          selectedConnection = conn;
+          selectedDevice = null;
+          updateProperties();
+          draw();
+        } else {
+          connectStart = null;
+          draw();
+        }
       }
     }
   });
