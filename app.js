@@ -918,7 +918,24 @@
     }
 
     const cidrInput = document.getElementById('cidr-input');
-    const cidr = cidrInput.value.trim() || null;
+    const interfaceSelect = document.getElementById('interface-select');
+    let cidr = cidrInput.value.trim() || null;
+    const selectedIface = interfaceSelect.value;
+
+    if (selectedIface && !cidr) {
+      try {
+        const infoRes = await fetch('/api/info');
+        const info = await infoRes.json();
+        const iface = info.interfaces.find(i => i.name === selectedIface);
+        if (iface) {
+          const ipParts = iface.address.split('.').map(Number);
+          const maskParts = iface.netmask.split('.').map(Number);
+          const networkParts = ipParts.map((p, i) => p & maskParts[i]);
+          const hostBits = maskParts.map(m => (m >>> 0).toString(2).split('1').length - 1).reduce((a, b) => a + (8 - b), 0);
+          cidr = `${networkParts.join('.')}/${32 - hostBits}`;
+        }
+      } catch (e) {}
+    }
 
     if (devices.length > 0 && !confirm('This will replace current topology. Continue?')) return;
 
