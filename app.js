@@ -917,6 +917,9 @@
       return;
     }
 
+    const cidrInput = document.getElementById('cidr-input');
+    const cidr = cidrInput.value.trim() || null;
+
     if (devices.length > 0 && !confirm('This will replace current topology. Continue?')) return;
 
     scanRunning = true;
@@ -931,7 +934,11 @@
     document.getElementById('btn-scan-real').textContent = 'Scanning...';
 
     try {
-      const res = await fetch('/api/scan', { method: 'POST' });
+      const res = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cidr })
+      });
       const data = await res.json();
 
       if (data.error) {
