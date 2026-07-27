@@ -1,0 +1,513 @@
+(() => {
+  const canvas = document.getElementById('topology-canvas');
+  const ctx = canvas.getContext('2d');
+  const tooltip = document.getElementById('tooltip');
+  const propertiesPanel = document.getElementById('properties-panel');
+  const fileInput = document.getElementById('file-input');
+
+  let devices = [];
+  let connections = [];
+  let mode = 'select';
+  let selectedDevice = null;
+  let draggingDevice = null;
+  let dragOffset = { x: 0, y: 0 };
+  let connectStart = null;
+  let mousePos = { x: 0, y: 0 };
+  let hoveredDevice = null;
+  let nextId = 1;
+
+  const GRID_SIZE = 20;
+  const DEVICE_RADIUS = 24;
+
+  const DEVICE_COLORS = {
+    router:     { fill: '#3b82f6', stroke: '#1e40af', icon: 'R' },
+    switch:     { fill: '#10b981', stroke: '#047857', icon: 'S' },
+    accesspoint:{ fill: '#f59e0b', stroke: '#d97706', icon: 'AP' },
+    firewall:   { fill: '#ef4444', stroke: '#b91c1c', icon: 'FW' },
+    server:     { fill: '#8b5cf6', stroke: '#6d28d9', icon: 'SV' },
+    pc:         { fill: '#6366f1', stroke: '#4338ca', icon: 'PC' },
+    cloud:      { fill: '#06b6d4', stroke: '#0891b2', icon: '☁' },
+  };
+
+  const DEVICE_NAMES = {
+    router: 'Router',
+    switch: 'Switch',
+    accesspoint: 'Access Point',
+    firewall: 'Firewall',
+    server: 'Server',
+    pc: 'PC',
+    cloud: 'Cloud',
+  };
+
+  function resizeCanvas() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    draw();
+  }
+
+  function snapToGrid(v) {
+    return Math.round(v / GRID_SIZE) * GRID_SIZE;
+  }
+
+  function drawGrid() {
+    const w = canvas.width / devicePixelRatio;
+    const h = canvas.height / devicePixelRatio;
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x <= w; x += GRID_SIZE) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= h; y += GRID_SIZE) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+  }
+
+  function drawConnections() {
+    connections.forEach(conn => {
+      const a = devices.find(d => d.id === conn.from);
+      const b = devices.find(d => d.id === conn.to);
+      if (!a || !b) return;
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      if (conn.label) ctx.fillText(conn.label, mx, my - 8);
+    });
+  }
+
+  function drawDevice(d) {
+    const colors = DEVICE_COLORS[d.type] || DEVICE_COLORS.pc;
+    const r = DEVICE_RADIUS;
+    const isSelected = selectedDevice && selectedDevice.id === d.id;
+    const isHovered = hoveredDevice && hoveredDevice.id === d.id;
+
+    ctx.save();
+
+    if (isSelected || isHovered) {
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, r + 6, 0, Math.PI * 2);
+      ctx.strokeStyle = isSelected ? '#38bdf8' : '#64748b';
+      ctx.lineWidth = 2;
+      ctx.setLineDash(isSelected ? [] : [4, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = colors.fill;
+    ctx.fill();
+    ctx.strokeStyle = colors.stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(colors.icon, d.x, d.y);
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(d.name, d.x, d.y + r + 6);
+
+    if (d.ip) {
+      ctx.fillStyle = '#64748b';
+      ctx.font = '9px sans-serif';
+      ctx.fillText(d.ip, d.x, d.y + r + 20);
+    }
+
+    ctx.restore();
+  }
+
+  function draw() {
+    const w = canvas.width / devicePixelRatio;
+    const h = canvas.height / devicePixelRatio;
+    ctx.clearRect(0, 0, w, h);
+    drawGrid();
+    drawConnections();
+
+    if (connectStart && mode === 'connect') {
+      const a = devices.find(d => d.id === connectStart);
+      if (a) {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(mousePos.x, mousePos.y);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    devices.forEach(d => drawDevice(d));
+  }
+
+  function deviceAt(x, y) {
+    for (let i = devices.length - 1; i >= 0; i--) {
+      const d = devices[i];
+      const dx = d.x - x;
+      const dy = d.y - y;
+      if (dx * dx + dy * dy <= DEVICE_RADIUS * DEVICE_RADIUS) return d;
+    }
+    return null;
+  }
+
+  function findDeviceById(id) {
+    return devices.find(d => d.id === id);
+  }
+
+  function updateProperties() {
+    if (!selectedDevice) {
+      propertiesPanel.innerHTML = '<p class="hint">Select a device to edit</p>';
+      return;
+    }
+    const d = selectedDevice;
+    propertiesPanel.innerHTML = `
+      <label>Name
+        <input type="text" id="prop-name" value="${d.name}">
+      </label>
+      <label>IP Address
+        <input type="text" id="prop-ip" value="${d.ip || ''}" placeholder="e.g. 192.168.1.1">
+      </label>
+      <label>Type
+        <select id="prop-type">
+          ${Object.keys(DEVICE_COLORS).map(t =>
+            `<option value="${t}" ${t === d.type ? 'selected' : ''}>${DEVICE_NAMES[t]}</option>`
+          ).join('')}
+        </select>
+      </label>
+      <label>Notes
+        <input type="text" id="prop-notes" value="${d.notes || ''}" placeholder="Optional notes">
+      </label>
+      <button class="delete-btn" id="prop-delete">Delete Device</button>
+    `;
+
+    document.getElementById('prop-name').addEventListener('input', e => {
+      d.name = e.target.value;
+      draw();
+    });
+    document.getElementById('prop-ip').addEventListener('input', e => {
+      d.ip = e.target.value;
+      draw();
+    });
+    document.getElementById('prop-type').addEventListener('change', e => {
+      d.type = e.target.value;
+      draw();
+    });
+    document.getElementById('prop-notes').addEventListener('input', e => {
+      d.notes = e.target.value;
+    });
+    document.getElementById('prop-delete').addEventListener('click', () => {
+      deleteDevice(d.id);
+    });
+  }
+
+  function deleteDevice(id) {
+    devices = devices.filter(d => d.id !== id);
+    connections = connections.filter(c => c.from !== id && c.to !== id);
+    if (selectedDevice && selectedDevice.id === id) selectedDevice = null;
+    updateProperties();
+    draw();
+  }
+
+  function setMode(newMode) {
+    mode = newMode;
+    document.getElementById('btn-mode-select').classList.toggle('active', mode === 'select');
+    document.getElementById('btn-mode-connect').classList.toggle('active', mode === 'connect');
+    canvas.classList.toggle('mode-connect', mode === 'connect');
+    connectStart = null;
+    draw();
+  }
+
+  document.getElementById('btn-mode-select').addEventListener('click', () => setMode('select'));
+  document.getElementById('btn-mode-connect').addEventListener('click', () => setMode('connect'));
+
+  function getCanvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    const pos = getCanvasPos(e);
+    const d = deviceAt(pos.x, pos.y);
+
+    if (mode === 'select') {
+      if (d) {
+        selectedDevice = d;
+        draggingDevice = d;
+        dragOffset = { x: pos.x - d.x, y: pos.y - d.y };
+        canvas.style.cursor = 'grabbing';
+      } else {
+        selectedDevice = null;
+      }
+      updateProperties();
+      draw();
+    } else if (mode === 'connect') {
+      if (d) {
+        if (!connectStart) {
+          connectStart = d.id;
+        } else if (connectStart !== d.id) {
+          const exists = connections.some(c =>
+            (c.from === connectStart && c.to === d.id) ||
+            (c.from === d.id && c.to === connectStart)
+          );
+          if (!exists) {
+            connections.push({ from: connectStart, to: d.id, label: '' });
+          }
+          connectStart = null;
+          draw();
+        }
+      } else {
+        connectStart = null;
+        draw();
+      }
+    }
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const pos = getCanvasPos(e);
+    mousePos = pos;
+
+    if (draggingDevice) {
+      draggingDevice.x = snapToGrid(pos.x - dragOffset.x);
+      draggingDevice.y = snapToGrid(pos.y - dragOffset.y);
+      draw();
+      return;
+    }
+
+    const d = deviceAt(pos.x, pos.y);
+    if (d !== hoveredDevice) {
+      hoveredDevice = d;
+      canvas.style.cursor = d ? (mode === 'select' ? 'grab' : 'pointer') : 'default';
+      if (d) {
+        tooltip.textContent = `${d.name} (${d.ip || 'no IP'})`;
+        tooltip.style.left = (pos.x + 16) + 'px';
+        tooltip.style.top = (pos.y - 10) + 'px';
+        tooltip.classList.remove('hidden');
+      } else {
+        tooltip.classList.add('hidden');
+      }
+      draw();
+    } else if (d) {
+      tooltip.style.left = (pos.x + 16) + 'px';
+      tooltip.style.top = (pos.y - 10) + 'px';
+    }
+
+    if (mode === 'connect' && connectStart) draw();
+  });
+
+  canvas.addEventListener('mouseup', () => {
+    draggingDevice = null;
+    canvas.style.cursor = mode === 'select' ? 'default' : 'crosshair';
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    draggingDevice = null;
+    hoveredDevice = null;
+    tooltip.classList.add('hidden');
+    draw();
+  });
+
+  canvas.addEventListener('dblclick', e => {
+    const pos = getCanvasPos(e);
+    const d = deviceAt(pos.x, pos.y);
+    if (d) {
+      const newName = prompt('Device name:', d.name);
+      if (newName !== null && newName.trim()) {
+        d.name = newName.trim();
+        updateProperties();
+        draw();
+      }
+    }
+  });
+
+  canvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const pos = getCanvasPos(e);
+    const d = deviceAt(pos.x, pos.y);
+    if (d) {
+      if (confirm(`Delete "${d.name}"?`)) {
+        deleteDevice(d.id);
+      }
+    }
+  });
+
+  const templates = document.querySelectorAll('.device-template');
+  templates.forEach(tpl => {
+    tpl.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', tpl.dataset.type);
+    });
+  });
+
+  canvas.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+
+  canvas.addEventListener('drop', e => {
+    e.preventDefault();
+    const type = e.dataTransfer.getData('text/plain');
+    if (!type || !DEVICE_COLORS[type]) return;
+
+    const pos = getCanvasPos(e);
+    const count = devices.filter(d => d.type === type).length + 1;
+    const device = {
+      id: nextId++,
+      type,
+      name: `${DEVICE_NAMES[type]} ${count}`,
+      x: snapToGrid(pos.x),
+      y: snapToGrid(pos.y),
+      ip: '',
+      notes: '',
+    };
+    devices.push(device);
+    selectedDevice = device;
+    updateProperties();
+    draw();
+  });
+
+  document.getElementById('btn-save').addEventListener('click', () => {
+    const data = JSON.stringify({ devices, connections, nextId }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'network-topology.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  document.getElementById('btn-load').addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        devices = data.devices || [];
+        connections = data.connections || [];
+        nextId = data.nextId || devices.length + 1;
+        selectedDevice = null;
+        updateProperties();
+        draw();
+      } catch (err) {
+        alert('Invalid topology file.');
+      }
+    };
+    reader.readAsText(file);
+    fileInput.value = '';
+  });
+
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    if (devices.length === 0 || confirm('Clear all devices and connections?')) {
+      devices = [];
+      connections = [];
+      selectedDevice = null;
+      nextId = 1;
+      updateProperties();
+      draw();
+    }
+  });
+
+  document.getElementById('btn-auto-layout').addEventListener('click', autoLayout);
+
+  function autoLayout() {
+    if (devices.length === 0) return;
+    const w = canvas.width / devicePixelRatio;
+    const h = canvas.height / devicePixelRatio;
+    const cx = w / 2;
+    const cy = h / 2;
+    const r = Math.min(w, h) * 0.35;
+
+    devices.forEach((d, i) => {
+      const angle = (2 * Math.PI * i) / devices.length - Math.PI / 2;
+      d.x = snapToGrid(cx + r * Math.cos(angle));
+      d.y = snapToGrid(cy + r * Math.sin(angle));
+    });
+    draw();
+  }
+
+  document.getElementById('btn-discover').addEventListener('click', simulateDiscovery);
+
+  function simulateDiscovery() {
+    if (devices.length > 0 && !confirm('This will replace current topology. Continue?')) return;
+
+    devices = [];
+    connections = [];
+    nextId = 1;
+
+    const w = canvas.width / devicePixelRatio;
+    const h = canvas.height / devicePixelRatio;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    const cloud = addDevice('cloud', 'Internet', cx, cy - 220, '0.0.0.0');
+    const fw = addDevice('firewall', 'Firewall-1', cx, cy - 140, '10.0.0.1');
+    const r1 = addDevice('router', 'Core-Router', cx, cy - 60, '10.0.1.1');
+    const sw1 = addDevice('switch', 'Floor1-Switch', cx - 140, cy + 40, '10.0.2.1');
+    const sw2 = addDevice('switch', 'Floor2-Switch', cx + 140, cy + 40, '10.0.3.1');
+    const sw3 = addDevice('switch', 'Server-Switch', cx, cy + 40, '10.0.4.1');
+    const ap1 = addDevice('accesspoint', 'AP-Floor1', cx - 220, cy + 140, '10.0.2.10');
+    const ap2 = addDevice('accesspoint', 'AP-Floor2', cx + 220, cy + 140, '10.0.3.10');
+    const s1 = addDevice('server', 'Web-Server', cx - 60, cy + 140, '10.0.4.10');
+    const s2 = addDevice('server', 'DB-Server', cx + 60, cy + 140, '10.0.4.11');
+    const pc1 = addDevice('pc', 'Admin-PC', cx - 220, cy + 220, '10.0.2.100');
+    const pc2 = addDevice('pc', 'User-PC1', cx - 140, cy + 220, '10.0.2.101');
+    const pc3 = addDevice('pc', 'User-PC2', cx + 140, cy + 220, '10.0.3.100');
+
+    addConnection(cloud.id, fw.id, 'WAN');
+    addConnection(fw.id, r1.id, '1Gbps');
+    addConnection(r1.id, sw1.id, 'Trunk');
+    addConnection(r1.id, sw2.id, 'Trunk');
+    addConnection(r1.id, sw3.id, 'Trunk');
+    addConnection(sw1.id, ap1.id, 'PoE');
+    addConnection(sw2.id, ap2.id, 'PoE');
+    addConnection(sw3.id, s1.id, '1Gbps');
+    addConnection(sw3.id, s2.id, '1Gbps');
+    addConnection(sw1.id, pc1.id, '100Mbps');
+    addConnection(sw1.id, pc2.id, '100Mbps');
+    addConnection(sw2.id, pc3.id, '100Mbps');
+
+    draw();
+  }
+
+  function addDevice(type, name, x, y, ip) {
+    const d = { id: nextId++, type, name, x: snapToGrid(x), y: snapToGrid(y), ip, notes: '' };
+    devices.push(d);
+    return d;
+  }
+
+  function addConnection(fromId, toId, label) {
+    connections.push({ from: fromId, to: toId, label: label || '' });
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+})();
