@@ -1011,6 +1011,14 @@
     if (!cidrContainer.classList.contains('hidden')) {
       fetch('/api/info').then(r => r.json()).then(info => {
         if (!cidrInput.value) cidrInput.placeholder = info.suggestedCIDR || 'e.g. 192.168.0.0/24';
+        const sel = document.getElementById('interface-select');
+        sel.innerHTML = '<option value="">Auto-detect</option>';
+        info.interfaces.forEach(iface => {
+          const opt = document.createElement('option');
+          opt.value = iface.name;
+          opt.textContent = `${iface.name}: ${iface.address}/${iface.netmask}`;
+          sel.appendChild(opt);
+        });
       });
     }
   });
