@@ -57,11 +57,13 @@
 
   const DEVICE_NAMES = {
     router: 'Router',
+    'core-switch': 'Core Switch',
+    'access-switch': 'Access Switch',
     switch: 'Switch',
     accesspoint: 'Access Point',
     firewall: 'Firewall',
     server: 'Server',
-    pc: 'PC',
+    pc: 'Workstation',
     cloud: 'Cloud',
   };
 
