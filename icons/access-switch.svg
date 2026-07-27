@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Cisco Access Switch Icon - 1U rack mount -->
+  <rect x="8" y="28" width="104" height="52" rx="4" fill="#1a1a2e" stroke="#22d3ee" stroke-width="2.5"/>
+  <!-- Port bank 1 -->
+  <rect x="14" y="34" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="24" y="34" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="34" y="34" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="44" y="34" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="54" y="34" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="64" y="34" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="74" y="34" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="84" y="34" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="94" y="34" width="8" height="10" rx="1" fill="#0ea5e9"/>
+  <rect x="104" y="34" width="4" height="10" rx="1" fill="#0ea5e9"/>
+  <!-- Port bank 2 -->
+  <rect x="14" y="48" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="24" y="48" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="34" y="48" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="44" y="48" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="54" y="48" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="64" y="48" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="74" y="48" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="84" y="48" width="8" height="10" rx="1" fill="#22d3ee" opacity="0.8"/>
+  <rect x="94" y="48" width="8" height="10" rx="1" fill="#0ea5e9"/>
+  <rect x="104" y="48" width="4" height="10" rx="1" fill="#0ea5e9"/>
+  <!-- Divider -->
+  <line x1="12" y1="62" x2="108" y2="62" stroke="#22d3ee" stroke-width="0.5" opacity="0.5"/>
+  <!-- Status section -->
+  <circle cx="18" cy="70" r="2" fill="#22c55e"/>
+  <circle cx="26" cy="70" r="2" fill="#22c55e"/>
+  <circle cx="34" cy="70" r="2" fill="#f59e0b"/>
+  <text x="70" y="72" font-family="Arial" font-size="5" fill="#22d3ee" text-anchor="middle">24-PORT GIGE</text>
+  <!-- Uplink ports -->
+  <rect x="88" y="66" width="12" height="8" rx="1" fill="#0ea5e9"/>
+  <rect x="102" y="66" width="6" height="8" rx="1" fill="#a855f7"/>
+  <text x="94" y="72" font-family="Arial" font-size="4" fill="#fff" text-anchor="middle">TE</text>
+  <text x="105" y="72" font-family="Arial" font-size="4" fill="#fff" text-anchor="middle">SFP</text>
+  <!-- Label -->
+  <text x="60" y="100" font-family="Arial" font-size="7" fill="#22d3ee" text-anchor="middle" font-weight="bold">ACCESS SWITCH</text>
+</svg>
