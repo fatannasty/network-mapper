@@ -1,0 +1,11 @@
+{
+  "name": "network-mapper-catalyst",
+  "version": "1.0.0",
+  "description": "Cisco Catalyst Center integration for Network Topology Mapper",
+  "main": "catalyst-agent.js",
+  "scripts": {
+    "start": "node catalyst-agent.js",
+    "test-connection": "node catalyst-agent.js --test"
+  },
+  "dependencies": {}
+}
