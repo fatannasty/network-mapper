@@ -91,9 +91,9 @@ function scanArpTable() {
 function pingHost(ip) {
   return new Promise(resolve => {
     const cmd = process.platform === 'win32'
-      ? `ping -n 1 -w ${PING_TIMEOUT} ${ip}`
-      : `ping -c 1 -W 2000 ${ip}`;
-    exec(cmd, { timeout: 5000 }, (err) => {
+      ? `ping -n 1 -w 1000 ${ip}`
+      : `ping -c 1 -W 1000 ${ip}`;
+    exec(cmd, { timeout: 2000 }, (err) => {
       resolve(!err);
     });
   });
