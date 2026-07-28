@@ -1157,9 +1157,11 @@
   document.getElementById('btn-template').addEventListener('click', () => {
     const btn = document.getElementById('btn-template');
     const settings = document.getElementById('template-settings');
+    const area = canvas.closest('.canvas-area');
     templateActive = !templateActive;
     btn.classList.toggle('active');
     settings.classList.toggle('hidden');
+    if (area) area.classList.toggle('show-template');
     if (!templateSvgString) loadTemplateSVG();
     draw();
   });
