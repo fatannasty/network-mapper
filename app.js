@@ -298,6 +298,17 @@
         const img = modelIcons[modelInfo.svg];
         const isPng = modelInfo.svg.endsWith('.png');
         const size = isPng ? r * 2.8 : r * 2.2;
+
+        if (isPng) {
+          ctx.fillStyle = '#0a0a0f';
+          ctx.beginPath();
+          ctx.roundRect(x - size / 2 - 4, y - size / 2 - 4, size + 8, size + 8, 4);
+          ctx.fill();
+          ctx.strokeStyle = colors.stroke;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
