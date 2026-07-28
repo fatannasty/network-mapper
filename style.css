@@ -340,6 +340,13 @@ header h1 {
   box-shadow: 0 1px 4px rgba(37, 99, 235, 0.3);
 }
 
+.device-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
 /* ── Mode Buttons ── */
 
 .mode-buttons {
