@@ -1669,7 +1669,8 @@
       if (data.success) {
         btn.textContent = `Done: ${data.locationCount} locations`;
         btn.style.background = '#059669';
-        refreshLocations();
+        await refreshLocations();
+        enableTemplate();
       } else {
         btn.textContent = `Error: ${data.error}`;
         btn.style.background = '#991b1b';
