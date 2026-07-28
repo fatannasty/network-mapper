@@ -880,13 +880,6 @@
 			</switch>
 			<rect v:rectContext="foreign" x="0" y="580.95" width="58.5" height="31.0503" class="st2"/>
 		</g>
-		<g id="shape22-63" v:mID="22" v:groupContext="shape" transform="translate(624.875,-90.5215)">
-			<title>Sheet.22</title>
-			<desc>Site ID: amtrdermi04s</desc>
-			<v:textBlock v:margins="rect(4,4,4,4)"/>
-			<v:textRect cx="76" cy="602" width="152" height="20"/>
-			<rect x="0" y="592" width="152" height="20" class="st2"/>
-			<text x="14.22" y="598.4" class="st13" v:langID="1033"><v:paragraph v:horizAlign="1"/><v:tabList/>Site ID: <tspan
-						class="st14">AMTRDERMI04S</tspan><v:newlineChar/></text>		</g>
+		
 	</g>
 </svg>
