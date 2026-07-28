@@ -668,7 +668,7 @@
       const toDev = devices.find(d => d.id === conn.to);
       propertiesPanel.innerHTML = `
         <p style="color:#38bdf8;font-weight:600;margin-bottom:6px">Connection</p>
-        <p style="font-size:11px;color:#94a3b8;margin-bottom:8px">${fromDev ? fromDev.name : '?'} ↔ ${toDev ? toDev.name : '?'}</p>
+        <p style="font-size:13px;color:#4b5563;font-weight:500;margin-bottom:8px">${fromDev ? fromDev.name : '?'} ↔ ${toDev ? toDev.name : '?'}</p>
         <label>Link Label
           <input type="text" id="prop-conn-label" value="${conn.label || ''}" placeholder="e.g. Trunk, 1Gbps">
         </label>
