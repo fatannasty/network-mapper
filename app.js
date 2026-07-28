@@ -1726,6 +1726,125 @@
     setTimeout(() => { btn.textContent = 'Scan via SSH'; btn.style.background = '#059669'; }, 5000);
   });
 
+  // ── Subnet Scan ──
+
+  document.getElementById('btn-subnet-scan').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-subnet-scan');
+    const cidr = document.getElementById('subnet-cidr').value.trim();
+    const iface = document.getElementById('subnet-interface').value;
+
+    if (!cidr) {
+      alert('Please enter a subnet in CIDR notation (e.g. 192.168.1.0/24)');
+      return;
+    }
+
+    if (devices.length > 0 && !confirm('This will replace current topology. Continue?')) return;
+
+    if (scanRunning) return;
+
+    try {
+      const testRes = await fetch('/api/info', { signal: AbortSignal.timeout(3000) });
+      if (!testRes.ok) throw new Error('Backend not available');
+    } catch (e) {
+      alert('Backend server not available.\n\nTo scan your network, run:\n  npm start\n\nThen open http://localhost:7777');
+      return;
+    }
+
+    scanRunning = true;
+    devices = [];
+    connections = [];
+    nextId = 1;
+    updateDeviceCount();
+    draw();
+
+    btn.textContent = 'Scanning...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cidr, interface: iface || undefined })
+      });
+      const data = await res.json();
+
+      if (data.error) {
+        alert('Scan error: ' + data.error);
+        return;
+      }
+
+      devices = [];
+      connections = [];
+      nextId = 1;
+
+      const canvasW = canvas.width / devicePixelRatio;
+      const canvasH = canvas.height / devicePixelRatio;
+      const cx = canvasW / 2;
+      const cy = canvasH / 2;
+      const radius = Math.min(canvasW, canvasH) * 0.35;
+      const total = data.devices.length;
+
+      data.devices.forEach((dev, i) => {
+        const angle = (2 * Math.PI * i) / total - Math.PI / 2;
+        const device = {
+          id: nextId++,
+          type: dev.type || 'pc',
+          name: dev.hostname || `${dev.type}-${i + 1}`,
+          x: snapToGrid(cx + radius * Math.cos(angle)),
+          y: snapToGrid(cy + radius * Math.sin(angle)),
+          ip: dev.ip,
+          mac: dev.mac || '',
+          vendor: dev.vendor || '',
+          notes: '',
+          ports: dev.openPorts || [],
+        };
+        devices.push(device);
+      });
+
+      if (data.connections) {
+        data.connections.forEach(conn => {
+          const fromDev = devices.find(d => d.ip === conn.from);
+          const toDev = devices.find(d => d.ip === conn.to);
+          if (fromDev && toDev) {
+            connections.push({ from: fromDev.id, to: toDev.id, label: conn.label || '', vlanUp: conn.vlanUp || '', vlanDown: conn.vlanDown || '' });
+          }
+        });
+      }
+
+      btn.textContent = `Found ${devices.length} devices`;
+      btn.style.background = '#059669';
+      updateDeviceCount();
+      draw();
+      autoLayout();
+      enableTemplate();
+
+    } catch (err) {
+      btn.textContent = 'Scan failed';
+      btn.style.background = '#991b1b';
+    } finally {
+      scanRunning = false;
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = 'Scan Subnet'; btn.style.background = ''; }, 3000);
+    }
+  });
+
+  document.getElementById('subnet-cidr')?.addEventListener('focus', async () => {
+    try {
+      const res = await fetch('/api/info');
+      const info = await res.json();
+      const sel = document.getElementById('subnet-interface');
+      sel.innerHTML = '<option value="">Auto-detect</option>';
+      info.interfaces.forEach(iface => {
+        const opt = document.createElement('option');
+        opt.value = iface.name;
+        opt.textContent = `${iface.name}: ${iface.address}/${iface.netmask}`;
+        sel.appendChild(opt);
+      });
+      const input = document.getElementById('subnet-cidr');
+      if (!input.value && info.suggestedCIDR) input.placeholder = info.suggestedCIDR;
+    } catch (e) {}
+  });
+
   connectWebSocket();
 
   loadIcons();
