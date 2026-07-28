@@ -438,6 +438,48 @@ header h1 {
   color: #fff;
 }
 
+/* Properties collapsible sections */
+.prop-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.prop-section summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  list-style: none;
+}
+
+.prop-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.prop-section summary:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.prop-section[open] .section-arrow {
+  transform: rotate(90deg);
+}
+
+.prop-section .prop-body {
+  padding: 6px 8px;
+}
+
 /* ── Locations ── */
 
 .locations {
