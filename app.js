@@ -1180,6 +1180,19 @@
     draw();
   });
 
+  function enableTemplate() {
+    const btn = document.getElementById('btn-template');
+    const settings = document.getElementById('template-settings');
+    const area = canvas.closest('.canvas-area');
+    if (templateActive) return;
+    templateActive = true;
+    btn.classList.add('active');
+    settings.classList.remove('hidden');
+    if (area) area.classList.add('show-template');
+    if (!templateSvgString) loadTemplateSVG();
+    draw();
+  }
+
   // Template settings event handlers
   const templateInputs = [
     'legend-header', 'legend-mm', 'legend-copper', 'legend-sm',
