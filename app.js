@@ -276,8 +276,21 @@
     ctx.restore();
   }
 
-  function drawDeviceIcon(type, x, y, r, colors) {
+  function drawDeviceIcon(type, x, y, r, colors, model) {
     ctx.save();
+
+    if (model && modelIconsLoaded) {
+      const modelKey = type === 'accesspoint' ? `AP_MODELS` : `SWITCH_MODELS`;
+      const models = type === 'accesspoint' ? AP_MODELS : SWITCH_MODELS;
+      const modelInfo = models[model];
+      if (modelInfo && modelIcons[modelInfo.svg]) {
+        const img = modelIcons[modelInfo.svg];
+        const size = r * 2.2;
+        ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+        ctx.restore();
+        return;
+      }
+    }
 
     if (iconsLoaded && iconImages[type]) {
       const img = iconImages[type];
