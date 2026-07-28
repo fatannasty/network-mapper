@@ -150,24 +150,43 @@
         <button id="btn-ssh-scan" class="mode-btn" style="width:100%;background:#059669;border-color:#047857">Scan via SSH</button>
       </div>
 
-      <div id="legend-settings" class="properties hidden" style="margin-top:8px">
-        <h2>Legend</h2>
-        <label>Header</label>
-        <input type="text" id="legend-header" value="LEGEND">
-        <label>Multi-mode Fiber</label>
-        <div style="display:flex;gap:4px">
-          <input type="text" id="legend-mm" value="Multi-mode Fiber" style="flex:1">
-          <input type="color" id="legend-mm-color" value="#f59d56" style="width:32px;padding:2px;flex-shrink:0">
+      <div id="template-settings" class="hidden" style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+        <div class="properties">
+          <h2>Title Block</h2>
+          <label>Document Name</label>
+          <input type="text" id="tb-docname" placeholder="e.g. Site Network Diagram">
+          <label>Drawing Title</label>
+          <input type="text" id="tb-drawtitle" placeholder="e.g. Floor 1 Topology">
+          <label>Drawn By</label>
+          <input type="text" id="tb-drawnby" placeholder="e.g. John Smith">
+          <label>Drawn Date</label>
+          <input type="text" id="tb-drawndate" placeholder="e.g. 01/15/26">
+          <label>Revision</label>
+          <input type="text" id="tb-revision" placeholder="e.g. A">
+          <label>Revision Date</label>
+          <input type="text" id="tb-revdate" placeholder="e.g. 15 Jan 26">
+          <label>Revision Time</label>
+          <input type="text" id="tb-revtime" placeholder="e.g. 2:30 PM">
         </div>
-        <label>Copper</label>
-        <div style="display:flex;gap:4px">
-          <input type="text" id="legend-copper" value="Copper" style="flex:1">
-          <input type="color" id="legend-copper-color" value="#10b981" style="width:32px;padding:2px;flex-shrink:0">
-        </div>
-        <label>Single-mode Fiber</label>
-        <div style="display:flex;gap:4px">
-          <input type="text" id="legend-sm" value="Single-mode Fiber" style="flex:1">
-          <input type="color" id="legend-sm-color" value="#eab308" style="width:32px;padding:2px;flex-shrink:0">
+        <div class="properties">
+          <h2>Legend</h2>
+          <label>Header</label>
+          <input type="text" id="legend-header" value="LEGEND">
+          <label>Multi-mode Fiber</label>
+          <div style="display:flex;gap:4px">
+            <input type="text" id="legend-mm" value="Multi-mode Fiber" style="flex:1">
+            <input type="color" id="legend-mm-color" value="#f59d56" style="width:32px;padding:2px;flex-shrink:0">
+          </div>
+          <label>Copper</label>
+          <div style="display:flex;gap:4px">
+            <input type="text" id="legend-copper" value="Copper" style="flex:1">
+            <input type="color" id="legend-copper-color" value="#10b981" style="width:32px;padding:2px;flex-shrink:0">
+          </div>
+          <label>Single-mode Fiber</label>
+          <div style="display:flex;gap:4px">
+            <input type="text" id="legend-sm" value="Single-mode Fiber" style="flex:1">
+            <input type="color" id="legend-sm-color" value="#eab308" style="width:32px;padding:2px;flex-shrink:0">
+          </div>
         </div>
       </div>
 
