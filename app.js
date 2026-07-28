@@ -732,37 +732,53 @@
       return;
     }
     const d = selectedDevice;
+    const models = getModelsForType(d.type);
     propertiesPanel.innerHTML = `
-      <label>Name
-        <input type="text" id="prop-name" value="${d.name}">
-      </label>
-      <label>IP Address
-        <input type="text" id="prop-ip" value="${d.ip || ''}" placeholder="e.g. 192.168.1.1">
-      </label>
-      <label>Type
-        <select id="prop-type">
-          ${Object.keys(DEVICE_COLORS).map(t =>
-            `<option value="${t}" ${t === d.type ? 'selected' : ''}>${DEVICE_NAMES[t]}</option>`
-          ).join('')}
-        </select>
-      </label>
-      <label>Location / Site
-        <input type="text" id="prop-location" value="${d.location || ''}" placeholder="e.g. Miami Station">
-      </label>
-      <label>Model
-        <input type="text" id="prop-model" list="model-list" value="${d.model || ''}" placeholder="Select or type a model">
-        <datalist id="model-list">
-          ${getModelsForType(d.type).map(m =>
-            `<option value="${m}">${m}</option>`
-          ).join('')}
-        </datalist>
-      </label>
-      <label>Notes
-        <input type="text" id="prop-notes" value="${d.notes || ''}" placeholder="Optional notes">
-      </label>
-      <label>Open Ports (comma-separated)
-        <input type="text" id="prop-ports" value="${(d.ports || []).join(', ')}" placeholder="e.g. 22, 80, 443">
-      </label>
+      <details class="prop-section" open>
+        <summary><svg class="section-arrow" width="10" height="10" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>General</summary>
+        <div class="prop-body">
+          <label>Name
+            <input type="text" id="prop-name" value="${d.name}">
+          </label>
+          <label>IP Address
+            <input type="text" id="prop-ip" value="${d.ip || ''}" placeholder="e.g. 192.168.1.1">
+          </label>
+          <label>Type
+            <select id="prop-type">
+              ${Object.keys(DEVICE_COLORS).map(t =>
+                `<option value="${t}" ${t === d.type ? 'selected' : ''}>${DEVICE_NAMES[t]}</option>`
+              ).join('')}
+            </select>
+          </label>
+          <label>Location / Site
+            <input type="text" id="prop-location" value="${d.location || ''}" placeholder="e.g. Miami Station">
+          </label>
+        </div>
+      </details>
+      <details class="prop-section" ${models.length ? 'open' : ''}>
+        <summary><svg class="section-arrow" width="10" height="10" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Model</summary>
+        <div class="prop-body">
+          <label>Device Model
+            <select id="prop-model">
+              <option value="">— Select a model —</option>
+              ${models.map(m =>
+                `<option value="${m}" ${m === d.model ? 'selected' : ''}>${m}</option>`
+              ).join('')}
+            </select>
+          </label>
+        </div>
+      </details>
+      <details class="prop-section">
+        <summary><svg class="section-arrow" width="10" height="10" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Details</summary>
+        <div class="prop-body">
+          <label>Notes
+            <input type="text" id="prop-notes" value="${d.notes || ''}" placeholder="Optional notes">
+          </label>
+          <label>Open Ports (comma-separated)
+            <input type="text" id="prop-ports" value="${(d.ports || []).join(', ')}" placeholder="e.g. 22, 80, 443">
+          </label>
+        </div>
+      </details>
       <button class="delete-btn" id="prop-delete">Delete Device</button>
     `;
 
