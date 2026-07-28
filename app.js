@@ -292,12 +292,14 @@
     ctx.save();
 
     if (model && modelIconsLoaded) {
-      const modelKey = type === 'accesspoint' ? `AP_MODELS` : `SWITCH_MODELS`;
       const models = type === 'accesspoint' ? AP_MODELS : SWITCH_MODELS;
       const modelInfo = models[model];
       if (modelInfo && modelIcons[modelInfo.svg]) {
         const img = modelIcons[modelInfo.svg];
-        const size = r * 2.2;
+        const isPng = modelInfo.svg.endsWith('.png');
+        const size = isPng ? r * 2.8 : r * 2.2;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
         ctx.restore();
         return;
@@ -306,7 +308,10 @@
 
     if (iconsLoaded && iconImages[type]) {
       const img = iconImages[type];
-      const size = r * 2.2;
+      const isPng = DEVICE_COLORS[type]?.svg?.endsWith('.png');
+      const size = isPng ? r * 2.8 : r * 2.2;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
       ctx.restore();
       return;
