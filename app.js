@@ -1070,13 +1070,72 @@
 
   document.getElementById('btn-auto-layout').addEventListener('click', autoLayout);
 
+  let templateSvgString = null;
+
+  function loadTemplateSVG() {
+    fetch('icons/template-background.svg')
+      .then(r => r.text())
+      .then(svg => {
+        templateSvgString = svg;
+        renderTemplate();
+      });
+  }
+
+  function renderTemplate() {
+    if (!templateSvgString) return;
+    const labels = {
+      'Multi-mode Fiber': document.getElementById('legend-mm').value,
+      'Copper': document.getElementById('legend-copper').value,
+      'Single-mode Fiber': document.getElementById('legend-sm').value,
+    };
+    const colors = {
+      'st10': document.getElementById('legend-mm-color').value,
+      'st11': document.getElementById('legend-copper-color').value,
+      'st12': document.getElementById('legend-sm-color').value,
+    };
+    const header = document.getElementById('legend-header').value;
+    let svg = templateSvgString;
+
+    // Replace legend header
+    svg = svg.replace(/>LEGEND</g, `>${header}<`);
+
+    // Replace legend text labels (both desc and text content)
+    Object.entries(labels).forEach(([orig, val]) => {
+      if (val && val !== orig) {
+        const esc = orig.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+        svg = svg.replace(new RegExp(`>${esc}<`, 'g'), `>${val}<`);
+      }
+    });
+
+    // Replace legend line colors
+    Object.entries(colors).forEach(([cls, color]) => {
+      const re = new RegExp(`(\\.${cls}\\s*\\{[^}]*stroke:)#[0-9a-fA-F]+`, 'g');
+      svg = svg.replace(re, `$1${color}`);
+    });
+
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const img = document.getElementById('template-bg');
+    if (img.src && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+    img.src = url;
+  }
+
   document.getElementById('btn-template').addEventListener('click', () => {
     const bg = document.getElementById('template-bg');
     const area = bg.closest('.canvas-area');
     const btn = document.getElementById('btn-template');
+    const legendSettings = document.getElementById('legend-settings');
     bg.classList.toggle('hidden');
     area.classList.toggle('show-template');
     btn.classList.toggle('active');
+    legendSettings.classList.toggle('hidden');
+    if (!templateSvgString) loadTemplateSVG();
+  });
+
+  // Legend edit handlers
+  ['legend-header', 'legend-mm', 'legend-copper', 'legend-sm',
+   'legend-mm-color', 'legend-copper-color', 'legend-sm-color'].forEach(id => {
+    document.getElementById(id).addEventListener('input', renderTemplate);
   });
 
   function autoLayout() {
