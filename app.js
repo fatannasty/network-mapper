@@ -132,6 +132,7 @@
     'access-switch': 'Access Switch',
     switch: 'Switch',
     accesspoint: 'Access Point',
+    'velocloud-edge': 'VeloCloud Edge',
     firewall: 'Firewall',
     server: 'Server',
     pc: 'Workstation',
