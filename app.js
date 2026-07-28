@@ -1165,9 +1165,14 @@
     if (!templateSvgString) loadTemplateSVG();
   });
 
-  // Legend edit handlers
-  ['legend-header', 'legend-mm', 'legend-copper', 'legend-sm',
-   'legend-mm-color', 'legend-copper-color', 'legend-sm-color'].forEach(id => {
+  // Template settings event handlers
+  const templateInputs = [
+    'legend-header', 'legend-mm', 'legend-copper', 'legend-sm',
+    'legend-mm-color', 'legend-copper-color', 'legend-sm-color',
+    'tb-revtime', 'tb-revdate', 'tb-revision', 'tb-docname',
+    'tb-drawtitle', 'tb-drawndate', 'tb-drawnby',
+  ];
+  templateInputs.forEach(id => {
     document.getElementById(id).addEventListener('input', renderTemplate);
   });
 
