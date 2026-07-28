@@ -31,47 +31,65 @@
     <aside class="sidebar">
       <h2>Devices</h2>
       <p class="hint">Drag onto the canvas</p>
-      <div class="device-list">
-        <div class="device-template" draggable="true" data-type="core-switch">
-          <img src="icons/C9300X-24Y.png" class="device-icon" alt="Core Switch" draggable="false">
-          <span>Core Switch</span>
-        </div>
-        <div class="device-template" draggable="true" data-type="access-switch">
-          <img src="icons/C9200-24P.png" class="device-icon" alt="Access Switch" draggable="false">
-          <span>Access Switch</span>
-        </div>
-        <div class="device-template" draggable="true" data-type="switch">
-          <img src="icons/C9300L-48P.png" class="device-icon" alt="Switch" draggable="false">
-          <span>Distribution Switch</span>
-        </div>
-        <div class="device-template" draggable="true" data-type="velocloud-edge">
-          <img src="icons/velocloud-edge-510.png" class="device-icon" alt="VeloCloud Edge" draggable="false">
-          <span>VeloCloud Edge</span>
-        </div>
-        <div class="device-template" draggable="true" data-type="router">
-          <img src="icons/router.svg" class="device-icon" alt="Router" draggable="false">
-          <span>Router</span>
-        </div>
-        <div class="device-template" draggable="true" data-type="accesspoint">
-          <img src="icons/meraki-mr46.png" class="device-icon" alt="Meraki AP" draggable="false">
-          <span>Meraki AP</span>
-        </div>
-        <div class="device-template" draggable="true" data-type="firewall">
-          <img src="icons/firewall-cisco.svg" class="device-icon" alt="Firewall" draggable="false">
-          <span>Firewall</span>
-        </div>
-        <div class="device-template" draggable="true" data-type="server">
-          <img src="icons/server-cisco.svg" class="device-icon" alt="Server" draggable="false">
-          <span>Server</span>
-        </div>
-        <div class="device-template" draggable="true" data-type="pc">
-          <img src="icons/pc-cisco.svg" class="device-icon" alt="PC" draggable="false">
-          <span>Workstation</span>
-        </div>
-        <div class="device-template" draggable="true" data-type="cloud">
-          <img src="icons/cloud-cisco.svg" class="device-icon" alt="Cloud" draggable="false">
-          <span>Cloud / WAN</span>
-        </div>
+      <div class="device-sections">
+        <details class="dev-section" open>
+          <summary><svg class="section-arrow" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Switches</summary>
+          <div class="device-template cat-switch" draggable="true" data-type="core-switch">
+            <img src="icons/C9300X-24Y.png" class="device-icon" alt="Core Switch" draggable="false">
+            <span>Core Switch</span>
+          </div>
+          <div class="device-template cat-switch" draggable="true" data-type="access-switch">
+            <img src="icons/C9200-24P.png" class="device-icon" alt="Access Switch" draggable="false">
+            <span>Access Switch</span>
+          </div>
+          <div class="device-template cat-switch" draggable="true" data-type="switch">
+            <img src="icons/C9300L-48P.png" class="device-icon" alt="Switch" draggable="false">
+            <span>Distribution Switch</span>
+          </div>
+        </details>
+        <details class="dev-section" open>
+          <summary><svg class="section-arrow" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Access Points</summary>
+          <div class="device-template cat-ap" draggable="true" data-type="accesspoint">
+            <img src="icons/meraki-mr46.png" class="device-icon" alt="Meraki AP" draggable="false">
+            <span>Meraki AP</span>
+          </div>
+        </details>
+        <details class="dev-section" open>
+          <summary><svg class="section-arrow" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Routing &amp; SD-WAN</summary>
+          <div class="device-template cat-routing" draggable="true" data-type="router">
+            <img src="icons/router.svg" class="device-icon" alt="Router" draggable="false">
+            <span>Router</span>
+          </div>
+          <div class="device-template cat-routing" draggable="true" data-type="velocloud-edge">
+            <img src="icons/velocloud-edge-510.png" class="device-icon" alt="VeloCloud Edge" draggable="false">
+            <span>VeloCloud Edge</span>
+          </div>
+        </details>
+        <details class="dev-section" open>
+          <summary><svg class="section-arrow" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Security</summary>
+          <div class="device-template cat-security" draggable="true" data-type="firewall">
+            <img src="icons/firewall-cisco.svg" class="device-icon" alt="Firewall" draggable="false">
+            <span>Firewall</span>
+          </div>
+        </details>
+        <details class="dev-section" open>
+          <summary><svg class="section-arrow" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Servers &amp; Endpoints</summary>
+          <div class="device-template cat-servers" draggable="true" data-type="server">
+            <img src="icons/server-cisco.svg" class="device-icon" alt="Server" draggable="false">
+            <span>Server</span>
+          </div>
+          <div class="device-template cat-servers" draggable="true" data-type="pc">
+            <img src="icons/pc-cisco.svg" class="device-icon" alt="PC" draggable="false">
+            <span>Workstation</span>
+          </div>
+        </details>
+        <details class="dev-section" open>
+          <summary><svg class="section-arrow" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Cloud / WAN</summary>
+          <div class="device-template cat-cloud" draggable="true" data-type="cloud">
+            <img src="icons/cloud-cisco.svg" class="device-icon" alt="Cloud" draggable="false">
+            <span>Cloud / WAN</span>
+          </div>
+        </details>
       </div>
 
       <h2>Switch Models</h2>
