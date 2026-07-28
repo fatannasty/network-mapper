@@ -11,6 +11,7 @@ mkdir -p "$DEPLOY_DIR/icons"
 
 cp index.html style.css app.js "$DEPLOY_DIR/"
 cp icons/*.svg "$DEPLOY_DIR/icons/"
+cp icons/*.png "$DEPLOY_DIR/icons/"
 
 npx wrangler pages deploy "$DEPLOY_DIR" --project-name="$PROJECT" --branch=main --commit-dirty=true 2>&1
 
