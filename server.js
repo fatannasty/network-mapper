@@ -4,6 +4,7 @@ const https = require('https');
 const { WebSocketServer } = require('ws');
 const path = require('path');
 const scanner = require('./scanner');
+const sshScanner = require('./ssh-scanner');
 
 const app = express();
 const server = http.createServer(app);
