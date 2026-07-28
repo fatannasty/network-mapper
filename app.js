@@ -23,13 +23,13 @@
 
   const DEVICE_COLORS = {
     router:           { fill: '#3b82f6', stroke: '#1e40af', icon: 'R', svg: 'icons/router.svg' },
-    'core-switch':    { fill: '#f97316', stroke: '#c2410c', icon: 'CS', svg: 'icons/catalyst-9500.svg' },
-    'access-switch':  { fill: '#22d3ee', stroke: '#0891b2', icon: 'AS', svg: 'icons/catalyst-9200.svg' },
-    switch:           { fill: '#10b981', stroke: '#047857', icon: 'S', svg: 'icons/catalyst-9300.svg' },
-    accesspoint:      { fill: '#f59e0b', stroke: '#d97706', icon: 'AP', svg: 'icons/meraki-mr46.svg' },
-    firewall:         { fill: '#ef4444', stroke: '#b91c1c', icon: 'FW', svg: 'icons/firewall-cisco.svg' },
-    server:           { fill: '#8b5cf6', stroke: '#6d28d9', icon: 'SV', svg: 'icons/server-cisco.svg' },
-    pc:               { fill: '#6366f1', stroke: '#4338ca', icon: 'PC', svg: 'icons/pc-cisco.svg' },
+    'core-switch':    { fill: '#a855f7', stroke: '#7c3aed', icon: 'CS', svg: 'icons/c9500-hq.svg' },
+    'access-switch':  { fill: '#20c997', stroke: '#12b886', icon: 'AS', svg: 'icons/c9200-hq.svg' },
+    switch:           { fill: '#f97316', stroke: '#ea580c', icon: 'S', svg: 'icons/c9300-hq.svg' },
+    accesspoint:      { fill: '#3b82f6', stroke: '#2563eb', icon: 'AP', svg: 'icons/mr46-hq.svg' },
+    firewall:         { fill: '#ef4444', stroke: '#dc2626', icon: 'FW', svg: 'icons/firewall-cisco.svg' },
+    server:           { fill: '#8b5cf6', stroke: '#7c3aed', icon: 'SV', svg: 'icons/server-cisco.svg' },
+    pc:               { fill: '#6366f1', stroke: '#4f46e5', icon: 'PC', svg: 'icons/pc-cisco.svg' },
     cloud:            { fill: '#06b6d4', stroke: '#0891b2', icon: '☁', svg: 'icons/cloud-cisco.svg' },
   };
 
