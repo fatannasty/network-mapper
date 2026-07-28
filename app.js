@@ -74,11 +74,23 @@
     'MR58':  { svg: 'icons/meraki-mr56.png', type: 'accesspoint' },
   };
 
+  const VELOCLOUD_MODELS = {
+    'VCE-510':  { svg: 'icons/velocloud-edge-510.png', type: 'velocloud-edge' },
+    'VCE-610':  { svg: 'icons/velocloud-edge-510.png', type: 'velocloud-edge' },
+    'VCE-640':  { svg: 'icons/velocloud-edge-510.png', type: 'velocloud-edge' },
+    'VCE-680':  { svg: 'icons/velocloud-edge-510.png', type: 'velocloud-edge' },
+    'VCE-710':  { svg: 'icons/velocloud-edge-510.png', type: 'velocloud-edge' },
+    'VCE-840':  { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
+    'VCE-2000': { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
+    'VCE-3400': { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
+    'VCE-3800': { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
+  };
+
   const modelIcons = {};
   let modelIconsLoaded = false;
 
   function loadModelIcons() {
-    const allModels = { ...SWITCH_MODELS, ...AP_MODELS };
+    const allModels = { ...SWITCH_MODELS, ...AP_MODELS, ...VELOCLOUD_MODELS };
     const uniqueSvgs = [...new Set(Object.values(allModels).map(m => m.svg))];
     const promises = uniqueSvgs.map(svg => {
       return new Promise((resolve) => {
