@@ -180,6 +180,19 @@
         </div>
       </details>
 
+      <details class="collapsible-section info-section scan-section" open>
+        <summary><svg class="section-arrow" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Scan via Subnets</summary>
+        <div class="cat-center-config">
+          <label>Subnet (CIDR)</label>
+          <input type="text" id="subnet-cidr" placeholder="e.g. 192.168.1.0/24">
+          <label>Interface (optional)</label>
+          <select id="subnet-interface">
+            <option value="">Auto-detect</option>
+          </select>
+          <button id="btn-subnet-scan" class="scan-btn">Scan Subnet</button>
+        </div>
+      </details>
+
       <div id="template-settings" class="hidden" style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
         <div class="properties">
           <h2>Title Block</h2>
