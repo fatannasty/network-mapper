@@ -236,7 +236,7 @@
       ctx.setLineDash([]);
     }
 
-    drawDeviceIcon(d.type, d.x, d.y, r, colors);
+    drawDeviceIcon(d.type, d.x, d.y, r, colors, d.model);
 
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '11px sans-serif';
