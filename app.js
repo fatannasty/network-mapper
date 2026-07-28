@@ -1071,6 +1071,8 @@
   document.getElementById('btn-auto-layout').addEventListener('click', autoLayout);
 
   let templateSvgString = null;
+  let templateImage = null;
+  let templateActive = false;
 
   function loadTemplateSVG() {
     fetch('icons/template-background.svg')
@@ -1100,10 +1102,8 @@
     const header = escHtml(document.getElementById('legend-header').value);
     let svg = templateSvgString;
 
-    // Replace legend header
     svg = svg.replace(/>LEGEND</g, `>${header}<`);
 
-    // Replace legend text labels (both desc and text content)
     Object.entries(labels).forEach(([orig, val]) => {
       if (val && val !== orig) {
         const esc = orig.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
@@ -1111,13 +1111,11 @@
       }
     });
 
-    // Replace legend line colors
     Object.entries(colors).forEach(([cls, color]) => {
       const re = new RegExp(`(\\.${cls}\\s*\\{[^}]*stroke:)#[0-9a-fA-F]+`, 'g');
       svg = svg.replace(re, '$1' + color);
     });
 
-    // Title block fields
     const tbFields = [
       { label: 'Rev. Time',       id: 'tb-revtime' },
       { label: 'Rev. Date',       id: 'tb-revdate' },
@@ -1135,7 +1133,6 @@
       svg = svg.replace(re, () => `${label}:${val ? ' ' + val : ''}</text>`);
     });
 
-    // Update <desc> elements for fields that still have old placeholder values
     const descUpdates = [
       { field: 'Document Name', id: 'tb-docname' },
       { field: 'Drawing Title', id: 'tb-drawtitle' },
@@ -1148,21 +1145,19 @@
 
     const blob = new Blob([svg], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
-    const img = document.getElementById('template-bg');
-    if (img.src && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
-    img.src = url;
+    templateImage = new Image();
+    templateImage.onload = () => { if (templateActive) draw(); };
+    templateImage.src = url;
   }
 
   document.getElementById('btn-template').addEventListener('click', () => {
-    const bg = document.getElementById('template-bg');
-    const area = bg.closest('.canvas-area');
     const btn = document.getElementById('btn-template');
     const settings = document.getElementById('template-settings');
-    bg.classList.toggle('hidden');
-    area.classList.toggle('show-template');
+    templateActive = !templateActive;
     btn.classList.toggle('active');
     settings.classList.toggle('hidden');
     if (!templateSvgString) loadTemplateSVG();
+    draw();
   });
 
   // Template settings event handlers
