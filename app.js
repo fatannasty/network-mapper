@@ -22,16 +22,59 @@
   const DEVICE_RADIUS = 24;
 
   const DEVICE_COLORS = {
-    router:       { fill: '#3b82f6', stroke: '#1e40af', icon: 'R', svg: 'icons/router.svg' },
-    'core-switch':{ fill: '#f97316', stroke: '#c2410c', icon: 'CS', svg: 'icons/core-switch.svg' },
-    'access-switch':{ fill: '#22d3ee', stroke: '#0891b2', icon: 'AS', svg: 'icons/access-switch.svg' },
-    switch:       { fill: '#10b981', stroke: '#047857', icon: 'S', svg: 'icons/switch-catalyst9000.svg' },
-    accesspoint:  { fill: '#f59e0b', stroke: '#d97706', icon: 'AP', svg: 'icons/accesspoint-cisco.svg' },
-    firewall:     { fill: '#ef4444', stroke: '#b91c1c', icon: 'FW', svg: 'icons/firewall-cisco.svg' },
-    server:       { fill: '#8b5cf6', stroke: '#6d28d9', icon: 'SV', svg: 'icons/server-cisco.svg' },
-    pc:           { fill: '#6366f1', stroke: '#4338ca', icon: 'PC', svg: 'icons/pc-cisco.svg' },
-    cloud:        { fill: '#06b6d4', stroke: '#0891b2', icon: '☁', svg: 'icons/cloud-cisco.svg' },
+    router:           { fill: '#3b82f6', stroke: '#1e40af', icon: 'R', svg: 'icons/router.svg' },
+    'core-switch':    { fill: '#f97316', stroke: '#c2410c', icon: 'CS', svg: 'icons/catalyst-9500.svg' },
+    'access-switch':  { fill: '#22d3ee', stroke: '#0891b2', icon: 'AS', svg: 'icons/catalyst-9200.svg' },
+    switch:           { fill: '#10b981', stroke: '#047857', icon: 'S', svg: 'icons/catalyst-9300.svg' },
+    accesspoint:      { fill: '#f59e0b', stroke: '#d97706', icon: 'AP', svg: 'icons/meraki-mr46.svg' },
+    firewall:         { fill: '#ef4444', stroke: '#b91c1c', icon: 'FW', svg: 'icons/firewall-cisco.svg' },
+    server:           { fill: '#8b5cf6', stroke: '#6d28d9', icon: 'SV', svg: 'icons/server-cisco.svg' },
+    pc:               { fill: '#6366f1', stroke: '#4338ca', icon: 'PC', svg: 'icons/pc-cisco.svg' },
+    cloud:            { fill: '#06b6d4', stroke: '#0891b2', icon: '☁', svg: 'icons/cloud-cisco.svg' },
   };
+
+  const SWITCH_MODELS = {
+    'C9200-24T':  { svg: 'icons/catalyst-9200.svg', type: 'access-switch' },
+    'C9200-48T':  { svg: 'icons/catalyst-9200.svg', type: 'access-switch' },
+    'C9200L-24T': { svg: 'icons/catalyst-9200.svg', type: 'access-switch' },
+    'C9300-24T':  { svg: 'icons/catalyst-9300.svg', type: 'switch' },
+    'C9300-48T':  { svg: 'icons/catalyst-9300.svg', type: 'switch' },
+    'C9300-24U':  { svg: 'icons/catalyst-9300.svg', type: 'switch' },
+    'C9300-48U':  { svg: 'icons/catalyst-9300.svg', type: 'switch' },
+    'C9300X-24T': { svg: 'icons/catalyst-9300.svg', type: 'switch' },
+    'C9400-7S':   { svg: 'icons/core-switch.svg', type: 'core-switch' },
+    'C9400-10S':  { svg: 'icons/core-switch.svg', type: 'core-switch' },
+    'C9500-12Q':  { svg: 'icons/catalyst-9500.svg', type: 'core-switch' },
+    'C9500-24Y4C':{ svg: 'icons/catalyst-9500.svg', type: 'core-switch' },
+    'C9500-48Y4C':{ svg: 'icons/catalyst-9500.svg', type: 'core-switch' },
+  };
+
+  const AP_MODELS = {
+    'MR36':  { svg: 'icons/meraki-mr36.svg', type: 'accesspoint' },
+    'MR46':  { svg: 'icons/meraki-mr46.svg', type: 'accesspoint' },
+    'MR56':  { svg: 'icons/meraki-mr56.svg', type: 'accesspoint' },
+    'MR28':  { svg: 'icons/meraki-mr36.svg', type: 'accesspoint' },
+    'MR38':  { svg: 'icons/meraki-mr46.svg', type: 'accesspoint' },
+    'MR48':  { svg: 'icons/meraki-mr46.svg', type: 'accesspoint' },
+    'MR58':  { svg: 'icons/meraki-mr56.svg', type: 'accesspoint' },
+  };
+
+  const modelIcons = {};
+  let modelIconsLoaded = false;
+
+  function loadModelIcons() {
+    const allModels = { ...SWITCH_MODELS, ...AP_MODELS };
+    const uniqueSvgs = [...new Set(Object.values(allModels).map(m => m.svg))];
+    const promises = uniqueSvgs.map(svg => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { modelIcons[svg] = img; resolve(); };
+        img.onerror = () => resolve();
+        img.src = svg;
+      });
+    });
+    Promise.all(promises).then(() => { modelIconsLoaded = true; draw(); });
+  }
 
   const CABLE_TYPES = {
     fiber:  { color: '#a855f7', label: 'Fiber', dash: '' },
