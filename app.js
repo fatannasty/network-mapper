@@ -1070,6 +1070,15 @@
 
   document.getElementById('btn-auto-layout').addEventListener('click', autoLayout);
 
+  document.getElementById('btn-template').addEventListener('click', () => {
+    const bg = document.getElementById('template-bg');
+    const area = bg.closest('.canvas-area');
+    const btn = document.getElementById('btn-template');
+    bg.classList.toggle('hidden');
+    area.classList.toggle('show-template');
+    btn.classList.toggle('active');
+  });
+
   function autoLayout() {
     if (devices.length === 0) return;
     const w = canvas.width / devicePixelRatio;
