@@ -1548,6 +1548,7 @@
       updateDeviceCount();
       draw();
       autoLayout();
+      enableTemplate();
       hideProgress();
 
     } catch (err) {
