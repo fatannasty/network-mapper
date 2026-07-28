@@ -727,13 +727,7 @@
       <label>Model
         <select id="prop-model">
           <option value="">Custom</option>
-          ${Object.keys(SWITCH_MODELS).map(m =>
-            `<option value="${m}" ${m === d.model ? 'selected' : ''}>${m}</option>`
-          ).join('')}
-          ${Object.keys(AP_MODELS).map(m =>
-            `<option value="${m}" ${m === d.model ? 'selected' : ''}>${m}</option>`
-          ).join('')}
-          ${Object.keys(VELOCLOUD_MODELS).map(m =>
+          ${getModelsForType(d.type).map(m =>
             `<option value="${m}" ${m === d.model ? 'selected' : ''}>${m}</option>`
           ).join('')}
         </select>
