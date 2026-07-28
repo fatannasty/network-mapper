@@ -775,6 +775,9 @@
       } else if (d.model && AP_MODELS[d.model]) {
         d.type = AP_MODELS[d.model].type;
         document.getElementById('prop-type').value = d.type;
+      } else if (d.model && VELOCLOUD_MODELS[d.model]) {
+        d.type = VELOCLOUD_MODELS[d.model].type;
+        document.getElementById('prop-type').value = d.type;
       }
       draw();
     });
