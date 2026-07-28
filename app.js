@@ -308,7 +308,7 @@
     ctx.save();
 
     if (model && modelIconsLoaded) {
-      const models = type === 'accesspoint' ? AP_MODELS : SWITCH_MODELS;
+      const models = type === 'accesspoint' ? AP_MODELS : (VELOCLOUD_MODELS[model] ? VELOCLOUD_MODELS : SWITCH_MODELS);
       const modelInfo = models[model];
       if (modelInfo && modelIcons[modelInfo.svg]) {
         const img = modelIcons[modelInfo.svg];
