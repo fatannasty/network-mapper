@@ -650,7 +650,18 @@
         <input type="text" id="prop-location" value="${d.location || ''}" placeholder="e.g. Miami Station">
       </label>
       <label>Model
-        <input type="text" id="prop-model" value="${d.model || ''}" placeholder="e.g. C9300-48T">
+        <select id="prop-model">
+          <option value="">Custom</option>
+          ${Object.keys(SWITCH_MODELS).map(m =>
+            `<option value="${m}" ${m === d.model ? 'selected' : ''}>${m}</option>`
+          ).join('')}
+          ${Object.keys(AP_MODELS).map(m =>
+            `<option value="${m}" ${m === d.model ? 'selected' : ''}>${m}</option>`
+          ).join('')}
+        </select>
+      </label>
+      <label>Custom Model
+        <input type="text" id="prop-model-custom" value="${d.model || ''}" placeholder="e.g. C9300-48T">
       </label>
       <label>Notes
         <input type="text" id="prop-notes" value="${d.notes || ''}" placeholder="Optional notes">
