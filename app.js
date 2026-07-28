@@ -732,15 +732,12 @@
         <input type="text" id="prop-location" value="${d.location || ''}" placeholder="e.g. Miami Station">
       </label>
       <label>Model
-        <select id="prop-model">
-          <option value="">Custom</option>
+        <input type="text" id="prop-model" list="model-list" value="${d.model || ''}" placeholder="Select or type a model">
+        <datalist id="model-list">
           ${getModelsForType(d.type).map(m =>
-            `<option value="${m}" ${m === d.model ? 'selected' : ''}>${m}</option>`
+            `<option value="${m}">${m}</option>`
           ).join('')}
-        </select>
-      </label>
-      <label>Custom Model
-        <input type="text" id="prop-model-custom" value="${d.model || ''}" placeholder="e.g. C9300-48T">
+        </datalist>
       </label>
       <label>Notes
         <input type="text" id="prop-notes" value="${d.notes || ''}" placeholder="Optional notes">
