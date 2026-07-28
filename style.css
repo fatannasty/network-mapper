@@ -235,7 +235,8 @@ header h1 {
   color: var(--text-muted);
 }
 
-.dev-section[open] .section-arrow {
+.dev-section[open] .section-arrow,
+.info-section[open] .section-arrow {
   transform: rotate(90deg);
 }
 
