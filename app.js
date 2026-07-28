@@ -688,8 +688,21 @@
       d.location = e.target.value;
       draw();
     });
-    document.getElementById('prop-model').addEventListener('input', e => {
+    document.getElementById('prop-model').addEventListener('change', e => {
       d.model = e.target.value;
+      document.getElementById('prop-model-custom').value = e.target.value;
+      if (d.model && SWITCH_MODELS[d.model]) {
+        d.type = SWITCH_MODELS[d.model].type;
+        document.getElementById('prop-type').value = d.type;
+      } else if (d.model && AP_MODELS[d.model]) {
+        d.type = AP_MODELS[d.model].type;
+        document.getElementById('prop-type').value = d.type;
+      }
+      draw();
+    });
+    document.getElementById('prop-model-custom').addEventListener('input', e => {
+      d.model = e.target.value;
+      document.getElementById('prop-model').value = '';
       draw();
     });
     document.getElementById('prop-notes').addEventListener('input', e => {
