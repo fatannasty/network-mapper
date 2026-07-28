@@ -450,11 +450,34 @@ header h1 {
   background: var(--bg-primary);
 }
 
+#template-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 1;
+}
+#template-bg.active {
+  opacity: 0.15;
+}
+#template-bg.active + #topology-canvas {
+  background: transparent;
+}
+
+.canvas-area.show-template {
+  background: transparent;
+}
+
 #topology-canvas {
   display: block;
   width: 100%;
   height: 100%;
   cursor: default;
+  position: relative;
+  z-index: 2;
 }
 
 #topology-canvas.mode-connect {
