@@ -460,12 +460,6 @@ header h1 {
   pointer-events: none;
   z-index: 1;
 }
-#template-bg.active {
-  opacity: 0.15;
-}
-#template-bg.active + #topology-canvas {
-  background: transparent;
-}
 
 .canvas-area.show-template {
   background: transparent;
