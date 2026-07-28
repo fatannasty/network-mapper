@@ -116,6 +116,12 @@ header h1 {
   color: var(--danger);
 }
 
+#btn-template.active {
+  background: var(--accent);
+  border-color: var(--accent-hover);
+  color: #fff;
+}
+
 #btn-clear:hover {
   background: var(--danger);
   border-color: var(--danger);
