@@ -600,7 +600,11 @@
     const w = canvas.width / devicePixelRatio;
     const h = canvas.height / devicePixelRatio;
     ctx.clearRect(0, 0, w, h);
-    drawGrid();
+    if (templateActive && templateImage && templateImage.complete) {
+      ctx.drawImage(templateImage, 0, 0, w, h);
+    } else {
+      drawGrid();
+    }
     drawConnections();
 
     if (connectStart && mode === 'connect') {
