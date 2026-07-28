@@ -77,6 +77,46 @@ function catcHttpRequest(url, options = {}) {
   });
 }
 
+app.post('/api/ssh/scan', async (req, res) => {
+  try {
+    const { host, user, pass, location } = req.body;
+    if (!host || !user || !pass) {
+      return res.json({ success: false, error: 'Missing host, user, or password' });
+    }
+    console.log(`SSH scan: ${user}@${host}`);
+    const result = await sshScanner.scanCoreSwitch({ host, user, pass, location: location || '' });
+
+    const WORKER_API = 'https://network-mapper-api.fatannasty.workers.dev';
+    try {
+      await catcHttpRequest(`${WORKER_API}/api/scan`, {
+        method: 'POST',
+        body: {
+          locationId: location || host,
+          locationName: result.hostname || location || host,
+          devices: result.devices,
+          connections: result.connections,
+          subnet: host,
+          scannedAt: new Date().toISOString(),
+        },
+      });
+    } catch (e) { console.log('Worker push failed:', e.message); }
+
+    res.json({
+      success: true,
+      hostname: result.hostname,
+      model: result.model,
+      devices: result.devices.length,
+      connections: result.connections.length,
+      cdpNeighbors: result.cdpNeighbors.length,
+      macEntries: result.macTable.length,
+      arpEntries: result.arpTable.length,
+      vlans: result.vlans.length,
+    });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
 app.post('/api/catc/test', async (req, res) => {
   try {
     const { url, user, pass } = req.body;
