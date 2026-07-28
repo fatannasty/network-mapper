@@ -274,36 +274,36 @@
     drawDeviceIcon(d.type, d.x, d.y, r, colors, d.model);
 
     ctx.fillStyle = '#000000';
-    ctx.font = 'bold 11px sans-serif';
+    ctx.font = 'bold 14px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(d.name, d.x, d.y + r + 6);
 
-    let yOffset = r + 20;
+    let yOffset = r + 24;
     if (d.ip) {
       ctx.fillStyle = '#000000';
-      ctx.font = '9px sans-serif';
+      ctx.font = '12px sans-serif';
       ctx.fillText(d.ip, d.x, d.y + yOffset);
-      yOffset += 12;
+      yOffset += 16;
     }
 
     if (d.location) {
       ctx.fillStyle = '#000000';
-      ctx.font = '8px sans-serif';
+      ctx.font = '11px sans-serif';
       ctx.fillText(d.location, d.x, d.y + yOffset);
-      yOffset += 10;
+      yOffset += 14;
     }
 
     if (d.model) {
       ctx.fillStyle = '#000000';
-      ctx.font = '7px monospace';
+      ctx.font = '11px monospace';
       ctx.fillText(d.model, d.x, d.y + yOffset);
-      yOffset += 10;
+      yOffset += 14;
     }
 
     if (d.ports && d.ports.length > 0) {
       ctx.fillStyle = '#000000';
-      ctx.font = '8px monospace';
+      ctx.font = '11px monospace';
       const portsStr = d.ports.join(', ');
       ctx.fillText(portsStr, d.x, d.y + yOffset);
     }
