@@ -1389,6 +1389,47 @@
     setTimeout(() => { btn.textContent = 'Scan via Cat Center'; btn.style.background = '#059669'; }, 5000);
   });
 
+  // ── SSH Core Scan ──
+
+  document.getElementById('btn-ssh-scan').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-ssh-scan');
+    const sshHost = document.getElementById('ssh-host').value;
+    const sshUser = document.getElementById('ssh-user').value;
+    const sshPass = document.getElementById('ssh-pass').value;
+    const sshLocation = document.getElementById('ssh-location').value;
+
+    if (!sshHost || !sshUser || !sshPass) {
+      alert('Please enter switch IP, username, and password');
+      return;
+    }
+
+    btn.textContent = 'Connecting...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/api/ssh/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host: sshHost, user: sshUser, pass: sshPass, location: sshLocation }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        btn.textContent = `Done: ${data.devices} devices, ${data.cdpNeighbors} neighbors`;
+        btn.style.background = '#059669';
+        refreshLocations();
+      } else {
+        btn.textContent = `Error: ${data.error}`;
+        btn.style.background = '#991b1b';
+      }
+    } catch (e) {
+      btn.textContent = 'Scan failed';
+      btn.style.background = '#991b1b';
+    }
+
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = 'Scan via SSH'; btn.style.background = '#059669'; }, 5000);
+  });
+
   connectWebSocket();
 
   loadIcons();
