@@ -1081,19 +1081,23 @@
       });
   }
 
+  function escHtml(v) {
+    return v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   function renderTemplate() {
     if (!templateSvgString) return;
     const labels = {
-      'Multi-mode Fiber': document.getElementById('legend-mm').value,
-      'Copper': document.getElementById('legend-copper').value,
-      'Single-mode Fiber': document.getElementById('legend-sm').value,
+      'Multi-mode Fiber': escHtml(document.getElementById('legend-mm').value),
+      'Copper': escHtml(document.getElementById('legend-copper').value),
+      'Single-mode Fiber': escHtml(document.getElementById('legend-sm').value),
     };
     const colors = {
       'st10': document.getElementById('legend-mm-color').value,
       'st11': document.getElementById('legend-copper-color').value,
       'st12': document.getElementById('legend-sm-color').value,
     };
-    const header = document.getElementById('legend-header').value;
+    const header = escHtml(document.getElementById('legend-header').value);
     let svg = templateSvgString;
 
     // Replace legend header
@@ -1103,14 +1107,14 @@
     Object.entries(labels).forEach(([orig, val]) => {
       if (val && val !== orig) {
         const esc = orig.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
-        svg = svg.replace(new RegExp(`>${esc}<`, 'g'), `>${val}<`);
+        svg = svg.replace(new RegExp(`>${esc}<`, 'g'), () => `>${val}<`);
       }
     });
 
     // Replace legend line colors
     Object.entries(colors).forEach(([cls, color]) => {
       const re = new RegExp(`(\\.${cls}\\s*\\{[^}]*stroke:)#[0-9a-fA-F]+`, 'g');
-      svg = svg.replace(re, `$1${color}`);
+      svg = svg.replace(re, '$1' + color);
     });
 
     const blob = new Blob([svg], { type: 'image/svg+xml' });
