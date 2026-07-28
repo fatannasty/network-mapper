@@ -328,14 +328,6 @@
           const w = img.naturalWidth * scale;
           const h = img.naturalHeight * scale;
 
-          ctx.beginPath();
-          ctx.roundRect(x - w / 2 - 6, y - h / 2 - 6, w + 12, h + 12, 6);
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
-          ctx.fill();
-          ctx.strokeStyle = colors.stroke;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
@@ -360,14 +352,6 @@
         const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
         const w = img.naturalWidth * scale;
         const h = img.naturalHeight * scale;
-
-        ctx.beginPath();
-        ctx.roundRect(x - w / 2 - 6, y - h / 2 - 6, w + 12, h + 12, 6);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
-        ctx.fill();
-        ctx.strokeStyle = colors.stroke;
-        ctx.lineWidth = 1;
-        ctx.stroke();
 
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
