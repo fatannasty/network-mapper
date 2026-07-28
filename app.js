@@ -62,13 +62,15 @@
   };
 
   const AP_MODELS = {
-    'MR36':  { svg: 'icons/mr46-hq.svg', type: 'accesspoint' },
-    'MR46':  { svg: 'icons/mr46-hq.svg', type: 'accesspoint' },
-    'MR56':  { svg: 'icons/mr46-hq.svg', type: 'accesspoint' },
-    'MR28':  { svg: 'icons/mr46-hq.svg', type: 'accesspoint' },
-    'MR38':  { svg: 'icons/mr46-hq.svg', type: 'accesspoint' },
-    'MR48':  { svg: 'icons/mr46-hq.svg', type: 'accesspoint' },
-    'MR58':  { svg: 'icons/mr46-hq.svg', type: 'accesspoint' },
+    'MR28':  { svg: 'icons/meraki-mr28.png', type: 'accesspoint' },
+    'MR36':  { svg: 'icons/meraki-mr36.png', type: 'accesspoint' },
+    'MR38':  { svg: 'icons/meraki-mr36.png', type: 'accesspoint' },
+    'MR44':  { svg: 'icons/meraki-mr44.png', type: 'accesspoint' },
+    'MR45':  { svg: 'icons/meraki-mr45.png', type: 'accesspoint' },
+    'MR46':  { svg: 'icons/meraki-mr46.png', type: 'accesspoint' },
+    'MR48':  { svg: 'icons/meraki-mr46.png', type: 'accesspoint' },
+    'MR56':  { svg: 'icons/meraki-mr56.png', type: 'accesspoint' },
+    'MR58':  { svg: 'icons/meraki-mr56.png', type: 'accesspoint' },
   };
 
   const modelIcons = {};
