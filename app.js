@@ -1145,7 +1145,25 @@
     ];
 
     tbFields.forEach(({ label, id }) => {
-      const val = escHtml(document.getElementById(id).value);
+      let val = escHtml(document.getElementById(id).value);
+      if (id === 'tb-drawndate' && val) {
+        const parts = val.split('-');
+        if (parts.length === 3) val = `${parts[1]}/${parts[2].slice(0,2)}/${parts[0].slice(2)}`;
+      } else if (id === 'tb-revdate' && val) {
+        const parts = val.split('-');
+        if (parts.length === 3) {
+          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          val = `${parseInt(parts[2])} ${months[parseInt(parts[1])-1]} ${parts[0].slice(2)}`;
+        }
+      } else if (id === 'tb-revtime' && val) {
+        const parts = val.split(':');
+        if (parts.length === 2) {
+          const h = parseInt(parts[0]);
+          const m = parts[1];
+          const ampm = h >= 12 ? 'PM' : 'AM';
+          val = `${h % 12 || 12}:${m} ${ampm}`;
+        }
+      }
       const escaped = label.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
       const re = new RegExp(`${escaped}:\\s*<\\/text>`);
       svg = svg.replace(re, () => `${label}:${val ? ' ' + val : ''}</text>`);
