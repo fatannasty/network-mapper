@@ -5,7 +5,8 @@ const SSH_TIMEOUT = 15000;
 
 function sshCommand(host, user, pass, command) {
   return new Promise((resolve, reject) => {
-    const sshCmd = `sshpass -p '${pass}' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${user}@${host} "${command}"`;
+    const sshpassPath = process.platform === 'darwin' ? `${process.env.HOME}/bin/sshpass` : 'sshpass';
+    const sshCmd = `${sshpassPath} -p '${pass}' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${user}@${host} "${command}"`;
     exec(sshCmd, { timeout: SSH_TIMEOUT }, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr || err.message));
       else resolve(stdout);
