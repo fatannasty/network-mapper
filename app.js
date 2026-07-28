@@ -759,21 +759,19 @@
     document.getElementById('prop-type').addEventListener('change', e => {
       d.type = e.target.value;
       d.model = '';
-      document.getElementById('prop-model').innerHTML =
-        '<option value="">Custom</option>' +
+      document.getElementById('prop-model').value = '';
+      document.getElementById('model-list').innerHTML =
         getModelsForType(d.type).map(m =>
           `<option value="${m}">${m}</option>`
         ).join('');
-      document.getElementById('prop-model-custom').value = '';
       draw();
     });
     document.getElementById('prop-location').addEventListener('input', e => {
       d.location = e.target.value;
       draw();
     });
-    document.getElementById('prop-model').addEventListener('change', e => {
+    document.getElementById('prop-model').addEventListener('input', e => {
       d.model = e.target.value;
-      document.getElementById('prop-model-custom').value = e.target.value;
       if (d.model && SWITCH_MODELS[d.model]) {
         d.type = SWITCH_MODELS[d.model].type;
         document.getElementById('prop-type').value = d.type;
@@ -784,16 +782,6 @@
         d.type = VELOCLOUD_MODELS[d.model].type;
         document.getElementById('prop-type').value = d.type;
       }
-      document.getElementById('prop-model').innerHTML =
-        '<option value="">Custom</option>' +
-        getModelsForType(d.type).map(m =>
-          `<option value="${m}" ${m === d.model ? 'selected' : ''}>${m}</option>`
-        ).join('');
-      draw();
-    });
-    document.getElementById('prop-model-custom').addEventListener('input', e => {
-      d.model = e.target.value;
-      document.getElementById('prop-model').value = '';
       draw();
     });
     document.getElementById('prop-notes').addEventListener('input', e => {
