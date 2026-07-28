@@ -184,7 +184,7 @@ header h1 {
   line-height: 1.4;
 }
 
-/* ── Device Sections (Collapsible) ── */
+/* ── Collapsible Sections ── */
 
 .device-sections {
   display: flex;
@@ -192,18 +192,17 @@ header h1 {
   gap: 2px;
 }
 
-.dev-section {
+.collapsible-section {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
-  overflow: hidden;
 }
 
-.dev-section + .dev-section {
+.collapsible-section + .collapsible-section {
   margin-top: 4px;
 }
 
-.dev-section summary {
+.collapsible-section summary {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -217,14 +216,14 @@ header h1 {
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border);
   user-select: none;
-  -webkit-user-select: none;
+  list-style: none;
 }
 
-.dev-section summary::-webkit-details-marker {
+.collapsible-section summary::-webkit-details-marker {
   display: none;
 }
 
-.dev-section summary:hover {
+.collapsible-section summary:hover {
   color: var(--text-primary);
   background: var(--bg-hover);
 }
@@ -235,11 +234,11 @@ header h1 {
   color: var(--text-muted);
 }
 
-.dev-section[open] .section-arrow,
-.info-section[open] .section-arrow {
+.collapsible-section[open] .section-arrow {
   transform: rotate(90deg);
 }
 
+/* Device section inner items */
 .dev-section .device-template {
   display: flex;
   align-items: center;
@@ -274,7 +273,6 @@ header h1 {
   background: var(--bg-tertiary);
 }
 
-/* Category accent colors */
 .dev-section .device-template.cat-switch  { border-left-color: #3b82f6; }
 .dev-section .device-template.cat-ap      { border-left-color: #a855f7; }
 .dev-section .device-template.cat-routing { border-left-color: #f59e0b; }
@@ -289,59 +287,16 @@ header h1 {
 .dev-section .device-template.cat-servers:hover  { border-left-color: #34d399; }
 .dev-section .device-template.cat-cloud:hover    { border-left-color: #22d3ee; }
 
-.device-icon {
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-}
-
-/* ── Info Sections (Collapsible, non-draggable) ── */
-
-.info-section {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
-  overflow: hidden;
-  margin-top: 6px;
-}
-
-.info-section summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border);
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.info-section summary:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
-
-.info-section summary::-webkit-details-marker {
-  display: none;
-}
-
-.info-section[open] .section-arrow {
-  transform: rotate(90deg);
-}
-
+/* Info sections inner content */
 .info-section .cable-legend {
-  padding: 6px 8px;
+  padding: 8px;
 }
 
-/* ── Scan Sections (Catalyst Center / SSH) ── */
+.info-section .cat-center-config {
+  padding: 8px 10px;
+}
 
+/* Scan sections (Catalyst Center / SSH) */
 .scan-section {
   border-color: #1e3a5f;
   background: linear-gradient(135deg, #0d1b2a, #0a0a0f);
@@ -357,10 +312,6 @@ header h1 {
   color: #b8e6ff;
 }
 
-.scan-section .cat-center-config {
-  padding: 8px 10px;
-}
-
 .scan-btn {
   width: 100%;
   margin-top: 6px;
@@ -373,7 +324,6 @@ header h1 {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
   letter-spacing: 0.3px;
 }
