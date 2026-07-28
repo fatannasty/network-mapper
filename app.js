@@ -794,7 +794,8 @@
       d.type = e.target.value;
       d.model = '';
       document.getElementById('prop-model').value = '';
-      document.getElementById('model-list').innerHTML =
+      document.getElementById('prop-model').innerHTML =
+        `<option value="">— Select a model —</option>` +
         getModelsForType(d.type).map(m =>
           `<option value="${m}">${m}</option>`
         ).join('');
@@ -804,7 +805,7 @@
       d.location = e.target.value;
       draw();
     });
-    document.getElementById('prop-model').addEventListener('input', e => {
+    document.getElementById('prop-model').addEventListener('change', e => {
       d.model = e.target.value;
       if (d.model && SWITCH_MODELS[d.model]) {
         d.type = SWITCH_MODELS[d.model].type;
