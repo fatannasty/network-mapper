@@ -733,6 +733,9 @@
           ${Object.keys(AP_MODELS).map(m =>
             `<option value="${m}" ${m === d.model ? 'selected' : ''}>${m}</option>`
           ).join('')}
+          ${Object.keys(VELOCLOUD_MODELS).map(m =>
+            `<option value="${m}" ${m === d.model ? 'selected' : ''}>${m}</option>`
+          ).join('')}
         </select>
       </label>
       <label>Custom Model
