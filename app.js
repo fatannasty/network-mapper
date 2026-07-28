@@ -297,21 +297,29 @@
       if (modelInfo && modelIcons[modelInfo.svg]) {
         const img = modelIcons[modelInfo.svg];
         const isPng = modelInfo.svg.endsWith('.png');
-        const size = isPng ? r * 2.8 : r * 2.2;
 
         if (isPng) {
+          const scale = 4;
+          const w = img.naturalWidth * scale;
+          const h = img.naturalHeight * scale;
+
           ctx.fillStyle = '#0a0a0f';
           ctx.beginPath();
-          ctx.roundRect(x - size / 2 - 4, y - size / 2 - 4, size + 8, size + 8, 4);
+          ctx.roundRect(x - w / 2 - 6, y - h / 2 - 6, w + 12, h + 12, 6);
           ctx.fill();
           ctx.strokeStyle = colors.stroke;
-          ctx.lineWidth = 1;
+          ctx.lineWidth = 1.5;
           ctx.stroke();
-        }
 
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+        } else {
+          const size = r * 2.2;
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+        }
         ctx.restore();
         return;
       }
@@ -320,10 +328,29 @@
     if (iconsLoaded && iconImages[type]) {
       const img = iconImages[type];
       const isPng = DEVICE_COLORS[type]?.svg?.endsWith('.png');
-      const size = isPng ? r * 2.8 : r * 2.2;
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+
+      if (isPng) {
+        const scale = 4;
+        const w = img.naturalWidth * scale;
+        const h = img.naturalHeight * scale;
+
+        ctx.fillStyle = '#0a0a0f';
+        ctx.beginPath();
+        ctx.roundRect(x - w / 2 - 6, y - h / 2 - 6, w + 12, h + 12, 6);
+        ctx.fill();
+        ctx.strokeStyle = colors.stroke;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+      } else {
+        const size = r * 2.2;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+      }
       ctx.restore();
       return;
     }
