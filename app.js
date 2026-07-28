@@ -761,6 +761,13 @@
     });
     document.getElementById('prop-type').addEventListener('change', e => {
       d.type = e.target.value;
+      d.model = '';
+      document.getElementById('prop-model').innerHTML =
+        '<option value="">Custom</option>' +
+        getModelsForType(d.type).map(m =>
+          `<option value="${m}">${m}</option>`
+        ).join('');
+      document.getElementById('prop-model-custom').value = '';
       draw();
     });
     document.getElementById('prop-location').addEventListener('input', e => {
