@@ -319,7 +319,7 @@
       const modelInfo = models[model];
       if (modelInfo && modelIcons[modelInfo.svg]) {
         const img = modelIcons[modelInfo.svg];
-        const isPng = modelInfo.svg.endsWith('.png');
+        const isPng = modelInfo.svg.endsWith('.png') || modelInfo.svg.endsWith('.jpg');
 
         if (isPng) {
           const maxW = r * 4;
@@ -344,7 +344,7 @@
 
     if (iconsLoaded && iconImages[type]) {
       const img = iconImages[type];
-      const isPng = DEVICE_COLORS[type]?.svg?.endsWith('.png');
+      const isPng = DEVICE_COLORS[type]?.svg?.endsWith('.png') || DEVICE_COLORS[type]?.svg?.endsWith('.jpg');
 
       if (isPng) {
         const maxW = r * 4;
