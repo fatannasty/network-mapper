@@ -1117,11 +1117,44 @@
       svg = svg.replace(re, '$1' + color);
     });
 
+    // Title block fields: match pattern like "Rev. Time:</text>" and insert value
+    const tbFields = [
+      { id: 'tb-revtime',    label: 'Rev. Time' },
+      { id: 'tb-revdate',    label: 'Rev. Date' },
+      { id: 'tb-revision',   label: 'Revision' },
+      { id: 'tb-docname',    label: 'Document Name' },
+      { id: 'tb-drawtitle',  label: 'Drawing Title' },
+      { id: 'tb-drawndate',  label: 'Drawn Date' },
+      { id: 'tb-drawnby',    label: 'Drawn By' },
+    ];
+
+    tbFields.forEach(({ id, label }) => {
+      const val = escHtml(document.getElementById(id).value);
+      const re = new RegExp(`${label.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')}:\\s*<\\/text>`);
+      svg = svg.replace(re, () => `${label}:${val ? ' ' + val : ''}</text>`);
+    });
+
+    // Update <desc> elements for fields that originally had old values
+    const descFields = [
+      'Document Name',
+      'Drawing Title',
+    ];
+    descFields.forEach(field => {
+      const val = escHtml(document.getElementById('tb-' + field.toLowerCase().replace(/\s+/g, '')).value);
+      const re = new RegExp(`(<desc>${field}: )[^<]*(<\\/desc>)`);
+      svg = svg.replace(re, '$1' + val + '$2');
+    });
+
     const blob = new Blob([svg], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
     const img = document.getElementById('template-bg');
     if (img.src && img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
     img.src = url;
+  }
+
+  // Map from field display name to input id
+  function tbId(name) {
+    return 'tb-' + name.toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
   document.getElementById('btn-template').addEventListener('click', () => {
