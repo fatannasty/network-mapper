@@ -299,7 +299,9 @@
         const isPng = modelInfo.svg.endsWith('.png');
 
         if (isPng) {
-          const scale = 4;
+          const maxW = r * 4;
+          const maxH = r * 2.5;
+          const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
           const w = img.naturalWidth * scale;
           const h = img.naturalHeight * scale;
 
@@ -330,7 +332,9 @@
       const isPng = DEVICE_COLORS[type]?.svg?.endsWith('.png');
 
       if (isPng) {
-        const scale = 4;
+        const maxW = r * 4;
+        const maxH = r * 2.5;
+        const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
         const w = img.naturalWidth * scale;
         const h = img.naturalHeight * scale;
 
