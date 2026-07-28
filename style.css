@@ -468,7 +468,7 @@ header h1 {
 }
 
 .canvas-area.show-template {
-  background: transparent;
+  background: #ffffff;
 }
 
 #topology-canvas {
