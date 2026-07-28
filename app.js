@@ -1157,11 +1157,11 @@
     const bg = document.getElementById('template-bg');
     const area = bg.closest('.canvas-area');
     const btn = document.getElementById('btn-template');
-    const legendSettings = document.getElementById('legend-settings');
+    const settings = document.getElementById('template-settings');
     bg.classList.toggle('hidden');
     area.classList.toggle('show-template');
     btn.classList.toggle('active');
-    legendSettings.classList.toggle('hidden');
+    settings.classList.toggle('hidden');
     if (!templateSvgString) loadTemplateSVG();
   });
 
