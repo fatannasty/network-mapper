@@ -223,32 +223,32 @@
 
       if (conn.label) {
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '10px sans-serif';
-        ctx.fillText(conn.label, mx + perpX * 0.5, my + perpY * 0.5 - 8);
+        ctx.font = '13px sans-serif';
+        ctx.fillText(conn.label, mx + perpX * 0.5, my + perpY * 0.5 - 10);
       }
 
       if (conn.cableType && conn.cableType !== 'unknown') {
         ctx.fillStyle = cable.color;
-        ctx.font = 'bold 8px monospace';
+        ctx.font = 'bold 11px monospace';
         ctx.fillText(cable.label, mx + perpX * 0.5, my + perpY * 0.5);
       }
 
       if (conn.portA || conn.portB) {
         ctx.fillStyle = '#60a5fa';
-        ctx.font = '8px monospace';
+        ctx.font = '11px monospace';
         const portLabel = `${conn.portA || '?'} ↔ ${conn.portB || '?'}`;
-        ctx.fillText(portLabel, mx + perpX * 0.5, my + perpY * 0.5 + 10);
+        ctx.fillText(portLabel, mx + perpX * 0.5, my + perpY * 0.5 + 12);
       }
 
       if (conn.vlanUp) {
         ctx.fillStyle = '#f59e0b';
-        ctx.font = 'bold 9px monospace';
-        ctx.fillText(`VLAN ${conn.vlanUp}`, mx + perpX, my + perpY - 6);
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(`VLAN ${conn.vlanUp}`, mx + perpX, my + perpY - 8);
       }
       if (conn.vlanDown) {
         ctx.fillStyle = '#10b981';
-        ctx.font = 'bold 9px monospace';
-        ctx.fillText(`VLAN ${conn.vlanDown}`, mx + perpX, my + perpY + 6);
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(`VLAN ${conn.vlanDown}`, mx + perpX, my + perpY + 8);
       }
     });
   }
