@@ -298,18 +298,19 @@ header h1 {
 
 /* Scan sections (Catalyst Center / SSH) */
 .scan-section {
-  border-color: #1e3a5f;
-  background: linear-gradient(135deg, #0d1b2a, #0a0a0f);
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
 }
 
 .scan-section summary {
-  color: #7ec8e3;
-  background: linear-gradient(90deg, #0d1b2a, #1a1a25);
-  border-bottom-color: #1e3a5f;
+  color: #1e40af;
+  background: linear-gradient(90deg, #dbeafe, #eff6ff);
+  border-bottom-color: #bfdbfe;
 }
 
 .scan-section summary:hover {
-  color: #b8e6ff;
+  color: #1d4ed8;
+  background: linear-gradient(90deg, #bfdbfe, #dbeafe);
 }
 
 .scan-btn {
