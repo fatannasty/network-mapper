@@ -1711,7 +1711,8 @@
       if (data.success) {
         btn.textContent = `Done: ${data.devices} devices, ${data.cdpNeighbors} neighbors`;
         btn.style.background = '#059669';
-        refreshLocations();
+        await refreshLocations();
+        enableTemplate();
       } else {
         btn.textContent = `Error: ${data.error}`;
         btn.style.background = '#991b1b';
