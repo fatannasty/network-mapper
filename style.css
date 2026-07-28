@@ -622,6 +622,14 @@ header h1 {
   border-color: var(--accent);
 }
 
+/* ── Legend Settings ── */
+
+#legend-settings input[type="color"] {
+  height: 28px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
 /* ── Utility ── */
 
 .hidden {
