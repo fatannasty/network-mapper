@@ -148,23 +148,25 @@
       </details>
 
       <div id="template-settings" class="hidden" style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
-        <div class="properties">
-          <h2>Title Block</h2>
-          <label>Document Name</label>
-          <input type="text" id="tb-docname" placeholder="e.g. Site Network Diagram">
-          <label>Drawing Title</label>
-          <input type="text" id="tb-drawtitle" placeholder="e.g. Floor 1 Topology">
-          <label>Drawn By</label>
-          <input type="text" id="tb-drawnby" placeholder="e.g. John Smith">
-          <label>Drawn Date</label>
-          <input type="text" id="tb-drawndate" placeholder="e.g. 01/15/26">
-          <label>Revision</label>
-          <input type="text" id="tb-revision" placeholder="e.g. A">
-          <label>Revision Date</label>
-          <input type="text" id="tb-revdate" placeholder="e.g. 15 Jan 26">
-          <label>Revision Time</label>
-          <input type="text" id="tb-revtime" placeholder="e.g. 2:30 PM">
-        </div>
+        <details class="collapsible-section info-section" open>
+          <summary><svg class="section-arrow" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Title Block</summary>
+          <div class="properties" style="border:none;border-radius:0;margin:0;padding:8px 10px">
+            <label>Document Name</label>
+            <input type="text" id="tb-docname" placeholder="e.g. Site Network Diagram">
+            <label>Drawing Title</label>
+            <input type="text" id="tb-drawtitle" placeholder="e.g. Floor 1 Topology">
+            <label>Drawn By</label>
+            <input type="text" id="tb-drawnby" placeholder="e.g. John Smith">
+            <label>Drawn Date</label>
+            <input type="date" id="tb-drawndate">
+            <label>Revision</label>
+            <input type="text" id="tb-revision" placeholder="e.g. A">
+            <label>Revision Date</label>
+            <input type="date" id="tb-revdate">
+            <label>Revision Time</label>
+            <input type="time" id="tb-revtime">
+          </div>
+        </details>
         <div class="properties">
           <h2>Legend</h2>
           <label>Header</label>
