@@ -150,6 +150,27 @@
         <button id="btn-ssh-scan" class="mode-btn" style="width:100%;background:#059669;border-color:#047857">Scan via SSH</button>
       </div>
 
+      <div id="legend-settings" class="properties hidden" style="margin-top:8px">
+        <h2>Legend</h2>
+        <label>Header</label>
+        <input type="text" id="legend-header" value="LEGEND">
+        <label>Multi-mode Fiber</label>
+        <div style="display:flex;gap:4px">
+          <input type="text" id="legend-mm" value="Multi-mode Fiber" style="flex:1">
+          <input type="color" id="legend-mm-color" value="#f59d56" style="width:32px;padding:2px;flex-shrink:0">
+        </div>
+        <label>Copper</label>
+        <div style="display:flex;gap:4px">
+          <input type="text" id="legend-copper" value="Copper" style="flex:1">
+          <input type="color" id="legend-copper-color" value="#10b981" style="width:32px;padding:2px;flex-shrink:0">
+        </div>
+        <label>Single-mode Fiber</label>
+        <div style="display:flex;gap:4px">
+          <input type="text" id="legend-sm" value="Single-mode Fiber" style="flex:1">
+          <input type="color" id="legend-sm-color" value="#eab308" style="width:32px;padding:2px;flex-shrink:0">
+        </div>
+      </div>
+
       <h2>Properties</h2>
       <div id="properties-panel" class="properties">
         <p class="hint">Select a device to edit</p>
