@@ -81,7 +81,7 @@
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => { modelIcons[svg] = img; resolve(); };
-        img.onerror = () => resolve();
+        img.onerror = () => { console.warn('Failed to load:', svg); resolve(); };
         img.src = svg;
       });
     });
