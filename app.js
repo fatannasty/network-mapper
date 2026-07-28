@@ -86,6 +86,13 @@
     'VCE-3800': { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
   };
 
+  function getModelsForType(type) {
+    if (type === 'accesspoint') return Object.keys(AP_MODELS);
+    if (type === 'velocloud-edge') return Object.keys(VELOCLOUD_MODELS);
+    if (['switch', 'access-switch', 'core-switch'].includes(type)) return Object.keys(SWITCH_MODELS);
+    return [];
+  }
+
   const modelIcons = {};
   let modelIconsLoaded = false;
 
