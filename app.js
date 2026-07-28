@@ -19,7 +19,7 @@
   let nextId = 1;
 
   const GRID_SIZE = 20;
-  const DEVICE_RADIUS = 24;
+  const DEVICE_RADIUS = 30;
 
   const DEVICE_COLORS = {
     router:           { fill: '#3b82f6', stroke: '#1e40af', icon: 'R', svg: 'icons/router.svg' },
