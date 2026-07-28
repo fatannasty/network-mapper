@@ -580,11 +580,41 @@
     ctx.restore();
   }
 
+  function drawGridPaper(w, h) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += 20) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+    }
+    for (let y = 0; y <= h; y += 20) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = '#cccccc';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += 100) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+    }
+    for (let y = 0; y <= h; y += 100) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+  }
+
   function draw() {
     const w = canvas.width / devicePixelRatio;
     const h = canvas.height / devicePixelRatio;
     ctx.clearRect(0, 0, w, h);
     if (templateActive && templateImage && templateImage.complete) {
+      drawGridPaper(w, h);
       ctx.drawImage(templateImage, 0, 0, w, h);
     } else {
       drawGrid();
