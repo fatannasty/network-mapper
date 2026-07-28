@@ -787,6 +787,11 @@
         d.type = VELOCLOUD_MODELS[d.model].type;
         document.getElementById('prop-type').value = d.type;
       }
+      document.getElementById('prop-model').innerHTML =
+        '<option value="">Custom</option>' +
+        getModelsForType(d.type).map(m =>
+          `<option value="${m}" ${m === d.model ? 'selected' : ''}>${m}</option>`
+        ).join('');
       draw();
     });
     document.getElementById('prop-model-custom').addEventListener('input', e => {
