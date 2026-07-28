@@ -234,7 +234,8 @@ header h1 {
   color: var(--text-muted);
 }
 
-.collapsible-section[open] .section-arrow {
+.collapsible-section[open] .section-arrow,
+.prop-section[open] .section-arrow {
   transform: rotate(90deg);
 }
 
