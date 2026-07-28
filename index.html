@@ -32,24 +32,24 @@
       <p class="hint">Drag onto the canvas</p>
       <div class="device-list">
         <div class="device-template" draggable="true" data-type="core-switch">
-          <img src="icons/core-switch.svg" class="device-icon" alt="Core Switch" draggable="false">
+          <img src="icons/catalyst-9500.svg" class="device-icon" alt="Core Switch" draggable="false">
           <span>Core Switch</span>
         </div>
         <div class="device-template" draggable="true" data-type="access-switch">
-          <img src="icons/access-switch.svg" class="device-icon" alt="Access Switch" draggable="false">
+          <img src="icons/catalyst-9200.svg" class="device-icon" alt="Access Switch" draggable="false">
           <span>Access Switch</span>
+        </div>
+        <div class="device-template" draggable="true" data-type="switch">
+          <img src="icons/catalyst-9300.svg" class="device-icon" alt="Switch" draggable="false">
+          <span>Distribution Switch</span>
         </div>
         <div class="device-template" draggable="true" data-type="router">
           <img src="icons/router.svg" class="device-icon" alt="Router" draggable="false">
           <span>Router</span>
         </div>
-        <div class="device-template" draggable="true" data-type="switch">
-          <img src="icons/switch-catalyst9000.svg" class="device-icon" alt="Switch" draggable="false">
-          <span>Switch (Cat 9K)</span>
-        </div>
         <div class="device-template" draggable="true" data-type="accesspoint">
-          <img src="icons/accesspoint-cisco.svg" class="device-icon" alt="Access Point" draggable="false">
-          <span>Access Point</span>
+          <img src="icons/meraki-mr46.svg" class="device-icon" alt="Meraki AP" draggable="false">
+          <span>Meraki AP</span>
         </div>
         <div class="device-template" draggable="true" data-type="firewall">
           <img src="icons/firewall-cisco.svg" class="device-icon" alt="Firewall" draggable="false">
@@ -69,12 +69,18 @@
         </div>
       </div>
 
-      <h2>Cable Types</h2>
+      <h2>Switch Models</h2>
       <div class="cable-legend">
-        <div class="cable-item"><span class="cable-dot" style="background:#a855f7"></span> Fiber</div>
-        <div class="cable-item"><span class="cable-dot" style="background:#22c55e"></span> Cat6</div>
-        <div class="cable-item"><span class="cable-dot" style="background:#f59e0b"></span> Cat6a</div>
-        <div class="cable-item"><span class="cable-dot" style="background:#ef4444"></span> DAC</div>
+        <div class="cable-item"><img src="icons/catalyst-9200.svg" style="width:20px;height:14px"> 9200 (Access)</div>
+        <div class="cable-item"><img src="icons/catalyst-9300.svg" style="width:20px;height:14px"> 9300 (Distribution)</div>
+        <div class="cable-item"><img src="icons/catalyst-9500.svg" style="width:20px;height:14px"> 9500 (Core)</div>
+      </div>
+
+      <h2>Meraki APs</h2>
+      <div class="cable-legend">
+        <div class="cable-item"><img src="icons/meraki-mr36.svg" style="width:14px;height:14px"> MR36 (Indoor)</div>
+        <div class="cable-item"><img src="icons/meraki-mr46.svg" style="width:14px;height:14px"> MR46 (WiFi 6)</div>
+        <div class="cable-item"><img src="icons/meraki-mr56.svg" style="width:14px;height:14px"> MR56 (High-density)</div>
       </div>
 
       <h2>Mode</h2>
