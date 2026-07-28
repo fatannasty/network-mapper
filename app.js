@@ -63,23 +63,23 @@
   };
 
   const AP_MODELS = {
-    'MR28':  { svg: 'icons/accesspoint-cisco.svg', type: 'accesspoint' },
-    'MR36':  { svg: 'icons/accesspoint-cisco.svg', type: 'accesspoint' },
-    'MR38':  { svg: 'icons/accesspoint-cisco.svg', type: 'accesspoint' },
-    'MR44':  { svg: 'icons/accesspoint-cisco.svg', type: 'accesspoint' },
-    'MR45':  { svg: 'icons/accesspoint-cisco.svg', type: 'accesspoint' },
-    'MR46':  { svg: 'icons/accesspoint-cisco.svg', type: 'accesspoint' },
-    'MR48':  { svg: 'icons/accesspoint-cisco.svg', type: 'accesspoint' },
-    'MR56':  { svg: 'icons/accesspoint-cisco.svg', type: 'accesspoint' },
-    'MR58':  { svg: 'icons/accesspoint-cisco.svg', type: 'accesspoint' },
+    'MR28':  { svg: 'icons/meraki-mr28.png', type: 'accesspoint' },
+    'MR36':  { svg: 'icons/meraki-mr36.png', type: 'accesspoint' },
+    'MR38':  { svg: 'icons/meraki-mr36.png', type: 'accesspoint' },
+    'MR44':  { svg: 'icons/meraki-mr44.png', type: 'accesspoint' },
+    'MR45':  { svg: 'icons/meraki-mr45.png', type: 'accesspoint' },
+    'MR46':  { svg: 'icons/meraki-mr46.png', type: 'accesspoint' },
+    'MR48':  { svg: 'icons/meraki-mr46.png', type: 'accesspoint' },
+    'MR56':  { svg: 'icons/meraki-mr56.png', type: 'accesspoint' },
+    'MR58':  { svg: 'icons/meraki-mr56.png', type: 'accesspoint' },
   };
 
   const VELOCLOUD_MODELS = {
-    'VCE-510':  { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
-    'VCE-610':  { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
-    'VCE-640':  { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
-    'VCE-680':  { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
-    'VCE-710':  { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
+    'VCE-510':  { svg: 'icons/velocloud-edge-510.png', type: 'velocloud-edge' },
+    'VCE-610':  { svg: 'icons/velocloud-edge-510.png', type: 'velocloud-edge' },
+    'VCE-640':  { svg: 'icons/velocloud-edge-510.png', type: 'velocloud-edge' },
+    'VCE-680':  { svg: 'icons/velocloud-edge-510.png', type: 'velocloud-edge' },
+    'VCE-710':  { svg: 'icons/velocloud-edge-510.png', type: 'velocloud-edge' },
     'VCE-840':  { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
     'VCE-2000': { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
     'VCE-3400': { svg: 'icons/velocloud-edge-rackmount.svg', type: 'velocloud-edge' },
