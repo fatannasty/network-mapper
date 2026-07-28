@@ -328,12 +328,12 @@
           const w = img.naturalWidth * scale;
           const h = img.naturalHeight * scale;
 
-          ctx.fillStyle = '#0a0a0f';
           ctx.beginPath();
           ctx.roundRect(x - w / 2 - 6, y - h / 2 - 6, w + 12, h + 12, 6);
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
           ctx.fill();
           ctx.strokeStyle = colors.stroke;
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 1;
           ctx.stroke();
 
           ctx.imageSmoothingEnabled = true;
@@ -361,12 +361,12 @@
         const w = img.naturalWidth * scale;
         const h = img.naturalHeight * scale;
 
-        ctx.fillStyle = '#0a0a0f';
         ctx.beginPath();
         ctx.roundRect(x - w / 2 - 6, y - h / 2 - 6, w + 12, h + 12, 6);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
         ctx.fill();
         ctx.strokeStyle = colors.stroke;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1;
         ctx.stroke();
 
         ctx.imageSmoothingEnabled = true;
