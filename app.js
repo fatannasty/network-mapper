@@ -1519,23 +1519,37 @@
     const wIn = (w / dpi).toFixed(2);
     const hIn = (h / dpi).toFixed(2);
     const imgData = canvas.toDataURL('image/png');
-    const b64 = imgData.replace(/^data:image\/png;base64,/, '');
-    const vdx = `<?xml version="1.0" encoding="UTF-8"?>
-<VisioDocument xmlns="http://schemas.microsoft.com/visio/2003/core">
-  <DocumentSheet/>
+    const b64 = imgData.replace(/^data:image\/png;base64,/, '').replace(/\s/g, '');
+    const now = new Date();
+    const ts = now.toISOString().replace(/[TZ]/g, ' ').trim();
+    const vdx = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<VisioDocument xmlns="http://schemas.microsoft.com/visio/2003/core"
+  xmlns:v="http://schemas.microsoft.com/visio/2003/core"
+  DocumentLangID="1033" Key="netmap-${Date.now()}">
+  <DocumentSheet Name="Document" UniqueID="{00000000-0000-0000-0000-000000000000}">
+    <DocProps>
+      <Title>NetMap Topology</Title>
+      <Subject>Network Topology</Subject>
+      <CreateDate>${ts}</CreateDate>
+    </DocProps>
+  </DocumentSheet>
+  <Masters/>
   <Pages>
-    <Page ID="0" Name="Page-1">
-      <PageSheet>
+    <Page ID="0" Name="Page-1" PageSheet="0">
+      <PageSheet ID="0" Name="PageSheet" UniqueID="{00000001-0000-0000-0000-000000000001}">
         <PageProps>
           <PageWidth>${wIn}</PageWidth>
           <PageHeight>${hIn}</PageHeight>
+          <DrawingScale>1</DrawingScale>
+          <DrawingScaleType>0</DrawingScaleType>
+          <DrawingSizeType>0</DrawingSizeType>
         </PageProps>
       </PageSheet>
       <Shapes>
-        <Shape ID="1" Type="Shape" Name="Topology">
+        <Shape ID="1" Type="Shape" Name="Topology" UniqueID="{00000002-0000-0000-0000-000000000002}">
           <Foreign>
             <ForeignType>Bitmap</ForeignType>
-            <ForeignData Width="${wIn}" Height="${hIn}">${b64}</ForeignData>
+            <ForeignData Width="${wIn}" Height="${hIn}"><![CDATA[${b64}]]></ForeignData>
             <Img Width="${wIn}" Height="${hIn}" CX="${wIn}" CY="${hIn}"/>
           </Foreign>
           <XForm>
@@ -1546,13 +1560,20 @@
             <LocPinX>${(wIn / 2).toFixed(2)}</LocPinX>
             <LocPinY>${(hIn / 2).toFixed(2)}</LocPinY>
             <Angle>0</Angle>
+            <FlipX>0</FlipX>
+            <FlipY>0</FlipY>
+            <ResizeMode>0</ResizeMode>
           </XForm>
+          <Char IX="0">
+            <Cell N="Size" V="0.1667"/>
+            <Cell N="Color" V="0"/>
+          </Char>
         </Shape>
       </Shapes>
     </Page>
   </Pages>
 </VisioDocument>`;
-    const blob = new Blob([vdx], { type: 'application/vnd.ms-visio.drawing' });
+    const blob = new Blob([vdx], { type: 'application/xml' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'topology.vdx';
