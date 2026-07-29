@@ -1311,21 +1311,163 @@
     document.getElementById(id).addEventListener('input', draw);
   });
 
-  function autoLayout() {
+  const TOPOLOGY_LAYOUTS = {
+    circle(devices, w, h) {
+      const cx = w / 2, cy = h / 2;
+      const r = Math.min(w, h) * 0.35;
+      devices.forEach((d, i) => {
+        const angle = (2 * Math.PI * i) / devices.length - Math.PI / 2;
+        d.x = snapToGrid(cx + r * Math.cos(angle));
+        d.y = snapToGrid(cy + r * Math.sin(angle));
+      });
+    },
+
+    star(devices, w, h) {
+      if (devices.length < 2) return this.circle(devices, w, h);
+      const cx = w / 2, cy = h / 2;
+      const connCount = {};
+      devices.forEach(d => { connCount[d.id] = 0; });
+      connections.forEach(c => { connCount[c.from] = (connCount[c.from] || 0) + 1; connCount[c.to] = (connCount[c.to] || 0) + 1; });
+      const sorted = [...devices].sort((a, b) => (connCount[b.id] || 0) - (connCount[a.id] || 0));
+      const center = sorted[0];
+      center.x = snapToGrid(cx);
+      center.y = snapToGrid(cy);
+      const others = sorted.slice(1);
+      const r = Math.min(w, h) * 0.35;
+      others.forEach((d, i) => {
+        const angle = (2 * Math.PI * i) / others.length - Math.PI / 2;
+        d.x = snapToGrid(cx + r * Math.cos(angle));
+        d.y = snapToGrid(cy + r * Math.sin(angle));
+      });
+    },
+
+    ring(devices, w, h) {
+      this.circle(devices, w, h);
+    },
+
+    bus(devices, w, h) {
+      if (devices.length < 2) return this.circle(devices, w, h);
+      const margin = 100;
+      const spacing = Math.min(160, (w - margin * 2) / (devices.length - 1));
+      const cy = h / 2;
+      const startX = (w - spacing * (devices.length - 1)) / 2;
+      devices.forEach((d, i) => {
+        d.x = snapToGrid(startX + i * spacing);
+        d.y = snapToGrid(cy);
+      });
+    },
+
+    tree(devices, w, h) {
+      if (devices.length < 2) return this.circle(devices, w, h);
+      const connCount = {};
+      devices.forEach(d => { connCount[d.id] = 0; });
+      connections.forEach(c => { connCount[c.from] = (connCount[c.from] || 0) + 1; connCount[c.to] = (connCount[c.to] || 0) + 1; });
+      const sorted = [...devices].sort((a, b) => (connCount[b.id] || 0) - (connCount[a.id] || 0));
+      const root = sorted[0];
+      const adj = {};
+      devices.forEach(d => adj[d.id] = []);
+      connections.forEach(c => {
+        adj[c.from].push(c.to);
+        adj[c.to].push(c.from);
+      });
+      const visited = new Set();
+      const levels = [];
+      const queue = [root.id];
+      visited.add(root.id);
+      while (queue.length > 0) {
+        const levelSize = queue.length;
+        const level = [];
+        for (let i = 0; i < levelSize; i++) {
+          const id = queue.shift();
+          level.push(id);
+          for (const nb of adj[id]) {
+            if (!visited.has(nb)) {
+              visited.add(nb);
+              queue.push(nb);
+            }
+          }
+        }
+        levels.push(level);
+      }
+      const placed = new Set();
+      const margin = 80;
+      const levelH = Math.min(120, (h - margin * 2) / Math.max(levels.length, 1));
+      levels.forEach((level, li) => {
+        const levelW = Math.min(140, (w - margin * 2) / Math.max(level.length, 1));
+        const startX = (w - levelW * (level.length - 1)) / 2;
+        level.forEach((id, i) => {
+          const d = devices.find(dev => dev.id === id);
+          if (d && !placed.has(id)) {
+            d.x = snapToGrid(startX + i * levelW);
+            d.y = snapToGrid(margin + li * levelH);
+            placed.add(id);
+          }
+        });
+      });
+      const unplaced = devices.filter(d => !placed.has(d.id));
+      unplaced.forEach((d, i) => {
+        d.x = snapToGrid(margin + i * 140);
+        d.y = snapToGrid(h - margin);
+      });
+    },
+
+    grid(devices, w, h) {
+      if (devices.length === 0) return;
+      const cols = Math.ceil(Math.sqrt(devices.length));
+      const rows = Math.ceil(devices.length / cols);
+      const margin = 80;
+      const cellW = (w - margin * 2) / Math.max(cols - 1, 1);
+      const cellH = (h - margin * 2) / Math.max(rows - 1, 1);
+      devices.forEach((d, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        d.x = snapToGrid(margin + col * cellW);
+        d.y = snapToGrid(margin + row * cellH);
+      });
+    },
+
+    line(devices, w, h) {
+      if (devices.length < 2) return this.circle(devices, w, h);
+      const margin = 80;
+      const spacing = Math.min(130, (w - margin * 2) / (devices.length - 1));
+      const cy = h / 2;
+      const startX = (w - spacing * (devices.length - 1)) / 2;
+      devices.forEach((d, i) => {
+        const stagger = (i % 2 === 0 ? -1 : 1) * 40;
+        d.x = snapToGrid(startX + i * spacing);
+        d.y = snapToGrid(cy + stagger);
+      });
+    },
+
+    random(devices, w, h) {
+      if (devices.length === 0) return;
+      const margin = 80;
+      devices.forEach(d => {
+        d.x = snapToGrid(margin + Math.random() * (w - margin * 2));
+        d.y = snapToGrid(margin + Math.random() * (h - margin * 2));
+      });
+    }
+  };
+
+  function applyTopology(type) {
     if (devices.length === 0) return;
     const w = canvas.width / devicePixelRatio;
     const h = canvas.height / devicePixelRatio;
-    const cx = w / 2;
-    const cy = h / 2;
-    const r = Math.min(w, h) * 0.35;
-
-    devices.forEach((d, i) => {
-      const angle = (2 * Math.PI * i) / devices.length - Math.PI / 2;
-      d.x = snapToGrid(cx + r * Math.cos(angle));
-      d.y = snapToGrid(cy + r * Math.sin(angle));
-    });
-    draw();
+    const fn = TOPOLOGY_LAYOUTS[type];
+    if (fn) {
+      fn(devices, w, h);
+      devices.forEach(d => { delete d.labelOffset; });
+      connections.forEach(c => { delete c.labelOffset; });
+      draw();
+    }
   }
+
+  document.getElementById('select-topology').addEventListener('change', e => {
+    if (e.target.value) {
+      applyTopology(e.target.value);
+      e.target.value = '';
+    }
+  });
 
   async function refreshLocations() {
     const panel = document.getElementById('locations-panel');
