@@ -1537,7 +1537,6 @@
 
     let shapeId = 1;
     let shapes = '';
-    let connects = '';
 
     devices.forEach(d => {
       const colors = DEVICE_COLORS[d.type] || DEVICE_COLORS.pc;
@@ -1545,25 +1544,37 @@
       const cx = (d.x / dpi).toFixed(4);
       const cy = (d.y / dpi).toFixed(4);
       const rStr = r.toFixed(4);
+      const dblR = (r * 2).toFixed(4);
       const id = shapeId++;
 
-      let fillColor = '#4472C4';
-      if (colors.fill) fillColor = colors.fill;
-      const textColor = '#000000';
-
       shapes += '<Shape ID="' + id + '" Type="Shape" Name="' + escXml(d.name) + '">\n';
+      shapes += '  <XForm>\n';
+      shapes += '    <PinX>' + cx + '</PinX>\n';
+      shapes += '    <PinY>' + cy + '</PinY>\n';
+      shapes += '    <Width>' + dblR + '</Width>\n';
+      shapes += '    <Height>' + dblR + '</Height>\n';
+      shapes += '    <LocPinX>' + rStr + '</LocPinX>\n';
+      shapes += '    <LocPinY>' + rStr + '</LocPinY>\n';
+      shapes += '  </XForm>\n';
       shapes += '  <Section N="Geometry">\n';
       shapes += '    <Row IX="0" T="Ellipse">\n';
-      shapes += '      <Cell N="X" V="' + cx + '"/>\n';
-      shapes += '      <Cell N="Y" V="' + cy + '"/>\n';
+      shapes += '      <Cell N="X" V="' + rStr + '"/>\n';
+      shapes += '      <Cell N="Y" V="' + rStr + '"/>\n';
       shapes += '      <Cell N="A" V="' + rStr + '"/>\n';
       shapes += '      <Cell N="B" V="' + rStr + '"/>\n';
       shapes += '    </Row>\n';
       shapes += '  </Section>\n';
       shapes += '  <Text><cp IX="0"/><pp IX="0"/><tp IX="0"/>' + escXml(d.name) + '</Text>\n';
+      shapes += '  <Char IX="0">\n';
+      shapes += '    <Cell N="Size" V="0.12"/>\n';
+      shapes += '    <Cell N="HorizontalAlign" V="1"/>\n';
+      shapes += '  </Char>\n';
+      shapes += '  <Para IX="0">\n';
+      shapes += '    <Cell N="HorzAlign" V="1"/>\n';
+      shapes += '    <Cell N="VertAlign" V="1"/>\n';
+      shapes += '  </Para>\n';
       shapes += '  <Fill>\n';
-      shapes += '    <Cell N="FillForegnd" V="' + fillColor + '"/>\n';
-      shapes += '    <Cell N="FillBkgnd" V="#FFFFFF"/>\n';
+      shapes += '    <Cell N="FillForegnd" V="' + colors.fill + '"/>\n';
       shapes += '    <Cell N="FillPattern" V="1"/>\n';
       shapes += '  </Fill>\n';
       shapes += '  <Line>\n';
@@ -1583,7 +1594,7 @@
       const by = (b.y / dpi).toFixed(4);
       const id = shapeId++;
 
-      shapes += '<Shape ID="' + id + '" Type="Shape" Name="Conn">\n';
+      shapes += '<Shape ID="' + id + '" Type="Shape" Name="Connection">\n';
       shapes += '  <Section N="Geometry">\n';
       shapes += '    <Row IX="0" T="MoveTo">\n';
       shapes += '      <Cell N="X" V="' + ax + '"/>\n';
@@ -1595,15 +1606,7 @@
       shapes += '    </Row>\n';
       shapes += '  </Section>\n';
       if (conn.label) {
-        const mx = ((a.x + b.x) / 2 / dpi).toFixed(4);
-        const my = ((a.y + b.y) / 2 / dpi).toFixed(4);
         shapes += '  <Text><cp IX="0"/><pp IX="0"/><tp IX="0"/>' + escXml(conn.label) + '</Text>\n';
-        shapes += '  <XForm>\n';
-        shapes += '    <PinX>' + mx + '</PinX>\n';
-        shapes += '    <PinY>' + my + '</PinY>\n';
-        shapes += '    <Width>1</Width>\n';
-        shapes += '    <Height>0.3</Height>\n';
-        shapes += '  </XForm>\n';
       }
       shapes += '  <Line>\n';
       shapes += '    <Cell N="LineColor" V="#666666"/>\n';
