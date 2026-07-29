@@ -1469,244 +1469,83 @@
     }
   });
 
-  const EXPORT_SCALE = 2;
-
   function exportCanvasAs(type) {
+    draw();
     try {
-      const w = canvas.width / devicePixelRatio;
-      const h = canvas.height / devicePixelRatio;
-      const offscreen = document.createElement('canvas');
-      offscreen.width = Math.round(w * EXPORT_SCALE);
-      offscreen.height = Math.round(h * EXPORT_SCALE);
-      const offCtx = offscreen.getContext('2d');
-      offCtx.setTransform(EXPORT_SCALE, 0, 0, EXPORT_SCALE, 0, 0);
-
-      renderExport(offCtx, w, h);
-
-      if (type === 'jpeg') return exportJPEG(offscreen);
-      if (type === 'pdf') return exportPDF(offscreen, w, h);
-      if (type === 'svg') return exportSVG(offscreen, w, h);
-      if (type === 'vdx') return exportVDX(offscreen, w, h);
+      canvas.toDataURL('image/png');
+    } catch (e) {
+      alert('Export blocked: the canvas contains cross-origin images. Disable the Template background and try again.\n\n' + e.message);
+      return;
+    }
+    try {
+      if (type === 'jpeg') return exportJPEG();
+      if (type === 'pdf') return exportPDF();
+      if (type === 'svg') return exportSVG();
+      if (type === 'vdx') return exportVDX();
     } catch (e) {
       alert('Export failed: ' + e.message);
     }
   }
 
-  function renderExport(ctx, w, h) {
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, w, h);
-
-    drawGridPaper(w, h);
-
-    ctx.strokeStyle = '#e5e7eb';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(1, 1, w - 2, h - 2);
-
-    drawExportConnections(ctx);
-    drawExportDevices(ctx);
-  }
-
-  function drawExportConnections(ctx) {
-    connections.forEach(conn => {
-      const a = devices.find(d => d.id === conn.from);
-      const b = devices.find(d => d.id === conn.to);
-      if (!a || !b) return;
-
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = getCableColor(conn.cableType);
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      const mx = (a.x + b.x) / 2;
-      const my = (a.y + b.y) / 2;
-      const lx = conn.labelOffset ? conn.labelOffset.x : mx;
-      const ly = conn.labelOffset ? conn.labelOffset.y : my;
-
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      if (conn.label) {
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '12px sans-serif';
-        ctx.fillText(conn.label, lx, ly - 8);
-      }
-      const cable = CABLE_TYPES[conn.cableType];
-      if (conn.cableType && conn.cableType !== 'unknown' && cable) {
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 10px monospace';
-        ctx.fillText(cable.label, lx, ly + 2);
-      }
-      if (conn.portA || conn.portB) {
-        ctx.fillStyle = '#60a5fa';
-        ctx.font = '10px monospace';
-        ctx.fillText(`${conn.portA || '?'} ↔ ${conn.portB || '?'}`, lx, ly + 14);
-      }
-      if (conn.vlanUp) {
-        ctx.fillStyle = '#f59e0b';
-        ctx.font = 'bold 11px monospace';
-        ctx.fillText(`VLAN ${conn.vlanUp}`, lx, ly + 26);
-      }
-      if (conn.vlanDown) {
-        ctx.fillStyle = '#10b981';
-        ctx.font = 'bold 11px monospace';
-        ctx.fillText(`VLAN ${conn.vlanDown}`, lx, ly + 38);
-      }
-    });
-  }
-
-  function drawExportDevices(ctx) {
-    devices.forEach(d => {
-      const colors = DEVICE_COLORS[d.type] || DEVICE_COLORS.pc;
-      const r = DEVICE_RADIUS;
-
-      ctx.beginPath();
-      ctx.arc(d.x, d.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = colors.fill + '33';
-      ctx.fill();
-      ctx.strokeStyle = colors.stroke;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      ctx.fillStyle = colors.stroke;
-      ctx.font = 'bold 16px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(DEVICE_NAMES[d.type]?.[0] || '?', d.x, d.y);
-
-      ctx.fillStyle = '#000000';
-      ctx.font = 'bold 13px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(d.name, d.x, d.y + r + 5);
-
-      let yOff = r + 22;
-      if (d.ip) {
-        ctx.fillStyle = '#000000';
-        ctx.font = '11px sans-serif';
-        ctx.fillText(d.ip, d.x, d.y + yOff);
-        yOff += 15;
-      }
-      if (d.location) {
-        ctx.fillStyle = '#000000';
-        ctx.font = '10px sans-serif';
-        ctx.fillText(d.location, d.x, d.y + yOff);
-        yOff += 13;
-      }
-      if (d.model) {
-        ctx.fillStyle = '#000000';
-        ctx.font = '10px monospace';
-        ctx.fillText(d.model, d.x, d.y + yOff);
-        yOff += 13;
-      }
-      if (d.ports && d.ports.length > 0) {
-        ctx.fillStyle = '#000000';
-        ctx.font = '10px monospace';
-        ctx.fillText(d.ports.join(', '), d.x, d.y + yOff);
-      }
-    });
-  }
-
-  function exportJPEG(c) {
-    c.toBlob(blob => {
-      if (!blob) { alert('Export failed: canvas is empty'); return; }
+  function exportJPEG() {
+    canvas.toBlob(blob => {
+      if (!blob) { alert('Export produced an empty image.'); return; }
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = 'topology.jpg';
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
     }, 'image/jpeg', 0.92);
   }
 
-  function exportPDF(c, w, h) {
+  function exportPDF() {
     if (!window.jspdf) {
       alert('PDF library not loaded. Please refresh and try again.');
       return;
     }
-    const imgData = c.toDataURL('image/png');
+    const w = canvas.width / devicePixelRatio;
+    const h = canvas.height / devicePixelRatio;
+    const imgData = canvas.toDataURL('image/png');
     const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'px', format: [w, h] });
     pdf.addImage(imgData, 'PNG', 0, 0, w, h);
     pdf.save('topology.pdf');
   }
 
-  function exportSVG(c, w, h) {
-    const imgData = c.toDataURL('image/png');
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-  <image href="${imgData}" width="${w}" height="${h}"/>
-</svg>`;
+  function exportSVG() {
+    const w = canvas.width / devicePixelRatio;
+    const h = canvas.height / devicePixelRatio;
+    const imgData = canvas.toDataURL('image/png');
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">\n  <image href="' + imgData + '" width="' + w + '" height="' + h + '"/>\n</svg>';
     const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'topology.svg';
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
   }
 
-  function exportVDX(c, w, h) {
+  function exportVDX() {
+    const w = canvas.width / devicePixelRatio;
+    const h = canvas.height / devicePixelRatio;
     const dpi = 96;
     const wIn = (w / dpi).toFixed(2);
     const hIn = (h / dpi).toFixed(2);
-    const imgData = c.toDataURL('image/png');
+    const imgData = canvas.toDataURL('image/png');
     const b64 = imgData.replace(/^data:image\/png;base64,/, '').replace(/\s/g, '');
     const now = new Date();
     const ts = now.toISOString().replace(/[TZ]/g, ' ').trim();
-    const vdx = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<VisioDocument xmlns="http://schemas.microsoft.com/visio/2003/core"
-  xmlns:v="http://schemas.microsoft.com/visio/2003/core"
-  DocumentLangID="1033" Key="netmap-${Date.now()}">
-  <DocumentSheet Name="Document" UniqueID="{00000000-0000-0000-0000-000000000000}">
-    <DocProps>
-      <Title>NetMap Topology</Title>
-      <Subject>Network Topology</Subject>
-      <CreateDate>${ts}</CreateDate>
-    </DocProps>
-  </DocumentSheet>
-  <Masters/>
-  <Pages>
-    <Page ID="0" Name="Page-1" PageSheet="0">
-      <PageSheet ID="0" Name="PageSheet" UniqueID="{00000001-0000-0000-0000-000000000001}">
-        <PageProps>
-          <PageWidth>${wIn}</PageWidth>
-          <PageHeight>${hIn}</PageHeight>
-          <DrawingScale>1</DrawingScale>
-          <DrawingScaleType>0</DrawingScaleType>
-          <DrawingSizeType>0</DrawingSizeType>
-        </PageProps>
-      </PageSheet>
-      <Shapes>
-        <Shape ID="1" Type="Shape" Name="Topology" UniqueID="{00000002-0000-0000-0000-000000000002}">
-          <Foreign>
-            <ForeignType>Bitmap</ForeignType>
-            <ForeignData Width="${wIn}" Height="${hIn}"><![CDATA[${b64}]]></ForeignData>
-            <Img Width="${wIn}" Height="${hIn}" CX="${wIn}" CY="${hIn}"/>
-          </Foreign>
-          <XForm>
-            <PinX>${(wIn / 2).toFixed(2)}</PinX>
-            <PinY>${(hIn / 2).toFixed(2)}</PinY>
-            <Width>${wIn}</Width>
-            <Height>${hIn}</Height>
-            <LocPinX>${(wIn / 2).toFixed(2)}</LocPinX>
-            <LocPinY>${(hIn / 2).toFixed(2)}</LocPinY>
-            <Angle>0</Angle>
-            <FlipX>0</FlipX>
-            <FlipY>0</FlipY>
-            <ResizeMode>0</ResizeMode>
-          </XForm>
-          <Char IX="0">
-            <Cell N="Size" V="0.1667"/>
-            <Cell N="Color" V="0"/>
-          </Char>
-        </Shape>
-      </Shapes>
-    </Page>
-  </Pages>
-</VisioDocument>`;
+    const vdx = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<VisioDocument xmlns="http://schemas.microsoft.com/visio/2003/core" xmlns:v="http://schemas.microsoft.com/visio/2003/core" DocumentLangID="1033" Key="netmap-' + Date.now() + '">\n  <DocumentSheet Name="Document" UniqueID="{00000000-0000-0000-0000-000000000000}">\n    <DocProps><Title>NetMap Topology</Title><Subject>Network Topology</Subject><CreateDate>' + ts + '</CreateDate></DocProps>\n  </DocumentSheet>\n  <Masters/>\n  <Pages>\n    <Page ID="0" Name="Page-1">\n      <PageSheet ID="0" Name="PageSheet">\n        <PageProps><PageWidth>' + wIn + '</PageWidth><PageHeight>' + hIn + '</PageHeight></PageProps>\n      </PageSheet>\n      <Shapes>\n        <Shape ID="1" Type="Shape" Name="Topology">\n          <Foreign>\n            <ForeignType>Bitmap</ForeignType>\n            <ForeignData Width="' + wIn + '" Height="' + hIn + '"><![CDATA[' + b64 + ']]></ForeignData>\n            <Img Width="' + wIn + '" Height="' + hIn + '" CX="' + wIn + '" CY="' + hIn + '"/>\n          </Foreign>\n          <XForm>\n            <PinX>' + (wIn / 2).toFixed(2) + '</PinX><PinY>' + (hIn / 2).toFixed(2) + '</PinY>\n            <Width>' + wIn + '</Width><Height>' + hIn + '</Height>\n            <LocPinX>' + (wIn / 2).toFixed(2) + '</LocPinX><LocPinY>' + (hIn / 2).toFixed(2) + '</LocPinY>\n            <Angle>0</Angle>\n          </XForm>\n        </Shape>\n      </Shapes>\n    </Page>\n  </Pages>\n</VisioDocument>';
     const blob = new Blob([vdx], { type: 'application/xml' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'topology.vdx';
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
   }
 
