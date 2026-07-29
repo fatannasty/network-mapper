@@ -1535,14 +1535,17 @@
         <Shape ID="1" Type="Shape" Name="Topology">
           <Foreign>
             <ForeignType>Bitmap</ForeignType>
-            <ForeignData Width="${wIn}" Height="${hIn}" CompressionType="See-Also">${b64}</ForeignData>
-            <Img Width="${wIn}" Height="${hIn}"/>
+            <ForeignData Width="${wIn}" Height="${hIn}">${b64}</ForeignData>
+            <Img Width="${wIn}" Height="${hIn}" CX="${wIn}" CY="${hIn}"/>
           </Foreign>
           <XForm>
             <PinX>${(wIn / 2).toFixed(2)}</PinX>
             <PinY>${(hIn / 2).toFixed(2)}</PinY>
             <Width>${wIn}</Width>
             <Height>${hIn}</Height>
+            <LocPinX>${(wIn / 2).toFixed(2)}</LocPinX>
+            <LocPinY>${(hIn / 2).toFixed(2)}</LocPinY>
+            <Angle>0</Angle>
           </XForm>
         </Shape>
       </Shapes>
