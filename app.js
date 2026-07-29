@@ -235,20 +235,20 @@
       if (conn.label) {
         ctx.fillStyle = '#94a3b8';
         ctx.font = '13px sans-serif';
-        ctx.fillText(conn.label, mx + perpX * 0.5, my + perpY * 0.5 - 10);
+        ctx.fillText(conn.label, lx, ly - 10);
       }
 
       if (conn.cableType && conn.cableType !== 'unknown') {
         ctx.fillStyle = '#000000';
         ctx.font = 'bold 11px monospace';
-        ctx.fillText(cable.label, mx + perpX * 0.5, my + perpY * 0.5);
+        ctx.fillText(cable.label, lx, ly);
       }
 
       if (conn.portA || conn.portB) {
         ctx.fillStyle = '#60a5fa';
         ctx.font = '11px monospace';
         const portLabel = `${conn.portA || '?'} ↔ ${conn.portB || '?'}`;
-        ctx.fillText(portLabel, mx + perpX * 0.5, my + perpY * 0.5 + 12);
+        ctx.fillText(portLabel, lx, ly + 12);
       }
 
       if (conn.vlanUp) {
