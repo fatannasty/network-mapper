@@ -684,9 +684,9 @@
         <label>Cable Type
           <select id="prop-conn-cable">
             <option value="unknown" ${!conn.cableType || conn.cableType === 'unknown' ? 'selected' : ''}>Unknown</option>
-            <option value="fiber" ${conn.cableType === 'fiber' ? 'selected' : ''}>Fiber</option>
-            <option value="cat6" ${conn.cableType === 'cat6' ? 'selected' : ''}>Cat6</option>
-            <option value="cat6a" ${conn.cableType === 'cat6a' ? 'selected' : ''}>Cat6a</option>
+            <option value="mm-fiber" ${conn.cableType === 'mm-fiber' ? 'selected' : ''}>Multi-mode Fiber</option>
+            <option value="copper" ${conn.cableType === 'copper' ? 'selected' : ''}>Copper</option>
+            <option value="sm-fiber" ${conn.cableType === 'sm-fiber' ? 'selected' : ''}>Single-mode Fiber</option>
             <option value="dac" ${conn.cableType === 'dac' ? 'selected' : ''}>DAC</option>
           </select>
         </label>
