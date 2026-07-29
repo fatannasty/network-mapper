@@ -21,7 +21,17 @@
       <button id="btn-save" title="Save topology to file">Save</button>
       <button id="btn-load" title="Load topology from file">Load</button>
       <button id="btn-clear" title="Clear all devices">Clear</button>
-      <button id="btn-auto-layout" title="Auto-arrange devices">Layout</button>
+      <select id="select-topology" title="Choose network topology layout">
+        <option value="">Layout ▾</option>
+        <option value="circle">Circle</option>
+        <option value="star">Star</option>
+        <option value="ring">Ring</option>
+        <option value="bus">Bus</option>
+        <option value="tree">Tree</option>
+        <option value="grid">Grid</option>
+        <option value="line">Line</option>
+        <option value="random">Random</option>
+      </select>
       <button id="btn-template" title="Toggle Visio template background">Template</button>
       <input type="file" id="file-input" accept=".json" hidden>
     </div>
