@@ -1529,6 +1529,10 @@
   }
 
   async function exportVSDX() {
+    if (typeof JSZip === 'undefined') {
+      alert('JSZip library not loaded. Please refresh and try again.');
+      return;
+    }
     const dpi = 96;
     const w = canvas.width / devicePixelRatio;
     const h = canvas.height / devicePixelRatio;
