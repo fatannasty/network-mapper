@@ -1534,27 +1534,47 @@
     const dpi = 96;
     const wIn = (w / dpi).toFixed(4);
     const hIn = (h / dpi).toFixed(4);
-    const imgData = canvas.toDataURL('image/png');
-    const b64 = imgData.replace(/^data:image\/png;base64,/, '');
     const cx = (wIn / 2).toFixed(4);
     const cy = (hIn / 2).toFixed(4);
 
+    const imgData = canvas.toDataURL('image/png');
+    const b64 = imgData.replace(/^data:image\/png;base64,/, '');
+    const pngBytes = atob(b64);
+    const pngArray = new Uint8Array(pngBytes.length);
+    for (let i = 0; i < pngBytes.length; i++) pngArray[i] = pngBytes.charCodeAt(i);
+
+    const pi = Math.PI;
+    const guid = 'AAAAAAAA-0000-0000-0000-000000000000';
+
     const zip = new JSZip();
 
-    zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="utf-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n  <Default Extension="xml" ContentType="application/xml"/>\n  <Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/>\n  <Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/>\n</Types>');
+    zip.file('_rels/.rels',
+      '<?xml version="1.0" encoding="utf-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="visio/document.xml"/>\n</Relationships>');
 
-    zip.file('_rels/.rels', '<?xml version="1.0" encoding="utf-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="visio/document.xml"/>\n</Relationships>');
+    zip.file('[Content_Types].xml',
+      '<?xml version="1.0" encoding="utf-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n  <Default Extension="xml" ContentType="application/xml"/>\n  <Default Extension="png" ContentType="image/png"/>\n  <Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/>\n  <Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/>\n  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>\n  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>\n</Types>');
 
-    zip.file('visio/_rels/document.xml.rels', '<?xml version="1.0" encoding="utf-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pages" Target="pages/page1.xml"/>\n</Relationships>');
+    zip.file('docProps/core.xml',
+      '<?xml version="1.0" encoding="utf-8"?>\n<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n  <dc:creator>NetMap</dc:creator>\n  <dc:title>Network Topology</dc:title>\n  <dcterms:created xsi:type="dcterms:W3CDTF">' + new Date().toISOString() + '</dcterms:created>\n  <dcterms:modified xsi:type="dcterms:W3CDTF">' + new Date().toISOString() + '</dcterms:modified>\n</cp:coreProperties>');
 
-    const pageXml = '<?xml version="1.0" encoding="utf-8"?>\n<Page xmlns="http://schemas.microsoft.com/office/visio/2012/main" ID="0" Name="Page-1">\n  <PageSheet>\n    <PageWidth>' + wIn + '</PageWidth>\n    <PageHeight>' + hIn + '</PageHeight>\n  </PageSheet>\n  <Shapes>\n    <Shape ID="1" Name="Topology">\n      <ForeignData Width="' + wIn + '" Height="' + hIn + '" ForeignType="Bitmap" CompressionType="PNG">' + b64 + '</ForeignData>\n      <XForm>\n        <PinX>' + cx + '</PinX>\n        <PinY>' + cy + '</PinY>\n        <Width>' + wIn + '</Width>\n        <Height>' + hIn + '</Height>\n        <LocPinX>' + cx + '</LocPinX>\n        <LocPinY>' + cy + '</LocPinY>\n      </XForm>\n    </Shape>\n  </Shapes>\n</Page>';
+    zip.file('docProps/app.xml',
+      '<?xml version="1.0" encoding="utf-8"?>\n<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">\n  <Application>Microsoft Visio</Application>\n  <DocSecurity>0</DocSecurity>\n  <HyperlinksChanged>false</HyperlinksChanged>\n  <LinksUpToDate>false</LinksUpToDate>\n  <ScaleCrop>false</ScaleCrop>\n  <SharedDoc>false</SharedDoc>\n</Properties>');
 
-    zip.file('visio/pages/page1.xml', pageXml);
-    zip.file('visio/pages/_rels/page1.xml.rels', '<?xml version="1.0" encoding="utf-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n</Relationships>');
+    zip.file('visio/document.xml',
+      '<?xml version="1.0" encoding="utf-8"?>\n<VisioDocument xmlns="http://schemas.microsoft.com/office/visio/2012/main">\n  <DocumentSheet/>\n  <Pages>\n    <Page ID="0" Name="Page-1">\n      <PageSheet>\n        <ShapeSheet>\n          <PageWidth>' + wIn + '</PageWidth>\n          <PageHeight>' + hIn + '</PageHeight>\n        </ShapeSheet>\n      </PageSheet>\n    </Page>\n  </Pages>\n</VisioDocument>');
 
-    zip.file('visio/document.xml', '<?xml version="1.0" encoding="utf-8"?>\n<VisioDocument xmlns="http://schemas.microsoft.com/office/visio/2012/main">\n  <Pages>\n    <Page ID="0" Name="Page-1">\n      <PageSheet>\n        <PageWidth>' + wIn + '</PageWidth>\n        <PageHeight>' + hIn + '</PageHeight>\n      </PageSheet>\n      <Shapes>\n        <Shape ID="1" Name="Topology">\n          <ForeignData Width="' + wIn + '" Height="' + hIn + '" ForeignType="Bitmap" CompressionType="PNG">' + b64 + '</ForeignData>\n          <XForm>\n            <PinX>' + cx + '</PinX>\n            <PinY>' + cy + '</PinY>\n            <Width>' + wIn + '</Width>\n            <Height>' + hIn + '</Height>\n            <LocPinX>' + cx + '</LocPinX>\n            <LocPinY>' + cy + '</LocPinY>\n          </XForm>\n        </Shape>\n      </Shapes>\n    </Page>\n  </Pages>\n</VisioDocument>');
+    zip.file('visio/_rels/document.xml.rels',
+      '<?xml version="1.0" encoding="utf-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pages" Target="pages/page1.xml"/>\n</Relationships>');
 
-    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.ms-visio.drawing' });
+    zip.file('visio/pages/page1.xml',
+      '<?xml version="1.0" encoding="utf-8"?>\n<Page xmlns="http://schemas.microsoft.com/office/visio/2012/main" ID="0" Name="Page-1">\n  <PageSheet>\n    <ShapeSheet>\n      <PageWidth>' + wIn + '</PageWidth>\n      <PageHeight>' + hIn + '</PageHeight>\n    </ShapeSheet>\n  </PageSheet>\n  <Shapes>\n    <Shape ID="1" Type="Shape" Name="Topology">\n      <ForeignData ForeignType="Bitmap" Width="' + wIn + '" Height="' + hIn + '" Rel="rId1"/>\n      <XForm>\n        <PinX>' + cx + '</PinX>\n        <PinY>' + cy + '</PinY>\n        <Width>' + wIn + '</Width>\n        <Height>' + hIn + '</Height>\n        <LocPinX>' + cx + '</LocPinX>\n        <LocPinY>' + cy + '</LocPinY>\n      </XForm>\n    </Shape>\n  </Shapes>\n</Page>');
+
+    zip.file('visio/pages/_rels/page1.xml.rels',
+      '<?xml version="1.0" encoding="utf-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/>\n</Relationships>');
+
+    zip.file('visio/media/image1.png', pngArray);
+
+    const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
