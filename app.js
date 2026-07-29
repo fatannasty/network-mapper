@@ -213,7 +213,7 @@
         ctx.shadowColor = '#60a5fa';
         ctx.shadowBlur = 6;
       } else {
-        ctx.strokeStyle = cable.color || '#475569';
+        ctx.strokeStyle = getCableColor(conn.cableType);
         ctx.lineWidth = 2;
         ctx.shadowBlur = 0;
       }
