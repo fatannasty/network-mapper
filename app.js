@@ -1248,6 +1248,10 @@
     document.getElementById(id).addEventListener('input', renderTemplate);
   });
 
+  ['legend-mm-color', 'legend-copper-color', 'legend-sm-color'].forEach(id => {
+    document.getElementById(id).addEventListener('input', draw);
+  });
+
   function autoLayout() {
     if (devices.length === 0) return;
     const w = canvas.width / devicePixelRatio;
