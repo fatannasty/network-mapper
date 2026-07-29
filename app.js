@@ -1264,8 +1264,9 @@
       svg = svg.replace(re, '$1' + val + '$2');
     });
 
-    const blob = new Blob([svg], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
+    const svgText = new XMLSerializer().serializeToString(svgDoc);
+    const encoded = btoa(unescape(encodeURIComponent(svgText)));
+    const url = 'data:image/svg+xml;base64,' + encoded;
     templateImage = new Image();
     templateImage.onload = () => { if (templateActive) draw(); };
     templateImage.src = url;
