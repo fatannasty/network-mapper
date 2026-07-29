@@ -111,12 +111,21 @@
   }
 
   const CABLE_TYPES = {
-    fiber:  { color: '#a855f7', label: 'Fiber', dash: '' },
-    cat6:   { color: '#22c55e', label: 'Cat6', dash: '' },
-    cat6a:  { color: '#f59e0b', label: 'Cat6a', dash: '' },
-    dac:    { color: '#ef4444', label: 'DAC', dash: '' },
-    unknown:{ color: '#64748b', label: '', dash: '' },
+    'mm-fiber':{ color: '#f59d56', label: 'Multi-mode Fiber', dash: '', legendId: 'legend-mm-color' },
+    copper:    { color: '#10b981', label: 'Copper', dash: '', legendId: 'legend-copper-color' },
+    'sm-fiber':{ color: '#eab308', label: 'Single-mode Fiber', dash: '', legendId: 'legend-sm-color' },
+    dac:       { color: '#ef4444', label: 'DAC', dash: '' },
+    unknown:   { color: '#64748b', label: 'Unknown', dash: '' },
   };
+
+  function getCableColor(type) {
+    const cable = CABLE_TYPES[type] || CABLE_TYPES.unknown;
+    if (cable.legendId) {
+      const input = document.getElementById(cable.legendId);
+      if (input && input.value) return input.value;
+    }
+    return cable.color;
+  }
 
   const iconImages = {};
   let iconsLoaded = false;
