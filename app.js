@@ -1539,31 +1539,62 @@
 
     const imgData = canvas.toDataURL('image/png');
     const b64 = imgData.replace(/^data:image\/png;base64,/, '');
-    const bin = atob(b64);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
 
     const zip = new JSZip();
 
-    zip.file('_rels/.rels',
-      '<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="visio/document.xml"/></Relationships>');
+    const ct = '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/>' +
+      '<Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/>' +
+      '</Types>';
+    zip.file('[Content_Types].xml', ct);
 
-    zip.file('[Content_Types].xml',
-      '<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/><Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/></Types>');
+    const rels = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="visio/document.xml"/>' +
+      '</Relationships>';
+    zip.file('_rels/.rels', rels);
 
-    zip.file('visio/document.xml',
-      '<?xml version="1.0" encoding="utf-8"?><VisioDocument xmlns="http://schemas.microsoft.com/office/visio/2012/main"><Pages><Page ID="0" Name="Page-1"><PageSheet><PageWidth>' + wIn + '</PageWidth><PageHeight>' + hIn + '</PageHeight></PageSheet></Page></Pages></VisioDocument>');
+    const doc = '<VisioDocument xmlns="http://schemas.microsoft.com/office/visio/2012/main">' +
+      '<Pages>' +
+      '<Page ID="0" Name="Page-1">' +
+      '<PageSheet>' +
+      '<PageWidth>' + wIn + '</PageWidth>' +
+      '<PageHeight>' + hIn + '</PageHeight>' +
+      '</PageSheet>' +
+      '</Page>' +
+      '</Pages>' +
+      '</VisioDocument>';
+    zip.file('visio/document.xml', doc);
 
-    zip.file('visio/_rels/document.xml.rels',
-      '<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pages" Target="pages/page1.xml"/></Relationships>');
+    const docRels = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pages" Target="pages/page1.xml"/>' +
+      '</Relationships>';
+    zip.file('visio/_rels/document.xml.rels', docRels);
 
-    zip.file('visio/pages/page1.xml',
-      '<?xml version="1.0" encoding="utf-8"?><Page xmlns="http://schemas.microsoft.com/office/visio/2012/main" ID="0" Name="Page-1"><PageSheet><PageWidth>' + wIn + '</PageWidth><PageHeight>' + hIn + '</PageHeight></PageSheet><Shapes><Shape ID="1" Name="Topology"><ForeignData ForeignType="Bitmap" Width="' + wIn + '" Height="' + hIn + '" Rel="rId1"/><XForm><PinX>' + cx + '</PinX><PinY>' + cy + '</PinY><Width>' + wIn + '</Width><Height>' + hIn + '</Height><LocPinX>' + cx + '</LocPinX><LocPinY>' + cy + '</LocPinY></XForm></Shape></Shapes></Page>');
+    const page = '<Page xmlns="http://schemas.microsoft.com/office/visio/2012/main" ID="0" Name="Page-1">' +
+      '<PageSheet>' +
+      '<PageWidth>' + wIn + '</PageWidth>' +
+      '<PageHeight>' + hIn + '</PageHeight>' +
+      '</PageSheet>' +
+      '<Shapes>' +
+      '<Shape ID="1" Name="Topology">' +
+      '<ForeignData ForeignType="Bitmap" Width="' + wIn + '" Height="' + hIn + '" CompressionType="PNG">' + b64 + '</ForeignData>' +
+      '<XForm>' +
+      '<PinX>' + cx + '</PinX>' +
+      '<PinY>' + cy + '</PinY>' +
+      '<Width>' + wIn + '</Width>' +
+      '<Height>' + hIn + '</Height>' +
+      '<LocPinX>' + cx + '</LocPinX>' +
+      '<LocPinY>' + cy + '</LocPinY>' +
+      '</XForm>' +
+      '</Shape>' +
+      '</Shapes>' +
+      '</Page>';
+    zip.file('visio/pages/page1.xml', page);
 
     zip.file('visio/pages/_rels/page1.xml.rels',
-      '<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/></Relationships>');
-
-    zip.file('visio/media/image1.png', arr);
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>');
 
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
