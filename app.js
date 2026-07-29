@@ -888,6 +888,40 @@
     return null;
   }
 
+  let draggingLabel = null;
+
+  function labelAt(x, y) {
+    const threshold = 18;
+    for (let i = connections.length - 1; i >= 0; i--) {
+      const conn = connections[i];
+      const a = devices.find(d => d.id === conn.from);
+      const b = devices.find(d => d.id === conn.to);
+      if (!a || !b) continue;
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      const perpX = -Math.sin(angle) * 14;
+      const perpY = Math.cos(angle) * 14;
+      const lx = conn.labelOffset ? (conn.labelOffset.x || mx + perpX * 0.5) : mx + perpX * 0.5;
+      const ly = conn.labelOffset ? (conn.labelOffset.y || my + perpY * 0.5) : my + perpY * 0.5;
+      const pts = [];
+      if (conn.label) pts.push([lx, ly - 10]);
+      if (conn.cableType && conn.cableType !== 'unknown') pts.push([lx, ly]);
+      if (conn.portA || conn.portB) pts.push([lx, ly + 12]);
+      if (conn.vlanUp) {
+        pts.push([mx + perpX, my + perpY - 8]);
+      }
+      if (conn.vlanDown) {
+        pts.push([mx + perpX, my + perpY + 8]);
+      }
+      for (const p of pts) {
+        const dist = Math.sqrt((x - p[0]) * (x - p[0]) + (y - p[1]) * (y - p[1]));
+        if (dist <= threshold) return conn;
+      }
+    }
+    return null;
+  }
+
   canvas.addEventListener('mousedown', e => {
     const pos = getCanvasPos(e);
     const d = deviceAt(pos.x, pos.y);
