@@ -1534,100 +1534,18 @@
     const dpi = 96;
     const wIn = (w / dpi).toFixed(4);
     const hIn = (h / dpi).toFixed(4);
-
-    let shapeId = 1;
-    let shapes = '';
-
-    devices.forEach(d => {
-      const colors = DEVICE_COLORS[d.type] || DEVICE_COLORS.pc;
-      const r = DEVICE_RADIUS / dpi;
-      const cx = (d.x / dpi).toFixed(4);
-      const cy = (d.y / dpi).toFixed(4);
-      const rStr = r.toFixed(4);
-      const dblR = (r * 2).toFixed(4);
-      const id = shapeId++;
-
-      shapes += '<Shape ID="' + id + '" Type="Shape" Name="' + escXml(d.name) + '">\n';
-      shapes += '  <XForm>\n';
-      shapes += '    <PinX>' + cx + '</PinX>\n';
-      shapes += '    <PinY>' + cy + '</PinY>\n';
-      shapes += '    <Width>' + dblR + '</Width>\n';
-      shapes += '    <Height>' + dblR + '</Height>\n';
-      shapes += '    <LocPinX>' + rStr + '</LocPinX>\n';
-      shapes += '    <LocPinY>' + rStr + '</LocPinY>\n';
-      shapes += '  </XForm>\n';
-      shapes += '  <Section N="Geometry">\n';
-      shapes += '    <Row IX="0" T="Ellipse">\n';
-      shapes += '      <Cell N="X" V="' + rStr + '"/>\n';
-      shapes += '      <Cell N="Y" V="' + rStr + '"/>\n';
-      shapes += '      <Cell N="A" V="' + rStr + '"/>\n';
-      shapes += '      <Cell N="B" V="' + rStr + '"/>\n';
-      shapes += '    </Row>\n';
-      shapes += '  </Section>\n';
-      shapes += '  <Text><cp IX="0"/><pp IX="0"/><tp IX="0"/>' + escXml(d.name) + '</Text>\n';
-      shapes += '  <Char IX="0">\n';
-      shapes += '    <Cell N="Size" V="0.12"/>\n';
-      shapes += '    <Cell N="HorizontalAlign" V="1"/>\n';
-      shapes += '  </Char>\n';
-      shapes += '  <Para IX="0">\n';
-      shapes += '    <Cell N="HorzAlign" V="1"/>\n';
-      shapes += '    <Cell N="VertAlign" V="1"/>\n';
-      shapes += '  </Para>\n';
-      shapes += '  <Fill>\n';
-      shapes += '    <Cell N="FillForegnd" V="' + colors.fill + '"/>\n';
-      shapes += '    <Cell N="FillPattern" V="1"/>\n';
-      shapes += '  </Fill>\n';
-      shapes += '  <Line>\n';
-      shapes += '    <Cell N="LineColor" V="' + colors.stroke + '"/>\n';
-      shapes += '    <Cell N="LineWidth" V="0.02"/>\n';
-      shapes += '  </Line>\n';
-      shapes += '</Shape>\n';
-    });
-
-    connections.forEach(conn => {
-      const a = devices.find(d => d.id === conn.from);
-      const b = devices.find(d => d.id === conn.to);
-      if (!a || !b) return;
-      const ax = (a.x / dpi).toFixed(4);
-      const ay = (a.y / dpi).toFixed(4);
-      const bx = (b.x / dpi).toFixed(4);
-      const by = (b.y / dpi).toFixed(4);
-      const id = shapeId++;
-
-      shapes += '<Shape ID="' + id + '" Type="Shape" Name="Connection">\n';
-      shapes += '  <Section N="Geometry">\n';
-      shapes += '    <Row IX="0" T="MoveTo">\n';
-      shapes += '      <Cell N="X" V="' + ax + '"/>\n';
-      shapes += '      <Cell N="Y" V="' + ay + '"/>\n';
-      shapes += '    </Row>\n';
-      shapes += '    <Row IX="1" T="LineTo">\n';
-      shapes += '      <Cell N="X" V="' + bx + '"/>\n';
-      shapes += '      <Cell N="Y" V="' + by + '"/>\n';
-      shapes += '    </Row>\n';
-      shapes += '  </Section>\n';
-      if (conn.label) {
-        shapes += '  <Text><cp IX="0"/><pp IX="0"/><tp IX="0"/>' + escXml(conn.label) + '</Text>\n';
-      }
-      shapes += '  <Line>\n';
-      shapes += '    <Cell N="LineColor" V="#666666"/>\n';
-      shapes += '    <Cell N="LineWidth" V="0.015"/>\n';
-      shapes += '  </Line>\n';
-      shapes += '</Shape>\n';
-    });
-
-    const vdx = '<?xml version="1.0" encoding="UTF-8"?>\n<VisioDocument xmlns="http://schemas.microsoft.com/visio/2003/core">\n  <Pages>\n    <Page ID="0" Name="Page-1">\n      <PageSheet>\n        <PageProps>\n          <PageWidth>' + wIn + '</PageWidth>\n          <PageHeight>' + hIn + '</PageHeight>\n        </PageProps>\n      </PageSheet>\n      <Shapes>\n' + shapes + '      </Shapes>\n    </Page>\n  </Pages>\n</VisioDocument>';
-    const blob = new Blob([vdx], { type: 'application/xml' });
+    const imgData = canvas.toDataURL('image/png');
+    const b64 = imgData.replace(/^data:image\/png;base64,/, '');
+    const guid = 'A1B2C3D4-E5F6-7890-ABCD-EF1234567890';
+    const vdx = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<VisioDocument xmlns="http://schemas.microsoft.com/visio/2003/core">\n  <Pages>\n    <Page ID="0" Name="Page-1">\n      <PageSheet>\n        <PageProps>\n          <PageWidth>' + wIn + '</PageWidth>\n          <PageHeight>' + hIn + '</PageHeight>\n        </PageProps>\n      </PageSheet>\n      <Shapes>\n        <Shape ID="1" Type="Shape" Name="Topology">\n          <Foreign>\n            <ForeignType>Bitmap</ForeignType>\n            <Img Width="' + wIn + '" Height="' + hIn + '"/>\n            <ForeignData Width="' + wIn + '" Height="' + hIn + '">' + b64 + '</ForeignData>\n          </Foreign>\n          <XForm>\n            <PinX>' + (wIn / 2).toFixed(4) + '</PinX>\n            <PinY>' + (hIn / 2).toFixed(4) + '</PinY>\n            <Width>' + wIn + '</Width>\n            <Height>' + hIn + '</Height>\n            <LocPinX>' + (wIn / 2).toFixed(4) + '</LocPinX>\n            <LocPinY>' + (hIn / 2).toFixed(4) + '</LocPinY>\n          </XForm>\n        </Shape>\n      </Shapes>\n    </Page>\n  </Pages>\n</VisioDocument>';
+    const blob = new Blob([vdx], { type: 'application/vnd.visio' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
+    link.href = url;
     link.download = 'topology.vdx';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
-  }
-
-  function escXml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   document.getElementById('select-export').addEventListener('change', e => {
