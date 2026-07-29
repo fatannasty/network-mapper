@@ -1596,7 +1596,7 @@
     zip.file('visio/pages/_rels/page1.xml.rels',
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>');
 
-    const blob = await zip.generateAsync({ type: 'blob' });
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
