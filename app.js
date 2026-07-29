@@ -1172,6 +1172,7 @@
   });
 
   document.getElementById('btn-auto-layout').addEventListener('click', autoLayout);
+  // Legacy autoLayout removed — use applyTopology() instead.
 
   let templateSvgString = null;
   let templateImage = null;
