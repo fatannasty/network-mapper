@@ -731,6 +731,10 @@
         conn.vlanDown = e.target.value;
         draw();
       });
+      document.getElementById('prop-conn-reset-label').addEventListener('click', () => {
+        delete conn.labelOffset;
+        draw();
+      });
       document.getElementById('prop-conn-delete').addEventListener('click', () => {
         connections = connections.filter(c => c !== conn);
         selectedConnection = null;
