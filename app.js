@@ -1469,6 +1469,99 @@
     }
   });
 
+  function exportCanvasAs(type) {
+    if (type === 'jpeg') return exportJPEG();
+    if (type === 'pdf') return exportPDF();
+    if (type === 'svg') return exportSVG();
+    if (type === 'vdx') return exportVDX();
+  }
+
+  function exportJPEG() {
+    const link = document.createElement('a');
+    canvas.toBlob(blob => {
+      link.href = URL.createObjectURL(blob);
+      link.download = 'topology.jpg';
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }, 'image/jpeg', 0.95);
+  }
+
+  function exportPDF() {
+    if (!window.jspdf) {
+      alert('PDF library not loaded. Please refresh and try again.');
+      return;
+    }
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width / devicePixelRatio, canvas.height / devicePixelRatio] });
+    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / devicePixelRatio, canvas.height / devicePixelRatio);
+    pdf.save('topology.pdf');
+  }
+
+  function exportSVG() {
+    const w = canvas.width / devicePixelRatio;
+    const h = canvas.height / devicePixelRatio;
+    const imgData = canvas.toDataURL('image/png');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <image href="${imgData}" width="${w}" height="${h}"/>
+</svg>`;
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'topology.svg';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  function exportVDX() {
+    const w = canvas.width / devicePixelRatio;
+    const h = canvas.height / devicePixelRatio;
+    const dpi = 96;
+    const wIn = (w / dpi).toFixed(2);
+    const hIn = (h / dpi).toFixed(2);
+    const imgData = canvas.toDataURL('image/png');
+    const vdx = `<?xml version="1.0" encoding="UTF-8"?>
+<VisioDocument xmlns="http://schemas.microsoft.com/visio/2003/core">
+  <DocumentSheet/>
+  <Pages>
+    <Page ID="0" Name="Page-1">
+      <PageSheet>
+        <PageProps>
+          <PageWidth>${wIn}</PageWidth>
+          <PageHeight>${hIn}</PageHeight>
+        </PageProps>
+      </PageSheet>
+      <Shapes>
+        <Shape ID="1" Type="Shape" Name="Topology">
+          <Foreign>
+            <ForeignType>Bitmap</ForeignType>
+            <Img Width="${wIn}" Height="${hIn}" src="${imgData}"/>
+          </Foreign>
+          <XForm>
+            <PinX>${(wIn / 2).toFixed(2)}</PinX>
+            <PinY>${(hIn / 2).toFixed(2)}</PinY>
+            <Width>${wIn}</Width>
+            <Height>${hIn}</Height>
+          </XForm>
+        </Shape>
+      </Shapes>
+    </Page>
+  </Pages>
+</VisioDocument>`;
+    const blob = new Blob([vdx], { type: 'application/vnd.visio' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'topology.vdx';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  document.getElementById('select-export').addEventListener('change', e => {
+    if (e.target.value) {
+      exportCanvasAs(e.target.value);
+      e.target.value = '';
+    }
+  });
+
   async function refreshLocations() {
     const panel = document.getElementById('locations-panel');
     const locations = await fetchLocations();
