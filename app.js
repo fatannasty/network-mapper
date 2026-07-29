@@ -927,6 +927,16 @@
     const d = deviceAt(pos.x, pos.y);
 
     if (mode === 'select') {
+      const lbl = labelAt(pos.x, pos.y);
+      if (lbl) {
+        selectedConnection = lbl;
+        selectedDevice = null;
+        draggingLabel = lbl;
+        canvas.style.cursor = 'grabbing';
+        updateProperties();
+        draw();
+        return;
+      }
       if (d) {
         selectedDevice = d;
         selectedConnection = null;
@@ -978,6 +988,12 @@
   canvas.addEventListener('mousemove', e => {
     const pos = getCanvasPos(e);
     mousePos = pos;
+
+    if (draggingLabel) {
+      draggingLabel.labelOffset = { x: pos.x, y: pos.y };
+      draw();
+      return;
+    }
 
     if (draggingDevice) {
       draggingDevice.x = snapToGrid(pos.x - dragOffset.x);
@@ -1031,11 +1047,13 @@
 
   canvas.addEventListener('mouseup', () => {
     draggingDevice = null;
+    draggingLabel = null;
     canvas.style.cursor = mode === 'select' ? 'default' : 'crosshair';
   });
 
   canvas.addEventListener('mouseleave', () => {
     draggingDevice = null;
+    draggingLabel = null;
     hoveredDevice = null;
     tooltip.classList.add('hidden');
     draw();
