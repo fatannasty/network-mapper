@@ -237,7 +237,7 @@
       }
 
       if (conn.cableType && conn.cableType !== 'unknown') {
-        ctx.fillStyle = cable.color;
+        ctx.fillStyle = getCableColor(conn.cableType);
         ctx.font = 'bold 11px monospace';
         ctx.fillText(cable.label, mx + perpX * 0.5, my + perpY * 0.5);
       }
