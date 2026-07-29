@@ -1528,6 +1528,8 @@
     URL.revokeObjectURL(link.href);
   }
 
+  function escXml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
   async function exportVSDX() {
     if (typeof JSZip === 'undefined') {
       alert('JSZip library not loaded. Please refresh and try again.');
