@@ -1264,8 +1264,7 @@
       svg = svg.replace(re, '$1' + val + '$2');
     });
 
-    const svgText = new XMLSerializer().serializeToString(svgDoc);
-    const encoded = btoa(unescape(encodeURIComponent(svgText)));
+    const encoded = btoa(unescape(encodeURIComponent(svg)));
     const url = 'data:image/svg+xml;base64,' + encoded;
     templateImage = new Image();
     templateImage.onload = () => { if (templateActive) draw(); };
