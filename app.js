@@ -1171,8 +1171,7 @@
     }
   });
 
-  document.getElementById('btn-auto-layout').addEventListener('click', autoLayout);
-  // Legacy autoLayout removed — use applyTopology() instead.
+  // Topology layouts via #select-topology dropdown
 
   let templateSvgString = null;
   let templateImage = null;
