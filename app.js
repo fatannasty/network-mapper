@@ -1797,7 +1797,7 @@
       showProgress('done', 100, `Found ${devices.length} devices`);
       updateDeviceCount();
       draw();
-      autoLayout();
+      applyTopology('circle');
       enableTemplate();
       hideProgress();
 
@@ -2065,7 +2065,7 @@
       btn.style.background = '#059669';
       updateDeviceCount();
       draw();
-      autoLayout();
+      applyTopology('circle');
       enableTemplate();
 
     } catch (err) {
