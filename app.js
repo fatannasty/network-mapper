@@ -1469,42 +1469,169 @@
     }
   });
 
+  const EXPORT_SCALE = 2;
+
   function exportCanvasAs(type) {
     try {
-      if (type === 'jpeg') return exportJPEG();
-      if (type === 'pdf') return exportPDF();
-      if (type === 'svg') return exportSVG();
-      if (type === 'vdx') return exportVDX();
+      const w = canvas.width / devicePixelRatio;
+      const h = canvas.height / devicePixelRatio;
+      const offscreen = document.createElement('canvas');
+      offscreen.width = Math.round(w * EXPORT_SCALE);
+      offscreen.height = Math.round(h * EXPORT_SCALE);
+      const offCtx = offscreen.getContext('2d');
+      offCtx.setTransform(EXPORT_SCALE, 0, 0, EXPORT_SCALE, 0, 0);
+
+      renderExport(offCtx, w, h);
+
+      if (type === 'jpeg') return exportJPEG(offscreen);
+      if (type === 'pdf') return exportPDF(offscreen, w, h);
+      if (type === 'svg') return exportSVG(offscreen, w, h);
+      if (type === 'vdx') return exportVDX(offscreen, w, h);
     } catch (e) {
       alert('Export failed: ' + e.message);
     }
   }
 
-  function exportJPEG() {
-    const link = document.createElement('a');
-    canvas.toBlob(blob => {
+  function renderExport(ctx, w, h) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+
+    drawGridPaper(w, h);
+
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(1, 1, w - 2, h - 2);
+
+    drawExportConnections(ctx);
+    drawExportDevices(ctx);
+  }
+
+  function drawExportConnections(ctx) {
+    connections.forEach(conn => {
+      const a = devices.find(d => d.id === conn.from);
+      const b = devices.find(d => d.id === conn.to);
+      if (!a || !b) return;
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = getCableColor(conn.cableType);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      const lx = conn.labelOffset ? conn.labelOffset.x : mx;
+      const ly = conn.labelOffset ? conn.labelOffset.y : my;
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (conn.label) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(conn.label, lx, ly - 8);
+      }
+      const cable = CABLE_TYPES[conn.cableType];
+      if (conn.cableType && conn.cableType !== 'unknown' && cable) {
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(cable.label, lx, ly + 2);
+      }
+      if (conn.portA || conn.portB) {
+        ctx.fillStyle = '#60a5fa';
+        ctx.font = '10px monospace';
+        ctx.fillText(`${conn.portA || '?'} ↔ ${conn.portB || '?'}`, lx, ly + 14);
+      }
+      if (conn.vlanUp) {
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText(`VLAN ${conn.vlanUp}`, lx, ly + 26);
+      }
+      if (conn.vlanDown) {
+        ctx.fillStyle = '#10b981';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText(`VLAN ${conn.vlanDown}`, lx, ly + 38);
+      }
+    });
+  }
+
+  function drawExportDevices(ctx) {
+    devices.forEach(d => {
+      const colors = DEVICE_COLORS[d.type] || DEVICE_COLORS.pc;
+      const r = DEVICE_RADIUS;
+
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = colors.fill + '33';
+      ctx.fill();
+      ctx.strokeStyle = colors.stroke;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = colors.stroke;
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(DEVICE_NAMES[d.type]?.[0] || '?', d.x, d.y);
+
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(d.name, d.x, d.y + r + 5);
+
+      let yOff = r + 22;
+      if (d.ip) {
+        ctx.fillStyle = '#000000';
+        ctx.font = '11px sans-serif';
+        ctx.fillText(d.ip, d.x, d.y + yOff);
+        yOff += 15;
+      }
+      if (d.location) {
+        ctx.fillStyle = '#000000';
+        ctx.font = '10px sans-serif';
+        ctx.fillText(d.location, d.x, d.y + yOff);
+        yOff += 13;
+      }
+      if (d.model) {
+        ctx.fillStyle = '#000000';
+        ctx.font = '10px monospace';
+        ctx.fillText(d.model, d.x, d.y + yOff);
+        yOff += 13;
+      }
+      if (d.ports && d.ports.length > 0) {
+        ctx.fillStyle = '#000000';
+        ctx.font = '10px monospace';
+        ctx.fillText(d.ports.join(', '), d.x, d.y + yOff);
+      }
+    });
+  }
+
+  function exportJPEG(c) {
+    c.toBlob(blob => {
+      if (!blob) { alert('Export failed: canvas is empty'); return; }
+      const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = 'topology.jpg';
       link.click();
       URL.revokeObjectURL(link.href);
-    }, 'image/jpeg', 0.95);
+    }, 'image/jpeg', 0.92);
   }
 
-  function exportPDF() {
+  function exportPDF(c, w, h) {
     if (!window.jspdf) {
       alert('PDF library not loaded. Please refresh and try again.');
       return;
     }
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width / devicePixelRatio, canvas.height / devicePixelRatio] });
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / devicePixelRatio, canvas.height / devicePixelRatio);
+    const imgData = c.toDataURL('image/png');
+    const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'px', format: [w, h] });
+    pdf.addImage(imgData, 'PNG', 0, 0, w, h);
     pdf.save('topology.pdf');
   }
 
-  function exportSVG() {
-    const w = canvas.width / devicePixelRatio;
-    const h = canvas.height / devicePixelRatio;
-    const imgData = canvas.toDataURL('image/png');
+  function exportSVG(c, w, h) {
+    const imgData = c.toDataURL('image/png');
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
   <image href="${imgData}" width="${w}" height="${h}"/>
 </svg>`;
@@ -1516,13 +1643,11 @@
     URL.revokeObjectURL(link.href);
   }
 
-  function exportVDX() {
-    const w = canvas.width / devicePixelRatio;
-    const h = canvas.height / devicePixelRatio;
+  function exportVDX(c, w, h) {
     const dpi = 96;
     const wIn = (w / dpi).toFixed(2);
     const hIn = (h / dpi).toFixed(2);
-    const imgData = canvas.toDataURL('image/png');
+    const imgData = c.toDataURL('image/png');
     const b64 = imgData.replace(/^data:image\/png;base64,/, '').replace(/\s/g, '');
     const now = new Date();
     const ts = now.toISOString().replace(/[TZ]/g, ' ').trim();
