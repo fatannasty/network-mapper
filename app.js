@@ -1533,6 +1533,7 @@
       alert('JSZip library not loaded. Please refresh and try again.');
       return;
     }
+    function escXml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     const dpi = 96;
     const w = canvas.width / devicePixelRatio;
     const h = canvas.height / devicePixelRatio;
