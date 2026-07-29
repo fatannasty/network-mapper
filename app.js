@@ -1333,18 +1333,18 @@
     const pc2 = addDevice('pc', 'User-PC1', cx - 140, cy + 220, '10.0.2.101');
     const pc3 = addDevice('pc', 'User-PC2', cx + 140, cy + 220, '10.0.3.100');
 
-    addConnection(cloud.id, fw.id, 'WAN', '', '');
-    addConnection(fw.id, r1.id, '1Gbps', '', '');
-    addConnection(r1.id, sw1.id, 'Trunk', '10,20', '10,20');
-    addConnection(r1.id, sw2.id, 'Trunk', '30,40', '30,40');
-    addConnection(r1.id, sw3.id, 'Trunk', '50,60', '50,60');
-    addConnection(sw1.id, ap1.id, 'PoE', '', '20');
-    addConnection(sw2.id, ap2.id, 'PoE', '', '40');
-    addConnection(sw3.id, s1.id, '1Gbps', '', '50');
-    addConnection(sw3.id, s2.id, '1Gbps', '', '60');
-    addConnection(sw1.id, pc1.id, '100Mbps', '', '10');
-    addConnection(sw1.id, pc2.id, '100Mbps', '', '10');
-    addConnection(sw2.id, pc3.id, '100Mbps', '', '30');
+    addConnection(cloud.id, fw.id, 'WAN', '', '', 'sm-fiber');
+    addConnection(fw.id, r1.id, '1Gbps', '', '', 'mm-fiber');
+    addConnection(r1.id, sw1.id, 'Trunk', '10,20', '10,20', 'copper');
+    addConnection(r1.id, sw2.id, 'Trunk', '30,40', '30,40', 'copper');
+    addConnection(r1.id, sw3.id, 'Trunk', '50,60', '50,60', 'copper');
+    addConnection(sw1.id, ap1.id, 'PoE', '', '20', 'copper');
+    addConnection(sw2.id, ap2.id, 'PoE', '', '40', 'copper');
+    addConnection(sw3.id, s1.id, '1Gbps', '', '50', 'mm-fiber');
+    addConnection(sw3.id, s2.id, '1Gbps', '', '60', 'mm-fiber');
+    addConnection(sw1.id, pc1.id, '100Mbps', '', '10', 'copper');
+    addConnection(sw1.id, pc2.id, '100Mbps', '', '10', 'copper');
+    addConnection(sw2.id, pc3.id, '100Mbps', '', '30', 'copper');
 
     draw();
   }
