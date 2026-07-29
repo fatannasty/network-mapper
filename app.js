@@ -704,6 +704,7 @@
         <label>Downlink VLAN
           <input type="text" id="prop-conn-vlandown" value="${conn.vlanDown || ''}" placeholder="e.g. 30, 40, 200">
         </label>
+        <button class="delete-btn" id="prop-conn-reset-label" style="margin-bottom:6px">Reset Label Position</button>
         <button class="delete-btn" id="prop-conn-delete">Delete Connection</button>
       `;
       document.getElementById('prop-conn-label').addEventListener('input', e => {
