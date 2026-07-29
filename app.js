@@ -1528,7 +1528,7 @@
     URL.revokeObjectURL(link.href);
   }
 
-  function exportVDX() {
+  async function exportVSDX() {
     const w = canvas.width / devicePixelRatio;
     const h = canvas.height / devicePixelRatio;
     const dpi = 96;
@@ -1536,13 +1536,29 @@
     const hIn = (h / dpi).toFixed(4);
     const imgData = canvas.toDataURL('image/png');
     const b64 = imgData.replace(/^data:image\/png;base64,/, '');
-    const guid = 'A1B2C3D4-E5F6-7890-ABCD-EF1234567890';
-    const vdx = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<VisioDocument xmlns="http://schemas.microsoft.com/visio/2003/core">\n  <Pages>\n    <Page ID="0" Name="Page-1">\n      <PageSheet>\n        <PageProps>\n          <PageWidth>' + wIn + '</PageWidth>\n          <PageHeight>' + hIn + '</PageHeight>\n        </PageProps>\n      </PageSheet>\n      <Shapes>\n        <Shape ID="1" Type="Shape" Name="Topology">\n          <Foreign>\n            <ForeignType>Bitmap</ForeignType>\n            <Img Width="' + wIn + '" Height="' + hIn + '"/>\n            <ForeignData Width="' + wIn + '" Height="' + hIn + '">' + b64 + '</ForeignData>\n          </Foreign>\n          <XForm>\n            <PinX>' + (wIn / 2).toFixed(4) + '</PinX>\n            <PinY>' + (hIn / 2).toFixed(4) + '</PinY>\n            <Width>' + wIn + '</Width>\n            <Height>' + hIn + '</Height>\n            <LocPinX>' + (wIn / 2).toFixed(4) + '</LocPinX>\n            <LocPinY>' + (hIn / 2).toFixed(4) + '</LocPinY>\n          </XForm>\n        </Shape>\n      </Shapes>\n    </Page>\n  </Pages>\n</VisioDocument>';
-    const blob = new Blob([vdx], { type: 'application/vnd.visio' });
+    const cx = (wIn / 2).toFixed(4);
+    const cy = (hIn / 2).toFixed(4);
+
+    const zip = new JSZip();
+
+    zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="utf-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n  <Default Extension="xml" ContentType="application/xml"/>\n  <Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/>\n  <Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/>\n</Types>');
+
+    zip.file('_rels/.rels', '<?xml version="1.0" encoding="utf-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="visio/document.xml"/>\n</Relationships>');
+
+    zip.file('visio/_rels/document.xml.rels', '<?xml version="1.0" encoding="utf-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pages" Target="pages/page1.xml"/>\n</Relationships>');
+
+    const pageXml = '<?xml version="1.0" encoding="utf-8"?>\n<Page xmlns="http://schemas.microsoft.com/office/visio/2012/main" ID="0" Name="Page-1">\n  <PageSheet>\n    <PageWidth>' + wIn + '</PageWidth>\n    <PageHeight>' + hIn + '</PageHeight>\n  </PageSheet>\n  <Shapes>\n    <Shape ID="1" Name="Topology">\n      <ForeignData Width="' + wIn + '" Height="' + hIn + '" ForeignType="Bitmap" CompressionType="PNG">' + b64 + '</ForeignData>\n      <XForm>\n        <PinX>' + cx + '</PinX>\n        <PinY>' + cy + '</PinY>\n        <Width>' + wIn + '</Width>\n        <Height>' + hIn + '</Height>\n        <LocPinX>' + cx + '</LocPinX>\n        <LocPinY>' + cy + '</LocPinY>\n      </XForm>\n    </Shape>\n  </Shapes>\n</Page>';
+
+    zip.file('visio/pages/page1.xml', pageXml);
+    zip.file('visio/pages/_rels/page1.xml.rels', '<?xml version="1.0" encoding="utf-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n</Relationships>');
+
+    zip.file('visio/document.xml', '<?xml version="1.0" encoding="utf-8"?>\n<VisioDocument xmlns="http://schemas.microsoft.com/office/visio/2012/main">\n  <Pages>\n    <Page ID="0" Name="Page-1">\n      <PageSheet>\n        <PageWidth>' + wIn + '</PageWidth>\n        <PageHeight>' + hIn + '</PageHeight>\n      </PageSheet>\n      <Shapes>\n        <Shape ID="1" Name="Topology">\n          <ForeignData Width="' + wIn + '" Height="' + hIn + '" ForeignType="Bitmap" CompressionType="PNG">' + b64 + '</ForeignData>\n          <XForm>\n            <PinX>' + cx + '</PinX>\n            <PinY>' + cy + '</PinY>\n            <Width>' + wIn + '</Width>\n            <Height>' + hIn + '</Height>\n            <LocPinX>' + cx + '</LocPinX>\n            <LocPinY>' + cy + '</LocPinY>\n          </XForm>\n        </Shape>\n      </Shapes>\n    </Page>\n  </Pages>\n</VisioDocument>');
+
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.ms-visio.drawing' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'topology.vdx';
+    link.download = 'topology.vsdx';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
