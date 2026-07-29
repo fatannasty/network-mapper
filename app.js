@@ -1481,7 +1481,7 @@
       if (type === 'jpeg') return exportJPEG();
       if (type === 'pdf') return exportPDF();
       if (type === 'svg') return exportSVG();
-      if (type === 'vsdx') return exportVSDX();
+      if (type === 'vsdx') return exportVSDX().catch(e => alert('Visio export failed: ' + e.message));
     } catch (e) {
       alert('Export failed: ' + e.message);
     }
