@@ -1470,10 +1470,14 @@
   });
 
   function exportCanvasAs(type) {
-    if (type === 'jpeg') return exportJPEG();
-    if (type === 'pdf') return exportPDF();
-    if (type === 'svg') return exportSVG();
-    if (type === 'vdx') return exportVDX();
+    try {
+      if (type === 'jpeg') return exportJPEG();
+      if (type === 'pdf') return exportPDF();
+      if (type === 'svg') return exportSVG();
+      if (type === 'vdx') return exportVDX();
+    } catch (e) {
+      alert('Export failed: ' + e.message);
+    }
   }
 
   function exportJPEG() {
