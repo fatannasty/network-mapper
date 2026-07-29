@@ -226,6 +226,8 @@
       const angle = Math.atan2(b.y - a.y, b.x - a.x);
       const perpX = -Math.sin(angle) * 14;
       const perpY = Math.cos(angle) * 14;
+      const lx = conn.labelOffset ? (conn.labelOffset.x || mx + perpX * 0.5) : mx + perpX * 0.5;
+      const ly = conn.labelOffset ? (conn.labelOffset.y || my + perpY * 0.5) : my + perpY * 0.5;
 
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
