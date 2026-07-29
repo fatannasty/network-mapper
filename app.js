@@ -1519,6 +1519,7 @@
     const wIn = (w / dpi).toFixed(2);
     const hIn = (h / dpi).toFixed(2);
     const imgData = canvas.toDataURL('image/png');
+    const b64 = imgData.replace(/^data:image\/png;base64,/, '');
     const vdx = `<?xml version="1.0" encoding="UTF-8"?>
 <VisioDocument xmlns="http://schemas.microsoft.com/visio/2003/core">
   <DocumentSheet/>
@@ -1534,7 +1535,8 @@
         <Shape ID="1" Type="Shape" Name="Topology">
           <Foreign>
             <ForeignType>Bitmap</ForeignType>
-            <Img Width="${wIn}" Height="${hIn}" src="${imgData}"/>
+            <ForeignData Width="${wIn}" Height="${hIn}" CompressionType="See-Also">${b64}</ForeignData>
+            <Img Width="${wIn}" Height="${hIn}"/>
           </Foreign>
           <XForm>
             <PinX>${(wIn / 2).toFixed(2)}</PinX>
@@ -1547,7 +1549,7 @@
     </Page>
   </Pages>
 </VisioDocument>`;
-    const blob = new Blob([vdx], { type: 'application/vnd.visio' });
+    const blob = new Blob([vdx], { type: 'application/vnd.ms-visio.drawing' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'topology.vdx';
