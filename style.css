@@ -315,8 +315,15 @@ header h1 {
   padding: 8px;
 }
 
-.info-section .cat-center-config {
+.scan-config-inner {
   padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-section .cat-center-config {
+  padding: 0;
 }
 
 /* Scan sections (Catalyst Center / SSH) */

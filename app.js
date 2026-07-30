@@ -111,11 +111,11 @@
   }
 
   const CABLE_TYPES = {
-    'mm-fiber':{ color: '#f59d56', label: 'Multi-mode Fiber', dash: '', legendId: 'legend-mm-color' },
-    copper:    { color: '#10b981', label: 'Copper', dash: '', legendId: 'legend-copper-color' },
-    'sm-fiber':{ color: '#eab308', label: 'Single-mode Fiber', dash: '', legendId: 'legend-sm-color' },
-    dac:       { color: '#ef4444', label: 'DAC', dash: '' },
-    unknown:   { color: '#64748b', label: 'Unknown', dash: '' },
+    'mm-fiber':{ color: '#f59d56', label: 'Multi-mode Fiber', dash: [8, 4], legendId: 'legend-mm-color' },
+    copper:    { color: '#10b981', label: 'Copper', dash: [], legendId: 'legend-copper-color' },
+    'sm-fiber':{ color: '#eab308', label: 'Single-mode Fiber', dash: [4, 4], legendId: 'legend-sm-color' },
+    dac:       { color: '#ef4444', label: 'DAC', dash: [2, 3] },
+    unknown:   { color: '#64748b', label: 'Unknown', dash: [] },
   };
 
   function getCableColor(type) {
@@ -218,7 +218,9 @@
         ctx.shadowBlur = 0;
       }
 
+      ctx.setLineDash(cable.dash);
       ctx.stroke();
+      ctx.setLineDash([]);
       ctx.shadowBlur = 0;
 
       const mx = (a.x + b.x) / 2;
@@ -232,34 +234,38 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      if (conn.label) {
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '13px sans-serif';
-        ctx.fillText(conn.label, lx, ly - 10);
+      const showCable = conn.cableType && conn.cableType !== 'unknown';
+      const showPorts = conn.portA || conn.portB;
+
+      const labelText = conn.label || '';
+      const cableText = showCable ? cable.label : '';
+      const portText = showPorts ? `${conn.portA || '?'} ⇄ ${conn.portB || '?'}` : '';
+
+      const parts = [labelText, cableText, portText].filter(Boolean);
+      const fullText = parts.join('  ·  ');
+
+      if (fullText) {
+        ctx.save();
+        ctx.font = '500 11px sans-serif';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 3;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(fullText, lx, ly);
+        ctx.restore();
       }
 
-      if (conn.cableType && conn.cableType !== 'unknown') {
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 11px monospace';
-        ctx.fillText(cable.label, lx, ly);
-      }
-
-      if (conn.portA || conn.portB) {
-        ctx.fillStyle = '#60a5fa';
-        ctx.font = '11px monospace';
-        const portLabel = `${conn.portA || '?'} ↔ ${conn.portB || '?'}`;
-        ctx.fillText(portLabel, lx, ly + 12);
-      }
-
+      const vOffset = 20;
       if (conn.vlanUp) {
         ctx.fillStyle = '#f59e0b';
-        ctx.font = 'bold 12px monospace';
-        ctx.fillText(`VLAN ${conn.vlanUp}`, mx + perpX, my + perpY - 8);
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(`VLAN ${conn.vlanUp}`, lx + perpX * 0.6, ly + vOffset);
       }
       if (conn.vlanDown) {
         ctx.fillStyle = '#10b981';
-        ctx.font = 'bold 12px monospace';
-        ctx.fillText(`VLAN ${conn.vlanDown}`, mx + perpX, my + perpY + 8);
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(`VLAN ${conn.vlanDown}`, lx + perpX * 0.6, ly + vOffset + 14);
       }
     });
   }
@@ -772,9 +778,9 @@
         </div>
       </details>
       <details class="prop-section" ${models.length ? 'open' : ''}>
-        <summary><svg class="section-arrow" width="10" height="10" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Model</summary>
+        <summary><svg class="section-arrow" width="10" height="10" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Icon &amp; Model</summary>
         <div class="prop-body">
-          <label>Device Model
+          ${models.length ? `<label>Device Model
             <select id="prop-model">
               <option value="">— Select a model —</option>
               ${models.map(m =>
@@ -782,6 +788,14 @@
               ).join('')}
             </select>
           </label>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px" id="icon-picker">
+            ${models.map(m => {
+              const allM = {...SWITCH_MODELS, ...AP_MODELS, ...VELOCLOUD_MODELS};
+              const info = allM[m];
+              const isActive = m === d.model;
+              return info ? `<div data-model="${m}" style="width:48px;height:48px;border:2px solid ${isActive ? '#38bdf8' : '#334155'};border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:#1e293b;overflow:hidden" title="${m}"><img src="${info.svg}" style="max-width:42px;max-height:42px;object-fit:contain" draggable="false"></div>` : '';
+            }).join('')}
+          </div>` : '<p style="font-size:11px;color:#64748b">No model icons available for this device type</p>'}
         </div>
       </details>
       <details class="prop-section">
@@ -845,6 +859,25 @@
     document.getElementById('prop-delete').addEventListener('click', () => {
       deleteDevice(d.id);
     });
+    const picker = document.getElementById('icon-picker');
+    if (picker) {
+      picker.addEventListener('click', e => {
+        const div = e.target.closest('[data-model]');
+        if (div) {
+          const model = div.dataset.model;
+          d.model = model;
+          document.getElementById('prop-model').value = model;
+          const allM = {...SWITCH_MODELS, ...AP_MODELS, ...VELOCLOUD_MODELS};
+          const info = allM[model];
+          if (info) {
+            d.type = info.type;
+            document.getElementById('prop-type').value = info.type;
+          }
+          picker.querySelectorAll('[data-model]').forEach(el => el.style.borderColor = el === div ? '#38bdf8' : '#334155');
+          draw();
+        }
+      });
+    }
   }
 
   function deleteDevice(id) {
@@ -909,10 +942,7 @@
       const perpY = Math.cos(angle) * 14;
       const lx = conn.labelOffset ? (conn.labelOffset.x || mx + perpX * 0.5) : mx + perpX * 0.5;
       const ly = conn.labelOffset ? (conn.labelOffset.y || my + perpY * 0.5) : my + perpY * 0.5;
-      const pts = [];
-      if (conn.label) pts.push([lx, ly - 10]);
-      if (conn.cableType && conn.cableType !== 'unknown') pts.push([lx, ly]);
-      if (conn.portA || conn.portB) pts.push([lx, ly + 12]);
+      const pts = [[lx, ly]];
       if (conn.vlanUp) {
         pts.push([mx + perpX, my + perpY - 8]);
       }
@@ -1205,7 +1235,7 @@
     const header = escHtml(document.getElementById('legend-header').value);
     let svg = templateSvgString;
 
-    svg = svg.replace(/>LEGEND</g, `>${header}<`);
+    svg = svg.replace(/>CABLE LEGEND<|>LEGEND</g, `>${header}<`);
 
     Object.entries(labels).forEach(([orig, val]) => {
       if (val && val !== orig) {
@@ -1481,7 +1511,7 @@
       if (type === 'jpeg') return exportJPEG();
       if (type === 'pdf') return exportPDF();
       if (type === 'svg') return exportSVG();
-      if (type === 'vsdx') return exportVSDX().catch(e => alert('Visio export failed: ' + e.message));
+      if (type === 'vsdx') return exportVSDX();
     } catch (e) {
       alert('Export failed: ' + e.message);
     }
@@ -1530,9 +1560,9 @@
 
   function escXml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-  async function exportVSDX() {
-    if (typeof JSZip === 'undefined') {
-      alert('JSZip library not loaded. Please refresh and try again.');
+  function exportVSDX() {
+    if (typeof fflate === 'undefined') {
+      alert('ZIP library not loaded. Please refresh and try again.');
       return;
     }
     const dpi = 96;
@@ -1540,25 +1570,24 @@
     const h = canvas.height / devicePixelRatio;
     const wIn = (w / dpi).toFixed(4);
     const hIn = (h / dpi).toFixed(4);
-    let shapes = '', id = 1;
+    const r = (DEVICE_RADIUS / dpi).toFixed(4);
+    let shapeXml = '', sid = 1;
 
     devices.forEach(d => {
       const c = DEVICE_COLORS[d.type] || DEVICE_COLORS.pc;
-      const r = (DEVICE_RADIUS / dpi).toFixed(4);
-      const cx = (d.x / dpi).toFixed(4);
-      const cy = (d.y / dpi).toFixed(4);
-      const r2 = (DEVICE_RADIUS * 2 / dpi).toFixed(4);
-      const n = id++;
-
-      shapes += '<Shape ID="' + n + '" Type="Shape" Name="' + escXml(d.name) + '">';
-      shapes +=   '<Section N="Geometry"><Row IX="0" T="Ellipse"><Cell N="X" V="' + r + '"/><Cell N="Y" V="' + r + '"/><Cell N="A" V="' + r + '"/><Cell N="B" V="' + r + '"/></Row></Section>';
-      shapes +=   '<XForm><PinX>' + cx + '</PinX><PinY>' + cy + '</PinY><Width>' + r2 + '</Width><Height>' + r2 + '</Height><LocPinX>' + r + '</LocPinX><LocPinY>' + r + '</LocPinY></XForm>';
-      shapes +=   '<Fill><Cell N="FillForegnd" V="' + c.fill + '"/><Cell N="FillPattern" V="1"/></Fill>';
-      shapes +=   '<Line><Cell N="LineColor" V="' + c.stroke + '"/><Cell N="LineWidth" V="0.02"/></Line>';
-      shapes +=   '<Text><cp IX="0"/><pp IX="0"/><tp IX="0"/>' + escXml(d.name) + '</Text>';
-      shapes +=   '<Char IX="0"><Cell N="Size" V="0.12"/><Cell N="HorizontalAlign" V="1"/></Char>';
-      shapes +=   '<Para IX="0"><Cell N="HorzAlign" V="1"/><Cell N="VertAlign" V="1"/></Para>';
-      shapes += '</Shape>';
+      const dx = (d.x / dpi).toFixed(4);
+      const dy = (d.y / dpi).toFixed(4);
+      const d2 = (DEVICE_RADIUS * 2 / dpi).toFixed(4);
+      const n = sid++;
+      shapeXml += '<Shape ID="' + n + '" Type="Shape" Name="' + escXml(d.name) + '">';
+      shapeXml += '<Section N="Geometry"><Row IX="0" T="Ellipse"><Cell N="X" V="' + r + '"/><Cell N="Y" V="' + r + '"/><Cell N="A" V="' + r + '"/><Cell N="B" V="' + r + '"/></Row></Section>';
+      shapeXml += '<XForm><PinX>' + dx + '</PinX><PinY>' + dy + '</PinY><Width>' + d2 + '</Width><Height>' + d2 + '</Height><LocPinX>' + r + '</LocPinX><LocPinY>' + r + '</LocPinY></XForm>';
+      shapeXml += '<Fill><Cell N="FillForegnd" V="' + c.fill + '"/><Cell N="FillPattern" V="1"/></Fill>';
+      shapeXml += '<Line><Cell N="LineColor" V="' + c.stroke + '"/><Cell N="LineWidth" V="0.02"/></Line>';
+      shapeXml += '<Text><cp IX="0"/><pp IX="0"/><tp IX="0"/>' + escXml(d.name) + '</Text>';
+      shapeXml += '<Char IX="0"><Cell N="Size" V="0.12"/><Cell N="HorizontalAlign" V="1"/></Char>';
+      shapeXml += '<Para IX="0"><Cell N="HorzAlign" V="1"/><Cell N="VertAlign" V="1"/></Para>';
+      shapeXml += '</Shape>';
     });
 
     connections.forEach(conn => {
@@ -1569,51 +1598,58 @@
       const ay = (a.y / dpi).toFixed(4);
       const bx = (b.x / dpi).toFixed(4);
       const by = (b.y / dpi).toFixed(4);
-      const n = id++;
-
-      shapes += '<Shape ID="' + n + '" Type="Shape" Name="Connection">';
-      shapes +=   '<Section N="Geometry"><Row IX="0" T="MoveTo"><Cell N="X" V="' + ax + '"/><Cell N="Y" V="' + ay + '"/></Row><Row IX="1" T="LineTo"><Cell N="X" V="' + bx + '"/><Cell N="Y" V="' + by + '"/></Row></Section>';
-      shapes +=   '<Line><Cell N="LineColor" V="#666666"/><Cell N="LineWidth" V="0.015"/></Line>';
-      if (conn.label) shapes += '<Text><cp IX="0"/><pp IX="0"/><tp IX="0"/>' + escXml(conn.label) + '</Text>';
-      shapes += '</Shape>';
+      const n = sid++;
+      shapeXml += '<Shape ID="' + n + '" Type="Shape" Name="Connection">';
+      shapeXml += '<Section N="Geometry"><Row IX="0" T="MoveTo"><Cell N="X" V="' + ax + '"/><Cell N="Y" V="' + ay + '"/></Row><Row IX="1" T="LineTo"><Cell N="X" V="' + bx + '"/><Cell N="Y" V="' + by + '"/></Row></Section>';
+      shapeXml += '<Line><Cell N="LineColor" V="#666666"/><Cell N="LineWidth" V="0.015"/></Line>';
+      if (conn.label) shapeXml += '<Text><cp IX="0"/><pp IX="0"/><tp IX="0"/>' + escXml(conn.label) + '</Text>';
+      shapeXml += '</Shape>';
     });
 
-    const zip = new JSZip();
+    const to = fflate.strToU8;
+    const zipped = fflate.zipSync({
+      '[Content_Types].xml': to(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/>' +
+        '<Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/>' +
+        '<Override PartName="/visio/windows.xml" ContentType="application/vnd.ms-visio.windows+xml"/>' +
+        '<Override PartName="/visio/theme/theme1.xml" ContentType="application/vnd.ms-visio.theme+xml"/>' +
+        '</Types>'),
+      '_rels/.rels': to(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="visio/document.xml"/>' +
+        '</Relationships>'),
+      'visio/_rels/document.xml.rels': to(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pages" Target="pages/page1.xml"/>' +
+        '<Relationship Id="rId2" Type="http://schemas.microsoft.com/office/visio/2012/relationships/windows" Target="../windows.xml"/>' +
+        '<Relationship Id="rId3" Type="http://schemas.microsoft.com/office/visio/2012/relationships/theme" Target="../theme/theme1.xml"/>' +
+        '</Relationships>'),
+      'visio/document.xml': to(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><VisioDocument xmlns="http://schemas.microsoft.com/office/visio/2012/main">' +
+        '<DocumentSheet/>' +
+        '<Pages><Page ID="0" Name="Page-1"><PageSheet><PageWidth>' + wIn + '</PageWidth><PageHeight>' + hIn + '</PageHeight></PageSheet></Page></Pages>' +
+        '</VisioDocument>'),
+      'visio/pages/_rels/page1.xml.rels': to(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>'),
+      'visio/pages/page1.xml': to(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Page xmlns="http://schemas.microsoft.com/office/visio/2012/main" ID="0" Name="Page-1">' +
+        '<PageSheet><PageWidth>' + wIn + '</PageWidth><PageHeight>' + hIn + '</PageHeight><PageScale>1</PageScale><DrawingScale>1 in. = 1 in.</DrawingScale></PageSheet>' +
+        '<Shapes>' + shapeXml + '</Shapes>' +
+        '</Page>'),
+      'visio/windows.xml': to(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Windows xmlns="http://schemas.microsoft.com/office/visio/2012/main">' +
+        '<Window ID="1" WindowType="Drawing" WindowState="922333440"><SheetID>0</SheetID></Window>' +
+        '</Windows>'),
+      'visio/theme/_rels/theme1.xml.rels': to(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>'),
+      'visio/theme/theme1.xml': to(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><theme xmlns="http://schemas.microsoft.com/office/visio/2012/main"><themeElements><clrScheme name="Default"><dk1>000000</dk1><lt1>FFFFFF</lt1><dk2>44546A</dk2><lt2>E7E6E6</lt2><accent1>4472C4</accent1><accent2>ED7D31</accent2><accent3>A5A5A5</accent3><accent4>FFC000</accent4><accent5>5B9BD5</accent5><accent6>70AD47</accent6><hlink>0563C1</hlink><folHlink>954F72</folHlink></clrScheme></themeElements></theme>')
+    }, { level: 9 });
 
-    zip.file('[Content_Types].xml',
-      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
-      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
-      '<Default Extension="xml" ContentType="application/xml"/>' +
-      '<Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/>' +
-      '<Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/>' +
-      '</Types>');
-
-    zip.file('_rels/.rels',
-      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="visio/document.xml"/>' +
-      '</Relationships>');
-
-    zip.file('visio/document.xml',
-      '<VisioDocument xmlns="http://schemas.microsoft.com/office/visio/2012/main">' +
-      '<DocumentSheet/>' +
-      '<Pages><Page ID="0" Name="Page-1"><PageSheet><PageWidth>' + wIn + '</PageWidth><PageHeight>' + hIn + '</PageHeight></PageSheet></Page></Pages>' +
-      '</VisioDocument>');
-
-    zip.file('visio/_rels/document.xml.rels',
-      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pages" Target="pages/page1.xml"/>' +
-      '</Relationships>');
-
-    zip.file('visio/pages/page1.xml',
-      '<Page xmlns="http://schemas.microsoft.com/office/visio/2012/main" ID="0" Name="Page-1">' +
-      '<PageSheet><PageWidth>' + wIn + '</PageWidth><PageHeight>' + hIn + '</PageHeight></PageSheet>' +
-      '<Shapes>' + shapes + '</Shapes>' +
-      '</Page>');
-
-    zip.file('visio/pages/_rels/page1.xml.rels',
-      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>');
-
-    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+    const blob = new Blob([zipped], { type: 'application/vnd.ms-visio.drawing' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -1788,7 +1824,7 @@
           const device = {
             id: nextId++,
             type: dev.type || 'pc',
-            name: dev.hostname || `${dev.type}-${idx + 1}`,
+            name: dev.hostname || dev.ip || `${dev.type}-${idx + 1}`,
             x: snapToGrid(cx + radius * Math.cos(angle)),
             y: snapToGrid(cy + radius * Math.sin(angle)),
             ip: dev.ip,
@@ -1833,13 +1869,15 @@
       const cx = canvasW / 2;
       const cy = canvasH / 2;
       const radius = Math.min(canvasW, canvasH) * 0.35;
-
+      const excludePCs = document.getElementById('exclude-pcs').checked;
+      let idx = 0;
       data.devices.forEach((dev, i) => {
-        const angle = (2 * Math.PI * i) / data.devices.length - Math.PI / 2;
+        if (excludePCs && (dev.type === 'pc')) return;
+        const angle = (2 * Math.PI * idx) / data.devices.length - Math.PI / 2;
         devices.push({
           id: nextId++,
           type: dev.type || 'pc',
-          name: dev.hostname || `${dev.type}-${i + 1}`,
+          name: dev.hostname || dev.ip || `${dev.type}-${i + 1}`,
           x: snapToGrid(cx + radius * Math.cos(angle)),
           y: snapToGrid(cy + radius * Math.sin(angle)),
           ip: dev.ip,
@@ -1848,6 +1886,7 @@
           notes: '',
           ports: dev.openPorts || [],
         });
+        idx++;
       });
 
       updateDeviceCount();
@@ -1899,7 +1938,7 @@
     updateDeviceCount();
     draw();
 
-    showProgress('arp', 0, 'Starting...');
+      showProgress('arp', 0, 'Starting...');
     document.getElementById('btn-scan-real').disabled = true;
     document.getElementById('btn-scan-real').textContent = 'Scanning...';
 
@@ -1926,13 +1965,15 @@
       const cy = canvasH / 2;
       const radius = Math.min(canvasW, canvasH) * 0.35;
       const total = data.devices.length;
-
+      const excludePCs = document.getElementById('exclude-pcs').checked;
+      let idx = 0;
       data.devices.forEach((dev, i) => {
-        const angle = (2 * Math.PI * i) / total - Math.PI / 2;
+        if (excludePCs && (dev.type === 'pc')) return;
+        const angle = (2 * Math.PI * idx) / total - Math.PI / 2;
         const device = {
           id: nextId++,
           type: dev.type || 'pc',
-          name: dev.hostname || `${dev.type}-${i + 1}`,
+          name: dev.hostname || dev.ip || `${dev.type}-${i + 1}`,
           x: snapToGrid(cx + radius * Math.cos(angle)),
           y: snapToGrid(cy + radius * Math.sin(angle)),
           ip: dev.ip,
@@ -1942,6 +1983,7 @@
           ports: dev.openPorts || [],
         };
         devices.push(device);
+        idx++;
       });
 
       if (data.connections) {
@@ -2051,6 +2093,49 @@
       if (data.success) {
         btn.textContent = `OK: ${data.deviceCount} devices`;
         btn.style.background = '#059669';
+        if (data.sites && data.sites.length > 0) {
+          const container = document.getElementById('catc-sites');
+          container.innerHTML = '';
+          const btnRow = document.createElement('div');
+          btnRow.style.cssText = 'display:flex;gap:4px;margin-bottom:6px';
+          const selAll = document.createElement('button');
+          selAll.textContent = 'Select All';
+          selAll.type = 'button';
+          selAll.style.cssText = 'flex:1;font-size:11px;padding:3px 6px;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#e2e8f0;cursor:pointer';
+          const deselAll = document.createElement('button');
+          deselAll.textContent = 'Deselect All';
+          deselAll.type = 'button';
+          deselAll.style.cssText = 'flex:1;font-size:11px;padding:3px 6px;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#e2e8f0;cursor:pointer';
+          selAll.addEventListener('click', () => { container.querySelectorAll('.catc-site-chk').forEach(cb => cb.checked = true); });
+          deselAll.addEventListener('click', () => { container.querySelectorAll('.catc-site-chk').forEach(cb => cb.checked = false); });
+          btnRow.appendChild(selAll);
+          btnRow.appendChild(deselAll);
+          container.appendChild(btnRow);
+          const groups = {};
+          data.sites.forEach(s => {
+            const hierarchy = s.siteNameHierarchy || s.name || '';
+            const parts = hierarchy.split('/');
+            const region = parts.slice(0, -1).join(' > ') || 'Other';
+            if (!groups[region]) groups[region] = [];
+            groups[region].push(s);
+          });
+          for (const [region, siteList] of Object.entries(groups)) {
+            const h = document.createElement('div');
+            h.textContent = region;
+            h.style.cssText = 'font-weight:600;font-size:12px;margin:4px 0 2px;color:#94a3b8';
+            container.appendChild(h);
+            siteList.forEach(s => {
+              const hierarchy = s.siteNameHierarchy || s.name || s.id || '';
+              const parts = hierarchy.split('/');
+              const siteName = parts[parts.length - 1];
+              const label = document.createElement('label');
+              label.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0';
+              label.innerHTML = `<input type="checkbox" class="catc-site-chk" value="${s.id}" checked><span>${siteName}</span>`;
+              container.appendChild(label);
+            });
+          }
+          container.classList.remove('hidden');
+        }
       } else {
         btn.textContent = `Error: ${data.error}`;
         btn.style.background = '#991b1b';
@@ -2066,6 +2151,13 @@
 
   document.getElementById('btn-catc-scan').addEventListener('click', async () => {
     const btn = document.getElementById('btn-catc-scan');
+    const checked = document.querySelectorAll('.catc-site-chk:checked');
+    if (checked.length === 0) {
+      btn.textContent = 'No sites selected';
+      btn.style.background = '#d97706';
+      setTimeout(() => { btn.textContent = 'Scan via Cat Center'; btn.style.background = '#059669'; }, 3000);
+      return;
+    }
     btn.textContent = 'Scanning...';
     btn.disabled = true;
 
@@ -2073,14 +2165,54 @@
       const res = await fetch('/api/catc/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: catcUrl.value, user: catcUser.value, pass: catcPass.value }),
+        body: JSON.stringify({
+          url: catcUrl.value,
+          user: catcUser.value,
+          pass: catcPass.value,
+          siteIds: Array.from(checked).map(cb => cb.value),
+        }),
       });
       const data = await res.json();
-      if (data.success) {
-        btn.textContent = `Done: ${data.locationCount} locations`;
-        btn.style.background = '#059669';
-        await refreshLocations();
+      if (data.success && data.devices && data.devices.length > 0) {
+        devices = [];
+        connections = [];
+        nextId = 1;
+        const canvasW = canvas.width / devicePixelRatio;
+        const canvasH = canvas.height / devicePixelRatio;
+        const cx = canvasW / 2;
+        const cy = canvasH / 2;
+        const radius = Math.min(canvasW, canvasH) * 0.35;
+        data.devices.forEach((dev, i) => {
+          const angle = (2 * Math.PI * i) / data.devices.length - Math.PI / 2;
+          devices.push({
+            id: nextId++,
+            type: dev.type || 'switch',
+            name: dev.hostname || dev.name || dev.ip || `${dev.type}-${i + 1}`,
+            x: snapToGrid(cx + radius * Math.cos(angle)),
+            y: snapToGrid(cy + radius * Math.sin(angle)),
+            ip: dev.ip || dev.managementIpAddress || '',
+            mac: dev.mac || '',
+            vendor: dev.vendor || 'Cisco',
+            notes: '',
+            ports: [],
+          });
+        });
+        if (data.connections) {
+          data.connections.forEach(c => {
+            const f = devices.find(d => d.ip === c.from || d.name === c.from);
+            const t = devices.find(d => d.ip === c.to || d.name === c.to);
+            if (f && t) connections.push({ from: f.id, to: t.id, label: c.label || '', vlanUp: '', vlanDown: '', cableType: 'unknown' });
+          });
+        }
+        updateDeviceCount();
+        draw();
+        applyTopology('circle');
         enableTemplate();
+        btn.textContent = `Done: ${devices.length} devices`;
+        btn.style.background = '#059669';
+      } else if (data.success) {
+        btn.textContent = `No devices found (0 from ${data.locationCount || 0} sites)`;
+        btn.style.background = '#d97706';
       } else {
         btn.textContent = `Error: ${data.error}`;
         btn.style.background = '#991b1b';
@@ -2118,11 +2250,52 @@
         body: JSON.stringify({ host: sshHost, user: sshUser, pass: sshPass, location: sshLocation }),
       });
       const data = await res.json();
-      if (data.success) {
-        btn.textContent = `Done: ${data.devices} devices, ${data.cdpNeighbors} neighbors`;
-        btn.style.background = '#059669';
-        await refreshLocations();
+      if (data.success && Array.isArray(data.devices) && data.devices.length > 0) {
+        devices = [];
+        connections = [];
+        nextId = 1;
+        const canvasW = canvas.width / devicePixelRatio;
+        const canvasH = canvas.height / devicePixelRatio;
+        const cx = canvasW / 2;
+        const cy = canvasH / 2;
+        const radius = Math.min(canvasW, canvasH) * 0.35;
+        const excludePCs = document.getElementById('exclude-pcs').checked;
+        let idx = 0;
+        data.devices.forEach((dev, i) => {
+          if (excludePCs && (dev.type === 'pc')) return;
+          const angle = (2 * Math.PI * idx) / data.devices.length - Math.PI / 2;
+        devices.push({
+          id: nextId++,
+          type: dev.type || 'pc',
+          name: dev.hostname || dev.ip || `${dev.type}-${i + 1}`,
+          x: snapToGrid(cx + radius * Math.cos(angle)),
+          y: snapToGrid(cy + radius * Math.sin(angle)),
+          ip: dev.ip,
+          mac: dev.mac || '',
+          vendor: dev.vendor || '',
+          notes: '',
+          ports: dev.openPorts || [],
+        });
+        idx++;
+      });
+        if (data.connections) {
+          data.connections.forEach(conn => {
+            const fromDev = devices.find(d => d.ip === conn.from);
+            const toDev = devices.find(d => d.ip === conn.to);
+            if (fromDev && toDev) {
+              connections.push({ from: fromDev.id, to: toDev.id, label: conn.label || '', vlanUp: conn.vlanUp || '', vlanDown: conn.vlanDown || '', cableType: conn.cableType || 'unknown', portA: conn.portA || '', portB: conn.portB || '' });
+            }
+          });
+        }
+        updateDeviceCount();
+        draw();
+        applyTopology('circle');
         enableTemplate();
+        btn.textContent = `Done: ${devices.length} devices, ${data.cdpNeighbors} neighbors`;
+        btn.style.background = '#059669';
+      } else if (data.success) {
+        btn.textContent = `No devices found (0 from ${data.cdpNeighbors} CDP neighbors)`;
+        btn.style.background = '#d97706';
       } else {
         btn.textContent = `Error: ${data.error}`;
         btn.style.background = '#991b1b';
@@ -2193,13 +2366,15 @@
       const cy = canvasH / 2;
       const radius = Math.min(canvasW, canvasH) * 0.35;
       const total = data.devices.length;
-
+      const excludePCs = document.getElementById('exclude-pcs').checked;
+      let idx = 0;
       data.devices.forEach((dev, i) => {
-        const angle = (2 * Math.PI * i) / total - Math.PI / 2;
+        if (excludePCs && (dev.type === 'pc')) return;
+        const angle = (2 * Math.PI * idx) / total - Math.PI / 2;
         const device = {
           id: nextId++,
           type: dev.type || 'pc',
-          name: dev.hostname || `${dev.type}-${i + 1}`,
+          name: dev.hostname || dev.ip || `${dev.type}-${i + 1}`,
           x: snapToGrid(cx + radius * Math.cos(angle)),
           y: snapToGrid(cy + radius * Math.sin(angle)),
           ip: dev.ip,
@@ -2209,6 +2384,7 @@
           ports: dev.openPorts || [],
         };
         devices.push(device);
+        idx++;
       });
 
       if (data.connections) {

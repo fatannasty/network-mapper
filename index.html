@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
 </head>
 <body>
   <header>
@@ -122,18 +122,21 @@
       <div id="locations-panel" class="locations">
         <p class="hint">No locations yet</p>
       </div>
-      <button id="btn-refresh-locations" class="mode-btn" style="width:100%;margin-top:6px">Refresh</button>
+      <button id="btn-refresh-locations" class="scan-btn" style="margin-top:6px">Refresh</button>
 
       <details class="collapsible-section info-section scan-section">
         <summary><svg class="section-arrow" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Catalyst Center</summary>
         <div class="cat-center-config">
-          <label>URL</label>
-          <input type="text" id="catc-url" placeholder="https://sandboxdnac.cisco.com">
-          <label>Username</label>
-          <input type="text" id="catc-user" placeholder="admin">
-          <label>Password</label>
-          <input type="password" id="catc-pass" placeholder="password">
-          <button id="btn-catc-test" class="mode-btn" style="width:100%">Test Connection</button>
+          <div class="scan-config-inner">
+            <label>URL</label>
+            <input type="text" id="catc-url" placeholder="https://sandboxdnac.cisco.com">
+            <label>Username</label>
+            <input type="text" id="catc-user" placeholder="admin">
+            <label>Password</label>
+            <input type="password" id="catc-pass" placeholder="password">
+          </div>
+          <button id="btn-catc-test" class="scan-btn">Test Connection</button>
+          <div id="catc-sites" class="hidden" style="margin-top:6px;max-height:200px;overflow-y:auto;border:1px solid #333;border-radius:6px;padding:8px"></div>
           <button id="btn-catc-scan" class="scan-btn">Scan via Cat Center</button>
         </div>
       </details>
@@ -141,14 +144,16 @@
       <details class="collapsible-section info-section scan-section">
         <summary><svg class="section-arrow" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>SSH Core Scan</summary>
         <div class="cat-center-config">
-          <label>Switch IP</label>
-          <input type="text" id="ssh-host" placeholder="e.g. 10.0.0.1">
-          <label>SSH Username</label>
-          <input type="text" id="ssh-user" placeholder="admin">
-          <label>SSH Password</label>
-          <input type="password" id="ssh-pass" placeholder="password">
-          <label>Location / Site Name</label>
-          <input type="text" id="ssh-location" placeholder="e.g. Miami Station">
+          <div class="scan-config-inner">
+            <label>Switch IP</label>
+            <input type="text" id="ssh-host" placeholder="e.g. 10.0.0.1">
+            <label>SSH Username</label>
+            <input type="text" id="ssh-user" placeholder="admin">
+            <label>SSH Password</label>
+            <input type="password" id="ssh-pass" placeholder="password">
+            <label>Location / Site Name</label>
+            <input type="text" id="ssh-location" placeholder="e.g. Miami Station">
+          </div>
           <button id="btn-ssh-scan" class="scan-btn">Scan via SSH</button>
         </div>
       </details>
@@ -156,12 +161,14 @@
       <details class="collapsible-section info-section scan-section">
         <summary><svg class="section-arrow" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Scan via Subnets</summary>
         <div class="cat-center-config">
-          <label>Subnet (CIDR)</label>
-          <input type="text" id="subnet-cidr" placeholder="e.g. 192.168.1.0/24">
-          <label>Interface (optional)</label>
-          <select id="subnet-interface">
-            <option value="">Auto-detect</option>
-          </select>
+          <div class="scan-config-inner">
+            <label>Subnet (CIDR)</label>
+            <input type="text" id="subnet-cidr" placeholder="e.g. 192.168.1.0/24">
+            <label>Interface (optional)</label>
+            <select id="subnet-interface">
+              <option value="">Auto-detect</option>
+            </select>
+          </div>
           <button id="btn-subnet-scan" class="scan-btn">Scan Subnet</button>
         </div>
       </details>
@@ -215,12 +222,16 @@
     </aside>
 
     <main class="canvas-area">
-      <div class="cidr-input hidden" id="cidr-input-container">
+      <div class="cidr-input" id="cidr-input-container">
         <label for="cidr-input">Target Subnet</label>
         <input type="text" id="cidr-input" placeholder="e.g. 192.168.0.0/24 or 10.0.0.0/16">
         <select id="interface-select">
           <option value="">Auto-detect</option>
         </select>
+        <label style="margin-top:4px;font-size:13px">
+          <input type="checkbox" id="exclude-pcs" checked>
+          Exclude PCs from results
+        </label>
       </div>
       <canvas id="topology-canvas"></canvas>
       <div id="tooltip" class="tooltip hidden"></div>

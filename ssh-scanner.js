@@ -1,4 +1,4 @@
-const { execSync } = require('child_process');
+const { exec } = require('child_process');
 const net = require('net');
 
 const SSH_TIMEOUT = 15000;
@@ -22,13 +22,14 @@ function parseCdpNeighbors(output) {
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
+    if (trimmed.startsWith('Capability') || (trimmed.startsWith('Device ID') && !trimmed.includes(':'))) continue;
 
-    const cdpMatch = trimmed.match(/^(\S+)\s+\S+\s+\S+\s+\S+\s+(\S+)\s+(\S+)\s*/);
-    if (cdpMatch) {
+    const sep = trimmed.split(/\s{2,}/);
+    if (sep.length >= 6 && !trimmed.startsWith('---')) {
       devices.push({
-        hostname: cdpMatch[1],
-        platform: cdpMatch[2],
-        port: cdpMatch[3],
+        hostname: sep[0].trim(),
+        platform: sep[4].trim(),
+        port: sep[5].trim(),
       });
       continue;
     }
@@ -51,7 +52,7 @@ function parseCdpNeighbors(output) {
       continue;
     }
 
-    const portMatch = trimmed.match(/^Interface:\s*(.+),\s*Port ID:\s*(.+)/);
+    const portMatch = trimmed.match(/^Interface:\s*(.+?),\s*Port ID.*?:\s*(.+)/);
     if (portMatch && currentDevice) {
       currentDevice.localPort = portMatch[1].trim();
       currentDevice.remotePort = portMatch[2].trim();
@@ -181,92 +182,122 @@ async function scanCoreSwitch(config) {
 
   try {
     const hostnameOut = await sshCommand(host, user, pass, 'show hostname');
-    results.hostname = parseHostname(hostnameOut);
-    console.log(`Hostname: ${results.hostname}`);
+    const h = parseHostname(hostnameOut);
+    if (h && !h.toLowerCase().includes('invalid') && !h.toLowerCase().includes('autocommand')) {
+      results.hostname = h;
+    }
+  } catch {}
+  if (!results.hostname) {
+    try {
+      const out = await sshCommand(host, user, pass, 'show running-config | include hostname');
+      const m = out.match(/hostname\s+(\S+)/i);
+      if (m) results.hostname = m[1];
+    } catch (e) { console.log('Hostname fallback error:', e.message); }
+  }
+  console.log(`Hostname: ${results.hostname || '(not found)'}`);
 
+  try {
     const versionOut = await sshCommand(host, user, pass, 'show version | include IOS');
     results.version = parseVersion(versionOut);
     console.log(`Version: ${results.version}`);
+  } catch {
+    try {
+      const verOut = await sshCommand(host, user, pass, 'show version');
+      const v = verOut.match(/Version\s+(\S+)/i);
+      if (v) results.version = v[1];
+    } catch {}
+  }
 
+  try {
     const modelOut = await sshCommand(host, user, pass, 'show version | include Model');
     results.model = modelOut.trim().split('\n').pop()?.trim() || '';
     console.log(`Model: ${results.model}`);
-
+  } catch {
     try {
-      const cdpOut = await sshCommand(host, user, pass, 'show cdp neighbor detail');
-      results.cdpNeighbors = parseCdpNeighbors(cdpOut);
-      console.log(`CDP neighbors: ${results.cdpNeighbors.length}`);
-    } catch { console.log('CDP not available'); }
+      const moOut = await sshCommand(host, user, pass, 'show inventory');
+      const m = moOut.match(/PID:\s*(\S+)/);
+      if (m) results.model = m[1];
+    } catch {}
+  }
 
-    try {
-      const macOut = await sshCommand(host, user, pass, 'show mac address-table dynamic');
-      results.macTable = parseMacTable(macOut);
-      console.log(`MAC entries: ${results.macTable.length}`);
-    } catch { console.log('MAC table not available'); }
+  try {
+    const cdpOut = await sshCommand(host, user, pass, 'show cdp neighbor detail');
+    results.cdpNeighbors = parseCdpNeighbors(cdpOut);
+    console.log(`CDP neighbors: ${results.cdpNeighbors.length}`);
+  } catch (e) { console.log('CDP error:', e.message); }
 
-    try {
-      const arpOut = await sshCommand(host, user, pass, 'show arp');
-      results.arpTable = parseArpTable(arpOut);
-      console.log(`ARP entries: ${results.arpTable.length}`);
-    } catch { console.log('ARP table not available'); }
+  try {
+    const macOut = await sshCommand(host, user, pass, 'show mac address-table dynamic');
+    results.macTable = parseMacTable(macOut);
+    console.log(`MAC entries: ${results.macTable.length}`);
+  } catch { console.log('MAC table not available'); }
 
-    try {
-      const intfOut = await sshCommand(host, user, pass, 'show ip interface brief');
-      results.interfaces = parseInterfaces(intfOut);
-      console.log(`Interfaces: ${results.interfaces.length}`);
-    } catch { console.log('Interfaces not available'); }
+  try {
+    const arpOut = await sshCommand(host, user, pass, 'show arp');
+    results.arpTable = parseArpTable(arpOut);
+    console.log(`ARP entries: ${results.arpTable.length}`);
+  } catch { console.log('ARP table not available'); }
 
-    try {
-      const vlanOut = await sshCommand(host, user, pass, 'show vlan brief');
-      results.vlans = parseVlans(vlanOut);
-      console.log(`VLANs: ${results.vlans.length}`);
-    } catch { console.log('VLANs not available'); }
+  try {
+    const intfOut = await sshCommand(host, user, pass, 'show ip interface brief');
+    results.interfaces = parseInterfaces(intfOut);
+    console.log(`Interfaces: ${results.interfaces.length}`);
+  } catch { console.log('Interfaces not available'); }
 
+  try {
+    const vlanOut = await sshCommand(host, user, pass, 'show vlan brief');
+    results.vlans = parseVlans(vlanOut);
+    console.log(`VLANs: ${results.vlans.length}`);
+  } catch { console.log('VLANs not available'); }
+
+  results.devices.push({
+    ip: host,
+    mac: '',
+    type: 'core-switch',
+    hostname: results.hostname || host,
+    openPorts: [22, 161],
+    vendor: 'Cisco',
+    model: results.model,
+    location: location || '',
+  });
+
+  for (const neighbor of results.cdpNeighbors) {
+    let neighborIp = neighbor.ip || '';
+    let macOnPort = null;
+    if (!neighborIp && neighbor.port) {
+      macOnPort = results.macTable.find(m => m.port === neighbor.port);
+      if (macOnPort) {
+        const arpMatch = results.arpTable.find(a => a.mac === macOnPort.mac);
+        if (arpMatch) neighborIp = arpMatch.ip;
+      }
+    }
     results.devices.push({
-      ip: host,
-      mac: '',
-      type: 'core-switch',
-      hostname: results.hostname || host,
+      ip: neighborIp,
+      mac: macOnPort?.mac || '',
+      type: mapPlatformToType(neighbor.platform),
+      hostname: neighbor.hostname,
       openPorts: [22, 161],
       vendor: 'Cisco',
-      model: results.model,
+      model: neighbor.platform || '',
       location: location || '',
     });
 
-    for (const neighbor of results.cdpNeighbors) {
-      const arpEntry = results.arpTable.find(a => a.ip === neighbor.ip);
-      results.devices.push({
-        ip: neighbor.ip || '',
-        mac: arpEntry?.mac || '',
-        type: mapPlatformToType(neighbor.platform),
-        hostname: neighbor.hostname,
-        openPorts: [22, 161],
-        vendor: 'Cisco',
-        model: neighbor.platform || '',
-        location: location || '',
+    if (neighborIp && neighbor.localPort && neighbor.remotePort) {
+      results.connections.push({
+        from: host,
+        to: neighborIp,
+        label: neighbor.platform || '',
+        vlanUp: '',
+        vlanDown: '',
+        cableType: 'unknown',
+        portA: neighbor.localPort,
+        portB: neighbor.remotePort,
       });
-
-      if (neighbor.ip && neighbor.localPort && neighbor.remotePort) {
-        results.connections.push({
-          from: host,
-          to: neighbor.ip,
-          label: neighbor.platform || '',
-          vlanUp: '',
-          vlanDown: '',
-          cableType: 'unknown',
-          portA: neighbor.localPort,
-          portB: neighbor.remotePort,
-        });
-      }
     }
-
-    console.log(`Total devices discovered: ${results.devices.length}`);
-    console.log(`Total connections: ${results.connections.length}`);
-
-  } catch (e) {
-    console.error(`SSH error: ${e.message}`);
-    throw e;
   }
+
+  console.log(`Total devices discovered: ${results.devices.length}`);
+  console.log(`Total connections: ${results.connections.length}`);
 
   return results;
 }
@@ -274,12 +305,12 @@ async function scanCoreSwitch(config) {
 function mapPlatformToType(platform) {
   if (!platform) return 'pc';
   const p = platform.toLowerCase();
+  if (p.includes('air') || p.includes('ap') || p.includes('access point') || p.includes('wireless') || p.includes('wlc')) return 'accesspoint';
   if (p.includes('switch') || p.includes('catalyst')) return 'access-switch';
   if (p.includes('router') || p.includes('isr')) return 'router';
-  if (p.includes('wireless') || p.includes('wlc') || p.includes('ap')) return 'accesspoint';
   if (p.includes('asa') || p.includes('firewall') || p.includes('ftd')) return 'firewall';
   if (p.includes('nexus')) return 'core-switch';
-  return 'pc';
+  return 'access-switch';
 }
 
 module.exports = { scanCoreSwitch, parseCdpNeighbors, parseMacTable, parseArpTable };

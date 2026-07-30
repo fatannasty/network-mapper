@@ -105,8 +105,8 @@ app.post('/api/ssh/scan', async (req, res) => {
       success: true,
       hostname: result.hostname,
       model: result.model,
-      devices: result.devices.length,
-      connections: result.connections.length,
+      devices: result.devices,
+      connections: result.connections,
       cdpNeighbors: result.cdpNeighbors.length,
       macEntries: result.macTable.length,
       arpEntries: result.arpTable.length,
@@ -119,20 +119,41 @@ app.post('/api/ssh/scan', async (req, res) => {
 
 app.post('/api/catc/test', async (req, res) => {
   try {
-    const { url, user, pass } = req.body;
+    let { url, user, pass } = req.body;
+    if (!url) return res.json({ success: false, error: 'URL is required' });
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    let baseUrl = url.replace(/\/+$/, '');
+    const parsed = new URL(baseUrl);
+    parsed.pathname = '/dna/system/api/v1/auth/token';
+    const authUrl = parsed.toString();
     const auth = Buffer.from(`${user}:${pass}`).toString('base64');
-    const tokenRes = await catcHttpRequest(`${url}/dna/system/api/v1/auth/token`, {
+    console.log(`CatC auth: POST ${authUrl} user=${user}`);
+    const tokenRes = await catcHttpRequest(authUrl, {
       method: 'POST',
       headers: { 'Authorization': `Basic ${auth}` },
     });
+    console.log(`CatC auth response: status=${tokenRes.status}`);
     if (tokenRes.status !== 200 || !tokenRes.data?.Token) {
-      return res.json({ success: false, error: `Auth failed: ${tokenRes.status}` });
+      const respSnippet = JSON.stringify(tokenRes.data).slice(0, 200);
+      console.log(`CatC auth body: ${respSnippet}`);
+      return res.json({ success: false, error: `Auth failed (${tokenRes.status})` });
     }
-    const deviceRes = await catcHttpRequest(`${url}/dna/intent/api/v1/network-device`, {
+    parsed.pathname = '/dna/intent/api/v1/network-device';
+    const deviceRes = await catcHttpRequest(parsed.toString(), {
       headers: { 'X-Auth-Token': tokenRes.data.Token },
     });
     const count = Array.isArray(deviceRes.data?.response) ? deviceRes.data.response.length : 0;
-    res.json({ success: true, deviceCount: count });
+    let sites = [];
+    try {
+      parsed.pathname = '/dna/intent/api/v1/site';
+      const siteRes = await catcHttpRequest(parsed.toString(), {
+        headers: { 'X-Auth-Token': tokenRes.data.Token },
+      });
+      sites = siteRes.data?.response || [];
+      console.log(`CatC sites: ${sites.length} found`);
+      if (sites.length > 0) console.log('First site:', JSON.stringify(sites[0]).slice(0, 200));
+    } catch (e) { console.log('CatC sites error:', e.message); }
+    res.json({ success: true, deviceCount: count, sites });
   } catch (e) {
     res.json({ success: false, error: e.message });
   }
@@ -140,38 +161,47 @@ app.post('/api/catc/test', async (req, res) => {
 
 app.post('/api/catc/scan', async (req, res) => {
   try {
-    const { url, user, pass } = req.body;
-    const WORKER_API = 'https://network-mapper-api.fatannasty.workers.dev';
+    let { url, user, pass, siteIds } = req.body;
+    if (!url) return res.json({ success: false, error: 'URL is required' });
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    let baseUrl = url.replace(/\/+$/, '');
+    const parsed = new URL(baseUrl);
     const auth = Buffer.from(`${user}:${pass}`).toString('base64');
-    const tokenRes = await catcHttpRequest(`${url}/dna/system/api/v1/auth/token`, {
+    parsed.pathname = '/dna/system/api/v1/auth/token';
+    const tokenRes = await catcHttpRequest(parsed.toString(), {
       method: 'POST',
       headers: { 'Authorization': `Basic ${auth}` },
+      timeout: 15000,
     });
     if (tokenRes.status !== 200 || !tokenRes.data?.Token) {
-      return res.json({ success: false, error: 'Auth failed' });
+      return res.json({ success: false, error: `Auth failed (${tokenRes.status})` });
     }
     const token = tokenRes.data.Token;
+    const allDevices = [];
 
-    const deviceRes = await catcHttpRequest(`${url}/dna/intent/api/v1/network-device`, {
-      headers: { 'X-Auth-Token': token },
-    });
-    const devices = deviceRes.data?.response || [];
-
-    let sites = [];
-    try {
-      const siteRes = await catcHttpRequest(`${url}/dna/intent/api/v1/site`, {
+    if (Array.isArray(siteIds) && siteIds.length > 0) {
+      for (const siteId of siteIds) {
+        try {
+          parsed.pathname = `/dna/intent/api/v1/site/${siteId}/member/device`;
+          const memberRes = await catcHttpRequest(parsed.toString(), {
+            headers: { 'X-Auth-Token': token },
+            timeout: 15000,
+          });
+          const members = memberRes.data?.response || [];
+          allDevices.push(...members);
+        } catch (e) {
+          console.log(`Site ${siteId} failed:`, e.message);
+        }
+      }
+    } else {
+      parsed.pathname = '/dna/intent/api/v1/network-device';
+      const deviceRes = await catcHttpRequest(parsed.toString(), {
         headers: { 'X-Auth-Token': token },
+        timeout: 30000,
       });
-      sites = siteRes.data?.response || [];
-    } catch {}
-
-    let topology = [];
-    try {
-      const topoRes = await catcHttpRequest(`${url}/dna/intent/api/v1/topology/network-topology`, {
-        headers: { 'X-Auth-Token': token },
-      });
-      topology = topoRes.data?.response?.topology || [];
-    } catch {}
+      const devices = deviceRes.data?.response || [];
+      allDevices.push(...devices);
+    }
 
     const mapType = (d) => {
       const f = (d.family || '').toLowerCase();
@@ -183,51 +213,22 @@ app.post('/api/catc/scan', async (req, res) => {
       return 'pc';
     };
 
-    const postToWorker = async (locId, locName, devs) => {
-      const mapped = devs.map(d => ({
-        ip: d.managementIpAddress || '',
-        mac: d.macAddress || '',
-        type: mapType(d),
-        hostname: d.name || d.hostname || d.managementIpAddress || 'Unknown',
-        openPorts: [
-          d.snmpReachability !== 'Unreachable' ? 161 : null,
-          d.sshReachability !== 'Unreachable' ? 22 : null,
-          d.httpsReachability !== 'Unreachable' ? 443 : null,
-        ].filter(Boolean),
-        vendor: d.platformId || '',
-      }));
-      await catcHttpRequest(`${WORKER_API}/api/scan`, {
-        method: 'POST',
-        body: { locationId: locId, locationName: locName, devices: mapped, connections: [], subnet: 'catalyst-center', scannedAt: new Date().toISOString() },
-      });
-    };
+    const mapped = allDevices.map(d => ({
+      ip: d.managementIpAddress || '',
+      hostname: d.hostname || d.serialNumber || '',
+      type: mapType(d),
+      model: d.platformId || '',
+      vendor: 'Cisco',
+      mac: d.macAddress || '',
+      location: d.locationName || d.siteName || '',
+    }));
 
-    let locationCount = 0;
-    if (sites.length > 0) {
-      for (const site of sites) {
-        const siteId = site.id || site.siteId;
-        const siteName = site.name || site.siteNameHierarchy || `Site-${siteId}`;
-        try {
-          const memberRes = await catcHttpRequest(`${url}/dna/intent/api/v1/site/${siteId}/member/device`, {
-            headers: { 'X-Auth-Token': token },
-          });
-          const memberIds = new Set((memberRes.data?.response || []).map(d => d.id));
-          if (memberIds.size > 0) {
-            const siteDevices = devices.filter(d => memberIds.has(d.id));
-            await postToWorker(siteId, siteName, siteDevices);
-            locationCount++;
-          }
-        } catch {}
-      }
-    }
+    const excludePCs = req.body.excludePCs !== false;
+    const filtered = excludePCs ? mapped.filter(d => d.type !== 'pc') : mapped;
 
-    if (locationCount === 0) {
-      await postToWorker('catalyst-center', 'Catalyst Center', devices);
-      locationCount = 1;
-    }
-
-    res.json({ success: true, deviceCount: devices.length, locationCount });
+    res.json({ success: true, devices: filtered, connections: [] });
   } catch (e) {
+    console.error('CatC scan error:', e);
     res.json({ success: false, error: e.message });
   }
 });

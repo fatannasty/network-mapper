@@ -204,22 +204,17 @@ async function identifyDevice(ip) {
     }
   }
 
-  if (openPorts.includes(161)) {
-    type = 'router';
-    confidence = 3;
-  }
-
   const isGateway = ip.endsWith('.1') || ip.endsWith('.254');
-  if (isGateway && openPorts.length > 0) {
+  if (isGateway && openPorts.length > 0 && type === 'pc') {
     type = 'router';
-    confidence = 4;
+    confidence = 2;
   }
 
   let hostname = '';
   try {
-    hostname = execSync(`nslookup ${ip}`, { timeout: 3000 }).toString();
-    const nameMatch = hostname.match(/name\s*=\s*(.+)/i);
-    if (nameMatch) hostname = nameMatch[1].trim();
+    const out = execSync(`nslookup ${ip}`, { timeout: 3000 }).toString();
+    const m = out.match(/name\s*=\s*(\S+)/i) || out.match(/Name:\s*(\S+)/i);
+    if (m) hostname = m[1].replace(/\.$/, '');
     else hostname = '';
   } catch {
     hostname = '';
@@ -279,6 +274,16 @@ function lookupMacVendor(mac) {
   return prefixes[prefix] || '';
 }
 
+function ipInCIDR(ip, cidr) {
+  try {
+    const [range, bits] = cidr.split('/');
+    const mask = ~(2 ** (32 - parseInt(bits)) - 1);
+    const ipInt = ip.split('.').reduce((a, b) => (a << 8) + parseInt(b), 0);
+    const rangeInt = range.split('.').reduce((a, b) => (a << 8) + parseInt(b), 0);
+    return (ipInt & mask) === (rangeInt & mask);
+  } catch { return false; }
+}
+
 async function discoverNetwork(options = {}) {
   const { onProgress, onDeviceFound, cidr } = options;
   const localIP = getLocalIP();
@@ -290,7 +295,10 @@ async function discoverNetwork(options = {}) {
   if (onProgress) onProgress({ phase: 'arp', percent: 0, scanned: 0, total: 0, found: 0 });
 
   let devices = scanArpTable();
-  console.log(`ARP table: ${devices.size} devices found`);
+  if (targetCIDR) {
+    devices = new Map([...devices].filter(([ip]) => ipInCIDR(ip, targetCIDR)));
+  }
+  console.log(`ARP table: ${devices.size} devices found (filtered to ${targetCIDR})`);
 
   if (onProgress) onProgress({ phase: 'ping', percent: 0, scanned: 0, total: 0, found: 0 });
 
@@ -322,7 +330,7 @@ async function discoverNetwork(options = {}) {
       ip,
       mac: data.mac || '',
       type: info.type,
-      hostname: info.hostname || `${info.type}-${topologyDevices.length + 1}`,
+      hostname: info.hostname || '',
       vendor,
       openPorts: info.openPorts,
       isLocal: ip === localIP,
