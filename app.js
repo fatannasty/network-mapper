@@ -2072,7 +2072,7 @@
       updateDeviceCount();
       draw();
       applyTopology('circle');
-      enableTemplate();
+      enableTemplate(true);
       hideProgress();
 
     } catch (err) {
@@ -2286,7 +2286,7 @@
         updateDeviceCount();
         draw();
         applyTopology('circle');
-        enableTemplate();
+        enableTemplate(true);
         btn.textContent = `Done: ${devices.length} devices`;
         btn.style.background = '#059669';
       } else if (data.success) {
@@ -2369,7 +2369,7 @@
         updateDeviceCount();
         draw();
         applyTopology('circle');
-        enableTemplate();
+        enableTemplate(true);
         btn.textContent = `Done: ${devices.length} devices, ${data.cdpNeighbors} neighbors`;
         btn.style.background = '#059669';
       } else if (data.success) {
@@ -2481,7 +2481,7 @@
       updateDeviceCount();
       draw();
       applyTopology('circle');
-      enableTemplate();
+      enableTemplate(true);
 
     } catch (err) {
       btn.textContent = 'Scan failed';
@@ -2518,5 +2518,5 @@
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
 
-  enableTemplate();
+  enableTemplate(true);
 })();
