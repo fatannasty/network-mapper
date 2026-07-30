@@ -50,6 +50,7 @@
     </g>
   </g>
   <text x="740" y="480" class="watermark" text-anchor="middle" dominant-baseline="middle">NETWORK DIAGRAM</text>
+  <rect fill="#ffffff" x="29" y="895" width="1862" height="156"/>
   <rect class="tb-border" x="29" y="895" width="1862" height="156"/>
   <line class="sep" x1="370" y1="895" x2="370" y2="1051"/>
   <line class="sep" x1="29" y1="920" x2="1891" y2="920"/>

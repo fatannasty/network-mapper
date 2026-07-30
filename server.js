@@ -177,9 +177,15 @@ app.post('/api/catc/scan', async (req, res) => {
       return res.json({ success: false, error: `Auth failed (${tokenRes.status})` });
     }
     const token = tokenRes.data.Token;
-    const allDevices = [];
 
-    if (Array.isArray(siteIds) && siteIds.length > 0) {
+    parsed.pathname = '/dna/intent/api/v1/network-device';
+    const deviceRes = await catcHttpRequest(parsed.toString(), {
+      headers: { 'X-Auth-Token': token },
+      timeout: 30000,
+    });
+    const allDevices = deviceRes.data?.response || [];
+
+    if (Array.isArray(siteIds) && siteIds.length > 0 && allDevices.length > 0) {
       for (const siteId of siteIds) {
         try {
           parsed.pathname = `/dna/intent/api/v1/membership/${siteId}`;
@@ -187,30 +193,21 @@ app.post('/api/catc/scan', async (req, res) => {
             headers: { 'X-Auth-Token': token },
             timeout: 15000,
           });
-          const members = memberRes.data?.device || [];
-          if (!Array.isArray(members) || members.length === 0) {
-            parsed.pathname = `/dna/intent/api/v1/site/${siteId}/device`;
-            const fallbackRes = await catcHttpRequest(parsed.toString(), {
-              headers: { 'X-Auth-Token': token },
-              timeout: 15000,
-            });
-            const fallbackMembers = fallbackRes.data?.response || [];
-            allDevices.push(...fallbackMembers);
-          } else {
-            allDevices.push(...members);
+          const siteDeviceIds = new Set();
+          const devList = memberRes.data?.device || [];
+          if (Array.isArray(devList)) devList.forEach(d => { if (d.id) siteDeviceIds.add(d.id); });
+          if (siteDeviceIds.size > 0) {
+            const filtered = allDevices.filter(d => siteDeviceIds.has(d.id));
+            if (filtered.length > 0) {
+              allDevices.length = 0;
+              allDevices.push(...filtered);
+              break;
+            }
           }
         } catch (e) {
-          console.log(`Site ${siteId} failed:`, e.message);
+          console.log(`Site ${siteId} membership lookup failed:`, e.message);
         }
       }
-    } else {
-      parsed.pathname = '/dna/intent/api/v1/network-device';
-      const deviceRes = await catcHttpRequest(parsed.toString(), {
-        headers: { 'X-Auth-Token': token },
-        timeout: 30000,
-      });
-      const devices = deviceRes.data?.response || [];
-      allDevices.push(...devices);
     }
 
     const mapType = (d) => {
