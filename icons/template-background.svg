@@ -53,7 +53,7 @@
   <text x="740" y="480" class="watermark" text-anchor="middle" dominant-baseline="middle">NETWORK DIAGRAM</text>
   <rect fill="#ffffff" x="29" y="895" width="1862" height="166"/>
   <rect class="section-border" x="29" y="895" width="341" height="166"/>
-  <rect class="section-border" x="380" y="895" width="180" height="166"/>
+  <rect class="section-border" x="370" y="895" width="190" height="166"/>
   <rect class="section-border" x="560" y="895" width="1331" height="166"/>
   <line class="sep" x1="29" y1="920" x2="1891" y2="920"/>
   <line class="sep" x1="29" y1="975" x2="1891" y2="975"/>
@@ -71,8 +71,8 @@
   <text class="legend-text" x="100" y="976">Copper</text>
   <line class="st12" x1="44" y1="1002" x2="90" y2="1002"/>
   <text class="legend-text" x="100" y="1006">Single-mode Fiber</text>
-  <rect class="tb-border" x="382" y="897" width="176" height="160"/>
-  <line class="sep" x1="382" y1="977" x2="558" y2="977"/>
+  <rect class="tb-border" x="372" y="897" width="186" height="160"/>
+  <line class="sep" x1="372" y1="977" x2="558" y2="977"/>
   <g transform="translate(383, 929) scale(0.65)">
     <g transform="translate(286, -490)">
       <polygon fill="#004d6e" points="-178.7,498.5 -183.6,507 -188.5,498.5 -194.8,498.5 -198.5,511 -192.8,511 -190.9,503 -186.3,511 -180.9,511 -176.4,503 -174.5,511 -168.7,511 -172.4,498.5"/>

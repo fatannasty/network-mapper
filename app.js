@@ -1352,8 +1352,8 @@
         }
       }
       const escaped = label.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
-      const re = new RegExp(`${escaped}:\\s*<\\/text>`);
-      svg = svg.replace(re, () => `${label}:${val ? ' ' + val : ''}</text>`);
+      const re = new RegExp(`(${escaped}:\\s*)[^<]*(<\\/text>)`);
+      svg = svg.replace(re, `$1${val ? val : ''}$2`);
     });
 
     const descUpdates = [
