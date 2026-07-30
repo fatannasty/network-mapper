@@ -182,13 +182,23 @@ app.post('/api/catc/scan', async (req, res) => {
     if (Array.isArray(siteIds) && siteIds.length > 0) {
       for (const siteId of siteIds) {
         try {
-          parsed.pathname = `/dna/intent/api/v1/site/${siteId}/member/device`;
+          parsed.pathname = `/dna/intent/api/v1/membership/${siteId}`;
           const memberRes = await catcHttpRequest(parsed.toString(), {
             headers: { 'X-Auth-Token': token },
             timeout: 15000,
           });
-          const members = memberRes.data?.response || [];
-          allDevices.push(...members);
+          const members = memberRes.data?.device || [];
+          if (!Array.isArray(members) || members.length === 0) {
+            parsed.pathname = `/dna/intent/api/v1/site/${siteId}/device`;
+            const fallbackRes = await catcHttpRequest(parsed.toString(), {
+              headers: { 'X-Auth-Token': token },
+              timeout: 15000,
+            });
+            const fallbackMembers = fallbackRes.data?.response || [];
+            allDevices.push(...fallbackMembers);
+          } else {
+            allDevices.push(...members);
+          }
         } catch (e) {
           console.log(`Site ${siteId} failed:`, e.message);
         }

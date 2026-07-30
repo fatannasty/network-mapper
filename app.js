@@ -2186,26 +2186,33 @@
           const groups = {};
           data.sites.forEach(s => {
             const hierarchy = s.siteNameHierarchy || s.name || '';
-            const parts = hierarchy.split('/');
-            const region = parts.slice(0, -1).join(' > ') || 'Other';
-            if (!groups[region]) groups[region] = [];
-            groups[region].push(s);
+            const parts = hierarchy.split('/').filter(Boolean);
+            const state = parts.length >= 3 ? parts[2] : (parts[1] || 'Other');
+            if (!groups[state]) groups[state] = [];
+            groups[state].push(s);
           });
-          for (const [region, siteList] of Object.entries(groups)) {
-            const h = document.createElement('div');
-            h.textContent = region;
-            h.style.cssText = 'font-weight:600;font-size:12px;margin:4px 0 2px;color:#94a3b8';
-            container.appendChild(h);
-            siteList.forEach(s => {
+          const stateKeys = Object.keys(groups).sort();
+          stateKeys.forEach(state => {
+            const details = document.createElement('details');
+            details.style.cssText = 'margin:2px 0';
+            const summary = document.createElement('summary');
+            summary.textContent = `${state} (${groups[state].length})`;
+            summary.style.cssText = 'font-weight:600;font-size:12px;color:#94a3b8;cursor:pointer;padding:2px 0';
+            details.appendChild(summary);
+            const div = document.createElement('div');
+            div.style.cssText = 'padding-left:8px';
+            groups[state].forEach(s => {
               const hierarchy = s.siteNameHierarchy || s.name || s.id || '';
-              const parts = hierarchy.split('/');
+              const parts = hierarchy.split('/').filter(Boolean);
               const siteName = parts[parts.length - 1];
               const label = document.createElement('label');
-              label.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0';
-              label.innerHTML = `<input type="checkbox" class="catc-site-chk" value="${s.id}" checked><span>${siteName}</span>`;
-              container.appendChild(label);
+              label.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;padding:1px 0;white-space:nowrap';
+              label.innerHTML = `<input type="checkbox" class="catc-site-chk" value="${s.id}" checked style="flex-shrink:0"><span>${siteName}</span>`;
+              div.appendChild(label);
             });
-          }
+            details.appendChild(div);
+            container.appendChild(details);
+          });
           container.classList.remove('hidden');
         }
       } else {
