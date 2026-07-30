@@ -8,6 +8,7 @@
       .grid { fill: none; stroke: #f1f5f9; stroke-width: 0.5; }
       .grid-bold { fill: none; stroke: #e2e8f0; stroke-width: 0.8; }
       .tb-border { fill: none; stroke: #1e40af; stroke-width: 1.5; }
+      .section-border { fill: none; stroke: #1e40af; stroke-width: 2.5; }
       .tb-light { fill: none; stroke: #93c5fd; stroke-width: 0.5; }
       .tb-text { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; fill: #1e293b; }
       .tb-label { font-family: 'Segoe UI', Arial, sans-serif; font-size: 8px; fill: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -22,8 +23,8 @@
   </defs>
   <rect class="bg" width="1920" height="1080"/>
   <rect class="border" x="19" y="19" width="1882" height="1042" rx="3"/>
-  <rect class="border-inner" x="29" y="29" width="1862" height="1022" rx="2"/>
-  <rect class="border-inner" x="33" y="33" width="1854" height="1014" rx="1"/>
+  <rect class="border-inner" x="29" y="29" width="1862" height="1032" rx="2"/>
+  <rect class="border-inner" x="33" y="33" width="1854" height="1024" rx="1"/>
   <g fill="none" stroke="#f8fafc" stroke-width="0.5">
     <line x1="33" y1="33" x2="1887" y2="33"/><line x1="33" y1="133" x2="1887" y2="133"/>
     <line x1="33" y1="233" x2="1887" y2="233"/><line x1="33" y1="333" x2="1887" y2="333"/>
@@ -50,18 +51,19 @@
     </g>
   </g>
   <text x="740" y="480" class="watermark" text-anchor="middle" dominant-baseline="middle">NETWORK DIAGRAM</text>
-  <rect fill="#ffffff" x="29" y="895" width="1862" height="156"/>
-  <rect class="tb-border" x="29" y="895" width="1862" height="156"/>
-  <line class="sep" x1="370" y1="895" x2="370" y2="1051"/>
+  <rect fill="#ffffff" x="29" y="895" width="1862" height="166"/>
+  <rect class="section-border" x="29" y="895" width="341" height="166"/>
+  <rect class="section-border" x="380" y="895" width="180" height="166"/>
+  <rect class="section-border" x="560" y="895" width="1331" height="166"/>
   <line class="sep" x1="29" y1="920" x2="1891" y2="920"/>
   <line class="sep" x1="29" y1="975" x2="1891" y2="975"/>
   <line class="sep" x1="29" y1="1030" x2="1891" y2="1030"/>
-  <line class="sep" x1="560" y1="895" x2="560" y2="1051"/>
-  <line class="sep" x1="960" y1="920" x2="960" y2="1051"/>
-  <line class="sep" x1="1350" y1="920" x2="1350" y2="1051"/>
-  <line class="sep" x1="1740" y1="920" x2="1740" y2="1051"/>
-  <line class="sep" x1="1150" y1="975" x2="1150" y2="1051"/>
-  <line class="sep" x1="1540" y1="975" x2="1540" y2="1051"/>
+  <line class="sep" x1="560" y1="895" x2="560" y2="1061"/>
+  <line class="sep" x1="960" y1="920" x2="960" y2="1061"/>
+  <line class="sep" x1="1350" y1="920" x2="1350" y2="1061"/>
+  <line class="sep" x1="1740" y1="920" x2="1740" y2="1061"/>
+  <line class="sep" x1="1150" y1="975" x2="1150" y2="1061"/>
+  <line class="sep" x1="1540" y1="975" x2="1540" y2="1061"/>
   <text class="legend-title" x="44" y="913">CABLE LEGEND</text>
   <line class="st10" x1="44" y1="942" x2="90" y2="942"/>
   <text class="legend-text" x="100" y="946">Multi-mode Fiber</text>
@@ -69,8 +71,8 @@
   <text class="legend-text" x="100" y="976">Copper</text>
   <line class="st12" x1="44" y1="1002" x2="90" y2="1002"/>
   <text class="legend-text" x="100" y="1006">Single-mode Fiber</text>
-  <rect class="tb-border" x="380" y="897" width="178" height="152"/>
-  <line class="sep" x1="380" y1="975" x2="558" y2="975"/>
+  <rect class="tb-border" x="382" y="897" width="176" height="160"/>
+  <line class="sep" x1="382" y1="977" x2="558" y2="977"/>
   <g transform="translate(383, 929) scale(0.65)">
     <g transform="translate(286, -490)">
       <polygon fill="#004d6e" points="-178.7,498.5 -183.6,507 -188.5,498.5 -194.8,498.5 -198.5,511 -192.8,511 -190.9,503 -186.3,511 -180.9,511 -176.4,503 -174.5,511 -168.7,511 -172.4,498.5"/>
@@ -84,9 +86,9 @@
       <path fill="#004d6e" d="M-226.1,492.3c-3.2,0.4-8.3,0.6-11.4,0.6c-9.2,1-25.4,3.6-34.6,9.3c3.4,1.7,6.8,3.4,10.4,4.9c9.6-8.3,22.5-12,35.6-14.5C-226.1,492.6-226.1,492.3-226.1,492.3z"/>
     </g>
   </g>
-  <text x="469" y="1015" font-family="'Segoe UI', Arial, sans-serif" font-size="7.5px" fill="#0f172a" font-weight="700" text-anchor="middle">Amtrak - Proprietary</text>
-  <text x="469" y="1026" font-family="'Segoe UI', Arial, sans-serif" font-size="7px" fill="#334155" text-anchor="middle">Use Pursuant to</text>
-  <text x="469" y="1036" font-family="'Segoe UI', Arial, sans-serif" font-size="7px" fill="#334155" text-anchor="middle">Company Instructions</text>
+  <text x="469" y="1020" font-family="'Segoe UI', Arial, sans-serif" font-size="7.5px" fill="#0f172a" font-weight="700" text-anchor="middle">Amtrak - Proprietary</text>
+  <text x="469" y="1032" font-family="'Segoe UI', Arial, sans-serif" font-size="7px" fill="#334155" text-anchor="middle">Use Pursuant to</text>
+  <text x="469" y="1042" font-family="'Segoe UI', Arial, sans-serif" font-size="7px" fill="#334155" text-anchor="middle">Company Instructions</text>
   <text class="tb-title" x="580" y="913">TITLE BLOCK</text>
   <text class="tb-label" x="580" y="945">Document Name</text>
   <text class="tb-text" id="tb-docname-val" x="580" y="961">Document Name: </text>
