@@ -231,43 +231,90 @@
       const lx = conn.labelOffset ? (conn.labelOffset.x || mx + perpX * 0.5) : mx + perpX * 0.5;
       const ly = conn.labelOffset ? (conn.labelOffset.y || my + perpY * 0.5) : my + perpY * 0.5;
 
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
       const showCable = conn.cableType && conn.cableType !== 'unknown';
-      const showPorts = conn.portA || conn.portB;
 
-      const labelText = conn.label || '';
-      const cableText = showCable ? cable.label : '';
-      const portText = showPorts ? `${conn.portA || '?'} ⇄ ${conn.portB || '?'}` : '';
+      const labelPieces = [];
+      if (conn.label) labelPieces.push(conn.label);
+      if (showCable) labelPieces.push(cable.label);
+      const labelText = labelPieces.join(' · ');
+      if (!labelText && !conn.vlanUp && !conn.vlanDown) return;
 
-      const parts = [labelText, cableText, portText].filter(Boolean);
-      const fullText = parts.join('  ·  ');
+      const PAD = 5;
+      const FONT = '500 11px "Segoe UI", system-ui, sans-serif';
+      const FONT_TAG = '600 9px "Segoe UI", system-ui, sans-serif';
 
-      if (fullText) {
-        ctx.save();
-        ctx.font = '500 11px sans-serif';
-        ctx.shadowColor = 'rgba(0,0,0,0.5)';
-        ctx.shadowBlur = 3;
+      ctx.font = FONT;
+      const labelW = labelText ? Math.ceil(ctx.measureText(labelText).width) : 0;
+
+      const vlanTags = [];
+      if (conn.vlanUp) vlanTags.push({ text: `${conn.vlanUp}`, color: '#f59e0b' });
+      if (conn.vlanDown) vlanTags.push({ text: `${conn.vlanDown}`, color: '#10b981' });
+
+      let vlanW = 0;
+      if (vlanTags.length > 0) {
+        ctx.font = FONT_TAG;
+        for (const t of vlanTags) {
+          vlanW += Math.ceil(ctx.measureText(t.text).width) + 16;
+        }
+      }
+
+      const contentW = Math.max(labelW, vlanW);
+      const totalW = contentW + PAD * 2 + 8;
+      const totalH = 22;
+      const bx = lx - totalW / 2;
+      const by = ly - totalH / 2;
+
+      ctx.save();
+      roundRect(ctx, bx, by, totalW, totalH, 4);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.fill();
+
+      if (showCable && labelText) {
+        ctx.fillStyle = getCableColor(conn.cableType);
+        roundRect(ctx, bx + 2, by + 3, 3, totalH - 6, 1.5);
+        ctx.fill();
+      }
+
+      let cursorX = bx + PAD + 6;
+      if (labelText) {
+        ctx.font = FONT;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(labelText, cursorX, by + totalH / 2);
+        cursorX += labelW + 6;
+      }
+
+      for (const tag of vlanTags) {
+        ctx.font = FONT_TAG;
+        const tw = Math.ceil(ctx.measureText(tag.text).width);
+        const tagW = tw + 8;
+        roundRect(ctx, cursorX, by + 4, tagW, 14, 3);
+        ctx.fillStyle = tag.color;
+        ctx.fill();
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(fullText, lx, ly);
-        ctx.restore();
+        ctx.fillText(tag.text, cursorX + tagW / 2, by + 11);
+        cursorX += tagW + 4;
       }
 
-      const vOffset = 20;
-      if (conn.vlanUp) {
-        ctx.fillStyle = '#f59e0b';
-        ctx.font = 'bold 10px monospace';
-        ctx.fillText(`VLAN ${conn.vlanUp}`, lx + perpX * 0.6, ly + vOffset);
-      }
-      if (conn.vlanDown) {
-        ctx.fillStyle = '#10b981';
-        ctx.font = 'bold 10px monospace';
-        ctx.fillText(`VLAN ${conn.vlanDown}`, lx + perpX * 0.6, ly + vOffset + 14);
-      }
+      ctx.restore();
     });
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
   }
 
   function drawDevice(d) {
@@ -318,11 +365,18 @@
       yOffset += 14;
     }
 
-    if (d.ports && d.ports.length > 0) {
-      ctx.fillStyle = '#000000';
-      ctx.font = '11px monospace';
-      const portsStr = d.ports.join(', ');
-      ctx.fillText(portsStr, d.x, d.y + yOffset);
+    const connPorts = connections.filter(c => c.from === d.id || c.to === d.id);
+    for (const c of connPorts) {
+      const peer = devices.find(p => p.id === (c.from === d.id ? c.to : c.from));
+      if (!peer) continue;
+      const thisPort = c.from === d.id ? c.portA : c.portB;
+      if (!thisPort) continue;
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`${thisPort} → ${peer.name}`, d.x, d.y + yOffset);
+      yOffset += 13;
     }
 
     ctx.restore();
@@ -929,7 +983,6 @@
   let draggingLabel = null;
 
   function labelAt(x, y) {
-    const threshold = 18;
     for (let i = connections.length - 1; i >= 0; i--) {
       const conn = connections[i];
       const a = devices.find(d => d.id === conn.from);
@@ -942,17 +995,36 @@
       const perpY = Math.cos(angle) * 14;
       const lx = conn.labelOffset ? (conn.labelOffset.x || mx + perpX * 0.5) : mx + perpX * 0.5;
       const ly = conn.labelOffset ? (conn.labelOffset.y || my + perpY * 0.5) : my + perpY * 0.5;
-      const pts = [[lx, ly]];
-      if (conn.vlanUp) {
-        pts.push([mx + perpX, my + perpY - 8]);
+
+      const showCable = conn.cableType && conn.cableType !== 'unknown';
+      const labelPieces = [];
+      if (conn.label) labelPieces.push(conn.label);
+      if (showCable) labelPieces.push((CABLE_TYPES[conn.cableType] || CABLE_TYPES.unknown).label);
+      const labelText = labelPieces.join(' · ');
+      if (!labelText && !conn.vlanUp && !conn.vlanDown) continue;
+
+      const FONT = '500 11px "Segoe UI", system-ui, sans-serif';
+      const FONT_TAG = '600 9px "Segoe UI", system-ui, sans-serif';
+      ctx.font = FONT;
+      const labelW = labelText ? Math.ceil(ctx.measureText(labelText).width) : 0;
+
+      const vlanTags = [];
+      if (conn.vlanUp) vlanTags.push(conn.vlanUp);
+      if (conn.vlanDown) vlanTags.push(conn.vlanDown);
+      let vlanW = 0;
+      if (vlanTags.length > 0) {
+        ctx.font = FONT_TAG;
+        for (const t of vlanTags) {
+          vlanW += Math.ceil(ctx.measureText(t).width) + 16;
+        }
       }
-      if (conn.vlanDown) {
-        pts.push([mx + perpX, my + perpY + 8]);
-      }
-      for (const p of pts) {
-        const dist = Math.sqrt((x - p[0]) * (x - p[0]) + (y - p[1]) * (y - p[1]));
-        if (dist <= threshold) return conn;
-      }
+      const contentW = Math.max(labelW, vlanW);
+      const totalW = contentW + 5 * 2 + 8;
+      const totalH = 22;
+
+      const bx = lx - totalW / 2;
+      const by = ly - totalH / 2;
+      if (x >= bx && x <= bx + totalW && y >= by && y <= by + totalH) return conn;
     }
     return null;
   }
@@ -1302,26 +1374,26 @@
   }
 
   document.getElementById('btn-template').addEventListener('click', () => {
-    const btn = document.getElementById('btn-template');
     const settings = document.getElementById('template-settings');
-    const area = canvas.closest('.canvas-area');
-    templateActive = !templateActive;
-    btn.classList.toggle('active');
-    settings.classList.toggle('hidden');
-    if (area) area.classList.toggle('show-template');
-    if (!templateSvgString) loadTemplateSVG();
-    draw();
+    if (!templateActive) {
+      enableTemplate(true);
+    } else {
+      settings.classList.toggle('hidden');
+    }
   });
 
-  function enableTemplate() {
+  function enableTemplate(showSettings) {
     const btn = document.getElementById('btn-template');
     const settings = document.getElementById('template-settings');
     const area = canvas.closest('.canvas-area');
-    if (templateActive) return;
+    if (templateActive) {
+      if (showSettings) settings.classList.remove('hidden');
+      return;
+    }
     templateActive = true;
     btn.classList.add('active');
-    settings.classList.remove('hidden');
     if (area) area.classList.add('show-template');
+    if (showSettings) settings.classList.remove('hidden');
     if (!templateSvgString) loadTemplateSVG();
     draw();
   }
@@ -2438,4 +2510,6 @@
 
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
+
+  enableTemplate();
 })();
