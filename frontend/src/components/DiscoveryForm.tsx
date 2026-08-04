@@ -5,6 +5,7 @@ import { discover } from '../api'
 export default function DiscoveryForm() {
   const [subnet, setSubnet] = useState('127.0.0.1/32')
   const [community, setCommunity] = useState('public')
+  const [snmpPort, setSnmpPort] = useState('161')
   const [snmpv3, setSnmpv3] = useState(false)
   const [username, setUsername] = useState('')
   const [authPass, setAuthPass] = useState('')
@@ -21,7 +22,7 @@ export default function DiscoveryForm() {
       const v3 = snmpv3
         ? { username, auth_protocol: 'sha', auth_password: authPass, privacy_protocol: 'aes', privacy_password: privPass || authPass }
         : undefined
-      const data = await discover(subnet, community ? [community] : [], v3)
+      const data = await discover(subnet, community ? [community] : [], parseInt(snmpPort) || 161, v3)
       setResult(data.scan_id)
     } catch (err: unknown) {
       setResult(err instanceof Error ? err.message : 'Discovery failed')
@@ -44,13 +45,24 @@ export default function DiscoveryForm() {
               placeholder="10.0.0.0/24"
             />
           </div>
-          <div>
-            <label className="block text-gray-400 text-sm mb-1">SNMP Community</label>
-            <input
-              value={community}
-              onChange={(e) => setCommunity(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-gray-400 text-sm mb-1">SNMP Community</label>
+              <input
+                value={community}
+                onChange={(e) => setCommunity(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-400 text-sm mb-1">SNMP Port</label>
+              <input
+                value={snmpPort}
+                onChange={(e) => setSnmpPort(e.target.value)}
+                type="number"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">

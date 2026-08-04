@@ -92,6 +92,7 @@ class DiscoverRequest(BaseModel):
     communities: Optional[list[str]] = ["public"]
     exclude_pcs: bool = True
     site: Optional[str] = None
+    snmp_port: int = 161
     snmpv3: Optional[SnmpV3Request] = None
 
 
@@ -221,7 +222,8 @@ def api_discover(req: DiscoverRequest, db: Session = Depends(get_db)):
                                  snmpv3_username=snmpv3_username)
     try:
         result = scanner.discover(req.subnet, communities=communities,
-                                  exclude_pcs=req.exclude_pcs, snmpv3=snmpv3_dict)
+                                  exclude_pcs=req.exclude_pcs, snmpv3=snmpv3_dict,
+                                  snmp_port=req.snmp_port)
     except ValueError as exc:
         repositories.fail_scan_job(db, scan_id, str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from exc

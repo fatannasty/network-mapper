@@ -104,11 +104,12 @@ export async function login(username: string, password: string) {
   return r.data
 }
 
-export async function discover(subnet: string, communities: string[], snmpv3?: object) {
+export async function discover(subnet: string, communities: string[], snmpPort?: number, snmpv3?: object) {
   const r = await api.post('/api/discover', {
     subnet,
     communities: communities.length > 0 ? communities : ['public'],
     exclude_pcs: false,
+    snmp_port: snmpPort || 161,
     snmpv3,
   })
   return r.data as ScanResult
