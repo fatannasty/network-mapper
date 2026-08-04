@@ -60,7 +60,7 @@ npm test            # pytest: mock SNMP agent, classifier, scanner, API
 The SNMP client is validated against a live net-snmp `snmpd` as well as the
 mock agent.
 
-## Sprint 3 — Encrypted Credentials, SNMPv3, RBAC (current)
+## Sprint 3 — Encrypted Credentials, SNMPv3, RBAC ✅
 
 Network credentials are encrypted at rest (Fernet), SNMPv3/USM discovery works
 against real agents (AES-CFB128, DES-CBC, SHA-1/MD5 auth, no-privacy), and the
@@ -108,6 +108,48 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 # login: .venv/bin/python -c "from repositories import create_user; create_user(db,'admin','change-me','admin')"
 ```
 
+## Sprint 4 — Interface Discovery (current)
+
+SNMP GETNEXT/GETBULK walks of the IF-MIB (`ifTable` + `ifXTable`) discover per-
+device interfaces, persisted alongside each device and returned by the API.
+
+```
+backend/
+  snmpv3.py        PDU_GETNEXT/PDU_GETBULK, snmpv3_getnext, snmpv3_walk,
+                   walk_if_table (ifTable 1.3.6.1.2.1.2.2, ifXTable 1.3.6.1.2.1.31.1.1)
+  scanner.py       snmpv3_interfaces() -> device["interfaces"] in identify_host
+  models.py        Interface model (device_id FK, cascade delete-orphan)
+  repositories.py  upsert_device syncs interface rows on each rescan
+  tests/           98 tests total (GETNEXT/GETBULK mock agent, walk, persistence)
+```
+
+- **GETBULK walks** (`snmpv3_walk`) loop until the subtree is exhausted
+  (`max_repetitions=20`, `max_oids=1024` cap); GETNEXT is used as the fallback
+  primitive and for out-of-subtree termination.
+- **Per-interface data**: ifIndex, ifDescr, ifName, ifType (mapped to names),
+  ifSpeed/ifHighSpeed, ifPhysAddress (raw MAC bytes → `aa:bb:cc:dd:ee:ff`),
+  ifAdminStatus/ifOperStatus, ifAlias.
+- **Mock USM agent** extended to an in-memory MIB with a 2-interface
+  ifTable/ifXTable and correct GET / GETNEXT / GETBULK response encoding
+  (including OID-typed sysObjectID values).
+- **Decoding fix**: `_parse_value` keeps OCTET STRING as raw bytes (lossless for
+  MACs), Gauge32/Counter32/Counter64 are integers, and string call sites decode
+  explicitly; verified live against net-snmp `snmpd` (25 interfaces on macOS).
+
+### Device payload (new field)
+
+Each discovered device now includes:
+
+```
+"interfaces": [
+  { "ifIndex": "1", "ifDescr": "eth0", "ifName": "eth0", "ifType": "ethernet",
+    "ifSpeed": "100000000", "ifPhysAddress": "00:11:22:33:44:55",
+    "ifAdminStatus": "up", "ifOperStatus": "up",
+    "ifHighSpeed": "100", "ifAlias": "" },
+  ...
+]
+```
+
 ## Sprint 2 — Inventory Database ✅
 
 SQLAlchemy ORM written for PostgreSQL with a SQLite local fallback. Discovery
@@ -151,7 +193,7 @@ GET /api/inventory/sites
 - **Sprint 1** Discovery + classification MVP ✅
 - **Sprint 2** PostgreSQL inventory (Devices, ScanJobs, Credentials) ✅
 - **Sprint 3** Encrypted credentials, SNMPv3, RBAC ✅
-- **Sprint 4** Interface discovery (SNMP/SSH)
+- **Sprint 4** Interface discovery (SNMP GETBULK walks) ✅
 - **Sprint 5** Topology collection (LLDP/CDP -> links)
 - **Sprint 6** React Flow visualization
 - **Sprint 7** VeloCloud Orchestrator + Cisco vManage integration

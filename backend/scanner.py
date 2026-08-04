@@ -15,7 +15,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from classifier import NETWORK_DEVICE_TYPES, DEVICE_TYPE_ORDER, classify
 from snmp import SNMP_PORT, snmp_poll
-from snmpv3 import AUTH_MD5, AUTH_NONE, AUTH_SHA, PRIV_AES, PRIV_DES, PRIV_NONE, snmpv3_get
+from snmpv3 import (AUTH_MD5, AUTH_NONE, AUTH_SHA, PRIV_AES, PRIV_DES, PRIV_NONE,
+                    snmpv3_get, walk_if_table)
 
 TCP_PORTS = [22, 23, 80, 443, 3389, 8080, 8443]
 PORT_SCAN_TIMEOUT = 0.8
@@ -121,6 +122,26 @@ def snmpv3_poll(host: str, params: dict, snmp_port: int = SNMP_PORT,
     return result
 
 
+def snmpv3_interfaces(host: str, params: dict, snmp_port: int = SNMP_PORT,
+                      timeout: float = 2.0) -> list[dict]:
+    """Walk ifTable + ifXTable for an SNMPv3 device; [] on failure."""
+    auth_protocol = (params.get("auth_protocol") or AUTH_SHA).lower()
+    privacy_protocol = (params.get("privacy_protocol") or PRIV_NONE).lower()
+    try:
+        return walk_if_table(
+            host,
+            username=params["username"],
+            auth_protocol=auth_protocol,
+            auth_password=params.get("auth_password", ""),
+            privacy_protocol=privacy_protocol,
+            privacy_password=params.get("privacy_password") or params.get("auth_password", ""),
+            timeout=timeout,
+            port=snmp_port,
+        )
+    except (socket.timeout, OSError, ValueError):
+        return []
+
+
 def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT,
                   snmpv3: dict | None = None) -> dict:
     """Port-scan one host, optionally SNMP-poll it (v2c or v3), and classify."""
@@ -138,6 +159,10 @@ def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT,
     hostname = snmp_data.get("sysName", "") if snmp_data else ""
     cls = classify(snmp_data, hostname=hostname)
 
+    interfaces: list[dict] = []
+    if snmp_data and snmpv3:
+        interfaces = snmpv3_interfaces(ip, snmpv3, snmp_port=snmp_port)
+
     device = {
         "ip": ip,
         "open_ports": open_ports,
@@ -147,6 +172,7 @@ def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT,
         "device_type": cls.device_type,
         "confidence": cls.confidence,
         "snmp_community": snmp_data.get("community", "") if snmp_data else "",
+        "interfaces": interfaces,
     }
     return device
 

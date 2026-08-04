@@ -84,7 +84,40 @@ def _pdu(tag, body):
 
 
 class MockV3Agent:
-    """UDP SNMPv3 USM agent: discovery report + SHA/AES authed responses."""
+    """UDP SNMPv3 USM agent: discovery report + SHA/AES authed responses.
+    Supports GET, GETNEXT, and GETBULK over a small in-memory MIB."""
+
+    # A minimal MIB for testing: system OIDs + a 2-interface ifTable.
+    MIB = {
+        snmpv3.OIDS["sysDescr"]:     "SNMPv3-Test-Agent",
+        snmpv3.OIDS["sysObjectID"]:  "1.3.6.1.4.1.8072.3.2.255",
+        snmpv3.OIDS["sysName"]:      "testhost",
+        "1.3.6.1.2.1.2.1.0":  "2",  # ifNumber
+        # ifTable: index 1 = eth0
+        "1.3.6.1.2.1.2.2.1.1.1": "1",       # ifIndex
+        "1.3.6.1.2.1.2.2.1.2.1": "eth0",    # ifDescr
+        "1.3.6.1.2.1.2.2.1.3.1": "6",       # ifType (ethernet)
+        "1.3.6.1.2.1.2.2.1.5.1": "1000000000",  # ifSpeed
+        "1.3.6.1.2.1.2.2.1.6.1": "\x00\x11\x22\x33\x44\x55",  # ifPhysAddress
+        "1.3.6.1.2.1.2.2.1.7.1": "1",       # ifAdminStatus (up)
+        "1.3.6.1.2.1.2.2.1.8.1": "1",       # ifOperStatus (up)
+        # ifTable: index 2 = lo
+        "1.3.6.1.2.1.2.2.1.1.2": "2",
+        "1.3.6.1.2.1.2.2.1.2.2": "lo",
+        "1.3.6.1.2.1.2.2.1.3.2": "24",      # softwareLoopback
+        "1.3.6.1.2.1.2.2.1.5.2": "1000000",
+        "1.3.6.1.2.1.2.2.1.6.2": "\x00\x00\x00\x00\x00\x00",
+        "1.3.6.1.2.1.2.2.1.7.2": "1",
+        "1.3.6.1.2.1.2.2.1.8.2": "1",
+        # ifXTable (index 1)
+        "1.3.6.1.2.1.31.1.1.1.1.1":  "eth0",
+        "1.3.6.1.2.1.31.1.1.1.15.1": "10000",  # ifHighSpeed (Mbps)
+        # ifXTable (index 2)
+        "1.3.6.1.2.1.31.1.1.1.1.2":  "lo",
+        "1.3.6.1.2.1.31.1.1.1.15.2": "1",
+    }
+    # Sorted OID list for GETNEXT walk ordering.
+    _SORTED_OIDS = sorted(MIB.keys(), key=lambda o: list(map(int, o.split("."))))
 
     def __init__(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -114,33 +147,67 @@ class MockV3Agent:
                 continue
 
     def _handle(self, data, addr):
-        resp = snmpv3.parse_v3_message(data)  # not authed yet at parse time
+        resp = snmpv3.parse_v3_message(data)
         if resp.engine_id == b"":
-            # Discovery: answer with a usmStatsUnknownEngineIDs report.
             varbind = _seq(snmpv3._encode_oid(snmpv3.USM_STATS_UNKNOWN_ENGINE_IDS) + b"\x05\x00")
             pdu = _pdu(snmpv3.PDU_REPORT, snmpv3._int(resp.request_id) + snmpv3._int(0) + snmpv3._int(0) + _seq(varbind))
             scoped = _seq(_octets(self.engine_id) + _octets(b"") + pdu)
             msg = snmpv3.build_message(resp.msg_id, snmpv3.FLAG_REPORTABLE,
                                        self.engine_id, self.engine_boots, self.engine_time,
-                                       resp.varbinds and b"testuser" or b"", b"", b"", scoped)
+                                       b"testuser", b"", b"", scoped)
             self.sock.sendto(msg, addr)
             return
 
-        # Authenticated request: verify + decrypt.
         snmpv3.parse_v3_message(data, "sha", self.auth_key)
         parsed = snmpv3.parse_v3_message(data)
+        # Extract the raw scoped PDU from the message structure.
+        outer = snmpv3._read_tlv(data, 0)
+        offset = outer.value_start
+        offset = snmpv3._skip_tlv(data, offset)  # version
+        offset = snmpv3._skip_tlv(data, offset)  # global data
+        offset = snmpv3._skip_tlv(data, offset)  # USM security params
+        scoped_raw = data[offset:outer.value_end]
         if parsed.flags & snmpv3.FLAG_PRIV:
             plain = snmpv3._decrypt_scoped_pdu(
                 "aes", self.priv_key, parsed.engine_boots, parsed.engine_time,
                 parsed.varbinds["_priv_salt"], parsed.varbinds["_priv_ciphertext"])
         else:
-            plain = data[-len(snmpv3._seq(snmpv3._encode_oid(snmpv3.OIDS["sysDescr"]) + b"\x05\x00")):]
-        req_id, _err, _vbs = snmpv3._parse_pdu(snmpv3._parse_scoped_pdu(plain))
+            plain = scoped_raw
 
-        # Build the response.
-        value = _octets(b"SNMPv3-Test-Agent")
-        varbind = _seq(snmpv3._encode_oid(snmpv3.OIDS["sysDescr"]) + value)
-        pdu = _pdu(snmpv3.PDU_RESPONSE, snmpv3._int(req_id) + snmpv3._int(0) + snmpv3._int(0) + _seq(varbind))
+        scoped_plain = snmpv3._parse_scoped_pdu(plain)
+        req_id, _err, vbs_raw = snmpv3._parse_pdu(scoped_plain)
+        request_oid = next(iter(vbs_raw), "") if vbs_raw else ""
+        pdu_tag = scoped_plain[0]
+
+        reply_varbinds = b""
+        if pdu_tag == snmpv3.PDU_GET:
+            for oid in vbs_raw:
+                val = self.MIB.get(oid, "")
+                reply_varbinds += _seq(snmpv3._encode_oid(oid) + self._encode_value(oid, val))
+        elif pdu_tag == snmpv3.PDU_GETNEXT:
+            for oid in self._SORTED_OIDS:
+                if oid > request_oid:
+                    val = self.MIB[oid]
+                    reply_varbinds = _seq(snmpv3._encode_oid(oid) + self._encode_value(oid, val))
+                    break
+        elif pdu_tag == snmpv3.PDU_GETBULK:
+            _nonrep, maxrep = _err, 0  # reuse error fields (they occupy the same positions)
+            bulk_resp = b""
+            idx = 0
+            for i, oid in enumerate(self._SORTED_OIDS):
+                if oid > request_oid:
+                    idx = i
+                    break
+            count = 0
+            for oid in self._SORTED_OIDS[idx:idx + max(1, maxrep or 20)]:
+                val = self.MIB[oid]
+                bulk_resp += _seq(snmpv3._encode_oid(oid) + self._encode_value(oid, val))
+                count += 1
+            reply_varbinds = bulk_resp
+        else:
+            return
+
+        pdu = _pdu(snmpv3.PDU_RESPONSE, snmpv3._int(req_id) + snmpv3._int(0) + snmpv3._int(0) + _seq(reply_varbinds))
         scoped = _seq(_octets(self.engine_id) + _octets(b"") + pdu)
         flags = snmpv3.FLAG_REPORTABLE | snmpv3.FLAG_AUTH
         priv_params = b""
@@ -156,6 +223,11 @@ class MockV3Agent:
         msg = snmpv3.build_message(resp.msg_id, flags, self.engine_id, self.engine_boots,
                                    self.engine_time, b"testuser", auth, priv_params, scoped)
         self.sock.sendto(msg, addr)
+
+    def _encode_value(self, oid, val):
+        if oid == snmpv3.OIDS["sysObjectID"]:
+            return snmpv3._encode_oid(val)
+        return _octets(val.encode("latin-1"))
 
     def close(self):
         self.running = False
@@ -190,3 +262,71 @@ def test_snmpv3_get_timeout_no_crash():
         "127.0.0.1", username="x", auth_protocol="sha", auth_password=AUTH_PW,
         privacy_protocol="none", timeout=0.3, port=1)
     assert result is None
+
+
+def test_snmpv3_getnext(v3agent):
+    result = snmpv3.snmpv3_getnext(
+        "127.0.0.1", snmpv3.OIDS["sysDescr"], username="testuser",
+        auth_protocol="sha", auth_password=AUTH_PW,
+        privacy_protocol="aes", privacy_password=PRIV_PW,
+        timeout=1.0, port=v3agent.port)
+    assert result is not None
+    oid, val = result
+    assert oid == snmpv3.OIDS["sysObjectID"]
+    assert val == ".1.3.6.1.4.1.8072.3.2.255"
+
+
+def test_snmpv3_getnext_returns_next_lexicographic(v3agent):
+    result = snmpv3.snmpv3_getnext(
+        "127.0.0.1", "1.3.6.1.2.1.2.99.99", username="testuser",
+        auth_protocol="sha", auth_password=AUTH_PW,
+        privacy_protocol="aes", privacy_password=PRIV_PW,
+        timeout=1.0, port=v3agent.port)
+    assert result is not None
+    oid, val = result
+    assert oid > "1.3.6.1.2.1.2.99.99"
+
+
+def test_snmpv3_walk_if_table(v3agent):
+    results = snmpv3.snmpv3_walk(
+        "127.0.0.1", "1.3.6.1.2.1.2.2.1.", username="testuser",
+        auth_protocol="sha", auth_password=AUTH_PW,
+        privacy_protocol="aes", privacy_password=PRIV_PW,
+        timeout=1.0, port=v3agent.port)
+    assert len(results) > 0
+    assert "1.3.6.1.2.1.2.2.1.2.1" in results  # ifDescr for index 1
+    assert results["1.3.6.1.2.1.2.2.1.2.1"] == b"eth0"
+    assert "1.3.6.1.2.1.2.2.1.2.2" in results
+    assert results["1.3.6.1.2.1.2.2.1.2.2"] == b"lo"
+
+
+def test_walk_if_table_returns_interfaces(v3agent):
+    interfaces = snmpv3.walk_if_table(
+        "127.0.0.1", username="testuser",
+        auth_protocol="sha", auth_password=AUTH_PW,
+        privacy_protocol="aes", privacy_password=PRIV_PW,
+        timeout=1.0, port=v3agent.port)
+    assert len(interfaces) == 2
+    eth0 = next(i for i in interfaces if i.get("ifDescr") == "eth0")
+    assert eth0["ifType"] == "ethernet"
+    assert eth0["ifAdminStatus"] == "up"
+    lo = next(i for i in interfaces if i.get("ifDescr") == "lo")
+    assert lo["ifType"] == "softwareLoopback"
+
+
+def test_walk_if_table_no_priv(v3agent):
+    interfaces = snmpv3.walk_if_table(
+        "127.0.0.1", username="testuser",
+        auth_protocol="sha", auth_password=AUTH_PW,
+        privacy_protocol="none",
+        timeout=1.0, port=v3agent.port)
+    assert len(interfaces) == 2
+
+
+def test_walk_empty_subtree(v3agent):
+    results = snmpv3.snmpv3_walk(
+        "1.3.6.1.2.1.99.99.", "127.0.0.1", username="testuser",
+        auth_protocol="sha", auth_password=AUTH_PW,
+        privacy_protocol="aes", privacy_password=PRIV_PW,
+        timeout=1.0, port=v3agent.port)
+    assert results == {}

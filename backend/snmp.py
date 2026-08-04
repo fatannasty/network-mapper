@@ -134,6 +134,12 @@ def _parse_oid(buf: bytes, start: int, end: int) -> str:
     return ".".join(str(p) for p in parts)
 
 
+def _to_str(value) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return "" if value is None else str(value)
+
+
 def _parse_value(tlv: _TLV, buf: bytes):
     raw = buf[tlv.value_start:tlv.value_end]
     if tlv.type in (0x02, 0x80, 0x81):  # INTEGER / contexts
@@ -141,12 +147,15 @@ def _parse_value(tlv: _TLV, buf: bytes):
         for byte in raw:
             value = value * 256 + byte
         return value
-    if tlv.type == 0x04:  # OCTET STRING
-        return raw.decode("utf-8", errors="replace")
+    if tlv.type == 0x04:  # OCTET STRING (raw bytes; decode at call sites)
+        return raw
     if tlv.type == 0x06:  # OBJECT IDENTIFIER
         return "." + _parse_oid(buf, tlv.value_start, tlv.value_end)
-    if tlv.type in (0x41, 0x43, 0x40):  # timeticks/others as ascii
-        return raw.decode("ascii", errors="replace")
+    if tlv.type in (0x41, 0x42, 0x43, 0x46):  # Counter32 / Gauge32 / TimeTicks / Counter64
+        value = 0
+        for byte in raw:
+            value = value * 256 + byte
+        return value
     return None
 
 
@@ -209,9 +218,9 @@ def snmp_poll(host: str, community_list, timeout: float = DEFAULT_TIMEOUT, port:
             continue
         if result and len(result) > 0:
             return {
-                "sysName": result.get(OIDS["sysName"], ""),
-                "sysDescr": result.get(OIDS["sysDescr"], ""),
-                "sysObjectID": result.get(OIDS["sysObjectID"], ""),
+                "sysName": _to_str(result.get(OIDS["sysName"], "")),
+                "sysDescr": _to_str(result.get(OIDS["sysDescr"], "")),
+                "sysObjectID": _to_str(result.get(OIDS["sysObjectID"], "")),
                 "community": community,
             }
     return None

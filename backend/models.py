@@ -67,6 +67,13 @@ class Device(Base):
     first_seen = Column(DateTime, default=_utcnow)
     last_seen = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
+    interfaces = relationship(
+        "Interface",
+        backref="device",
+        cascade="all, delete-orphan",
+        order_by="Interface.if_index",
+    )
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,
@@ -81,8 +88,43 @@ class Device(Base):
             "snmp_community": self.snmp_community,
             "site": self.site,
             "last_scan_id": self.last_scan_id,
+            "interfaces": [i.to_dict() for i in self.interfaces],
             "first_seen": self.first_seen.isoformat() if self.first_seen else None,
             "last_seen": self.last_seen.isoformat() if self.last_seen else None,
+        }
+
+
+class Interface(Base):
+    """A network interface discovered via the IF-MIB walk (Sprint 4)."""
+
+    __tablename__ = "interfaces"
+
+    id = Column(Integer, primary_key=True)
+    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"),
+                       nullable=False, index=True)
+    if_index = Column(String(16), default="")
+    if_descr = Column(String(128), default="")
+    if_name = Column(String(128), default="")
+    if_type = Column(String(32), default="")
+    if_speed = Column(String(32), default="")
+    if_phys_address = Column(String(64), default="")
+    if_admin_status = Column(String(16), default="")
+    if_oper_status = Column(String(16), default="")
+    if_high_speed = Column(String(32), default="")
+    if_alias = Column(String(255), default="")
+
+    def to_dict(self) -> dict:
+        return {
+            "ifIndex": self.if_index,
+            "ifDescr": self.if_descr,
+            "ifName": self.if_name,
+            "ifType": self.if_type,
+            "ifSpeed": self.if_speed,
+            "ifPhysAddress": self.if_phys_address,
+            "ifAdminStatus": self.if_admin_status,
+            "ifOperStatus": self.if_oper_status,
+            "ifHighSpeed": self.if_high_speed,
+            "ifAlias": self.if_alias,
         }
 
 

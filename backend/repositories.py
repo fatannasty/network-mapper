@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from models import Credential, Device, ScanJob, Site, User
+from models import Credential, Device, Interface, ScanJob, Site, User
 from security import create_token, hash_password, verify_password
 
 
@@ -42,7 +42,40 @@ def upsert_device(db: Session, data: dict, scan_id: str) -> Device:
     device.last_seen = now
     db.commit()
     db.refresh(device)
+
+    if "interfaces" in data:
+        _sync_interfaces(db, device, data.get("interfaces") or [])
+
+    db.commit()
+    db.refresh(device)
     return device
+
+
+def _sync_interfaces(db: Session, device: Device, interfaces: list[dict]) -> None:
+    """Replace the device's interface rows with the freshly walked set."""
+    existing = {row.if_index: row for row in device.interfaces}
+    seen: set[str] = set()
+    for iface in interfaces:
+        idx = str(iface.get("ifIndex", ""))
+        if not idx:
+            continue
+        seen.add(idx)
+        row = existing.get(idx)
+        if row is None:
+            row = Interface(device_id=device.id, if_index=idx)
+            db.add(row)
+        row.if_descr = iface.get("ifDescr", "")
+        row.if_name = iface.get("ifName", "")
+        row.if_type = iface.get("ifType", "")
+        row.if_speed = iface.get("ifSpeed", "")
+        row.if_phys_address = iface.get("ifPhysAddress", "")
+        row.if_admin_status = iface.get("ifAdminStatus", "")
+        row.if_oper_status = iface.get("ifOperStatus", "")
+        row.if_high_speed = iface.get("ifHighSpeed", "")
+        row.if_alias = iface.get("ifAlias", "")
+    for idx, row in existing.items():
+        if idx not in seen:
+            db.delete(row)
 
 
 def list_devices(db: Session, device_type: str | None = None, vendor: str | None = None,

@@ -108,3 +108,54 @@ def test_scan_job_failure_path():
         from models import ScanJob
         assert db.get(ScanJob, "abcdef").status == "failed"
         assert db.get(ScanJob, "abcdef").error == "boom"
+
+
+# ── Interface persistence (Sprint 4) ──────────────────────────────────────────
+
+_INTERFACES = [
+    {"ifIndex": "1", "ifDescr": "eth0", "ifName": "eth0", "ifType": "ethernet",
+     "ifSpeed": "1000", "ifPhysAddress": "00:11:22:33:44:55",
+     "ifAdminStatus": "up", "ifOperStatus": "up", "ifHighSpeed": "1000", "ifAlias": ""},
+    {"ifIndex": "2", "ifDescr": "eth1", "ifName": "eth1", "ifType": "ethernet",
+     "ifSpeed": "1000", "ifPhysAddress": "66:77:88:99:aa:bb",
+     "ifAdminStatus": "up", "ifOperStatus": "up", "ifHighSpeed": "1000", "ifAlias": "uplink"},
+]
+
+
+def test_interfaces_persisted_with_device():
+    with SessionLocal() as db:
+        device = repositories.upsert_device(db, {
+            "ip": "10.0.0.5", "hostname": "sw5", "vendor": "Cisco", "device_type": "switch",
+            "interfaces": _INTERFACES,
+        }, scan_id="scan-if-a")
+        assert len(device.interfaces) == 2
+        by_index = {i.if_index: i for i in device.interfaces}
+        assert by_index["1"].if_descr == "eth0"
+        assert by_index["1"].if_phys_address == "00:11:22:33:44:55"
+        assert by_index["2"].if_alias == "uplink"
+
+
+def test_interfaces_synced_on_rescan():
+    with SessionLocal() as db:
+        repositories.upsert_device(db, {
+            "ip": "10.0.0.5", "hostname": "sw5", "vendor": "Cisco", "device_type": "switch",
+            "interfaces": _INTERFACES,
+        }, scan_id="scan-if-a")
+        device = repositories.upsert_device(db, {
+            "ip": "10.0.0.5", "hostname": "sw5", "vendor": "Cisco", "device_type": "switch",
+            "interfaces": [{"ifIndex": "1", "ifDescr": "eth0", "ifType": "ethernet"}],
+        }, scan_id="scan-if-b")
+        assert len(device.interfaces) == 1
+        assert device.interfaces[0].if_index == "1"
+        assert device.interfaces[0].if_alias == ""
+
+
+def test_device_to_dict_includes_interfaces():
+    with SessionLocal() as db:
+        device = repositories.upsert_device(db, {
+            "ip": "10.0.0.5", "hostname": "sw5", "vendor": "Cisco", "device_type": "switch",
+            "interfaces": _INTERFACES,
+        }, scan_id="scan-if-a")
+        data = device.to_dict()
+        assert len(data["interfaces"]) == 2
+        assert data["interfaces"][0]["ifDescr"] == "eth0"

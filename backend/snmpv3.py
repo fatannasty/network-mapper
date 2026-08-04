@@ -27,7 +27,8 @@ except ImportError:  # pragma: no cover - older cryptography versions
     TripleDES = algorithms.TripleDES
     CFB = modes.CFB
 
-from snmp import _encode_integer, _read_tlv, _skip_tlv, _parse_oid, _parse_value, OIDS
+from snmp import (_encode_integer, _read_tlv, _skip_tlv, _parse_oid, _parse_value,
+                  _to_str, OIDS)
 
 AUTH_NONE = "none"
 AUTH_MD5 = "md5"
@@ -48,7 +49,9 @@ FLAG_PRIV = 0x02
 FLAG_REPORTABLE = 0x04
 
 PDU_GET = 0xA0
+PDU_GETNEXT = 0xA1
 PDU_RESPONSE = 0xA2
+PDU_GETBULK = 0xA5
 PDU_REPORT = 0xA8
 
 
@@ -115,6 +118,21 @@ def _encode_get_pdu(request_id: int, oid_list) -> bytes:
     varbinds = b"".join(_encode_varbind(oid) for oid in oid_list)
     body = _int(request_id) + _int(0) + _int(0) + _seq(varbinds)
     return bytes([PDU_GET]) + _encode_length(len(body)) + body
+
+
+def _encode_getnext_pdu(request_id: int, oid: str) -> bytes:
+    """GETNEXT PDU (0xA1) — single OID, server replies with the next lexicographic OID."""
+    varbinds = _seq(_encode_oid(oid) + b"\x05\x00")
+    body = _int(request_id) + _int(0) + _int(0) + _seq(varbinds)
+    return bytes([PDU_GETNEXT]) + _encode_length(len(body)) + body
+
+
+def _encode_getbulk_pdu(request_id: int, non_repeaters: int, max_repetitions: int,
+                        oid_list) -> bytes:
+    """GETBULK PDU (0xA5) — fetch multiple OIDs in one round-trip."""
+    varbinds = b"".join(_encode_varbind(oid) for oid in oid_list)
+    body = _int(request_id) + _int(non_repeaters) + _int(max_repetitions) + _seq(varbinds)
+    return bytes([PDU_GETBULK]) + _encode_length(len(body)) + body
 
 
 def _encode_scoped_pdu(engine_id: bytes, context_name: bytes, pdu: bytes) -> bytes:
@@ -466,18 +484,297 @@ def snmpv3_get(host: str, username: str, auth_protocol: str = AUTH_SHA,
                 raise ValueError(f"SNMPv3 report for request: {resp.varbinds}")
 
             if resp.error_status == 0 and resp.request_id == request_id:
-                return {
-                    "sysName": resp.varbinds.get(OIDS["sysName"], ""),
-                    "sysDescr": resp.varbinds.get(OIDS["sysDescr"], ""),
-                    "sysObjectID": resp.varbinds.get(OIDS["sysObjectID"], ""),
-                    "community": "",
-                }
+                result = dict(resp.varbinds)
+                result["sysName"] = _to_str(resp.varbinds.get(OIDS["sysName"], ""))
+                result["sysDescr"] = _to_str(resp.varbinds.get(OIDS["sysDescr"], ""))
+                result["sysObjectID"] = _to_str(resp.varbinds.get(OIDS["sysObjectID"], ""))
+                result["community"] = ""
+                return result
             return None
         return None
     except (socket.timeout, OSError, ValueError):
         return None
     finally:
         sock.close()
+
+
+def snmpv3_getnext(host: str, oid: str, username: str, auth_protocol: str = AUTH_SHA,
+                   auth_password: str = "", privacy_protocol: str = PRIV_NONE,
+                   privacy_password: str | None = None,
+                   timeout: float = DEFAULT_TIMEOUT, port: int = DEFAULT_PORT):
+    """Perform an SNMPv3 GETNEXT on a single OID; return (next_oid, value) or None."""
+    privacy_password = privacy_password if privacy_password is not None else auth_password
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(timeout)
+    salt_gen = _SaltGenerator()
+    try:
+        engine_id, engine_boots, engine_time = _discover(
+            sock, host, port, username, [oid], timeout, salt_gen
+        )
+        localized_auth_key = None
+        if auth_protocol != AUTH_NONE:
+            localized_auth_key = localize_key(
+                auth_protocol, password_to_key(auth_protocol, auth_password), engine_id
+            )
+        localized_priv_key = None
+        if privacy_protocol != PRIV_NONE:
+            priv_hash_proto = auth_protocol
+            localized_priv_key = localize_key(
+                priv_hash_proto, password_to_key(priv_hash_proto, privacy_password), engine_id
+            )
+        for _attempt in range(2):
+            msg_id = random.getrandbits(31)
+            request_id = random.getrandbits(31)
+            flags = FLAG_REPORTABLE
+            if auth_protocol != AUTH_NONE:
+                flags |= FLAG_AUTH
+            if privacy_protocol != PRIV_NONE:
+                flags |= FLAG_PRIV
+            pdu = _encode_getnext_pdu(request_id, oid)
+            scoped = _encode_scoped_pdu(engine_id, b"", pdu)
+            priv_params = b""
+            if flags & FLAG_PRIV:
+                scoped, priv_params = _encrypt_scoped_pdu(
+                    privacy_protocol, localized_priv_key, engine_boots, engine_time,
+                    salt_gen.next(), scoped
+                )
+                scoped = _octets(scoped)
+            auth_params = b"\x00" * 12
+            msg = build_message(msg_id, flags, engine_id, engine_boots, engine_time,
+                                username.encode("utf-8"), auth_params, priv_params, scoped)
+            if flags & FLAG_AUTH:
+                auth_params = _auth_hmac(auth_protocol, localized_auth_key, msg)
+                msg = build_message(msg_id, flags, engine_id, engine_boots, engine_time,
+                                    username.encode("utf-8"), auth_params, priv_params, scoped)
+            try:
+                data = _send_and_recv(sock, host, port, msg)
+            except socket.timeout:
+                return None
+            resp = parse_v3_message(data, auth_protocol, localized_auth_key)
+            if resp.flags & FLAG_PRIV:
+                resp = _decrypt_response(resp, privacy_protocol, localized_priv_key)
+            if resp.is_report:
+                oid_r = next(iter(resp.varbinds), "")
+                if oid_r in (USM_STATS_NOT_IN_TIME_WINDOWS, USM_STATS_UNKNOWN_ENGINE_IDS):
+                    engine_boots, engine_time = resp.engine_boots, resp.engine_time
+                    if resp.engine_id:
+                        engine_id = resp.engine_id
+                    continue
+                return None
+            if resp.error_status != 0 or resp.request_id != request_id:
+                return None
+            if not resp.varbinds:
+                return None
+            next_oid, value = next(iter(resp.varbinds.items()))
+            return (next_oid, value)
+        return None
+    except (socket.timeout, OSError, ValueError):
+        return None
+    finally:
+        sock.close()
+
+
+def _build_authed_bulk(msg_id: int, request_id: int, non_repeaters: int,
+                       max_repetitions: int, oid_list, username: bytes,
+                       engine_id: bytes, engine_boots: int, engine_time: int,
+                       auth_protocol: str, localized_auth_key: bytes | None,
+                       privacy_protocol: str, localized_priv_key: bytes | None,
+                       salt: bytes) -> bytes:
+    flags = FLAG_REPORTABLE
+    if auth_protocol != AUTH_NONE:
+        flags |= FLAG_AUTH
+    if privacy_protocol != PRIV_NONE:
+        flags |= FLAG_PRIV
+    pdu = _encode_getbulk_pdu(request_id, non_repeaters, max_repetitions, oid_list)
+    scoped = _encode_scoped_pdu(engine_id, b"", pdu)
+    priv_params = b""
+    if flags & FLAG_PRIV:
+        scoped, priv_params = _encrypt_scoped_pdu(
+            privacy_protocol, localized_priv_key, engine_boots, engine_time, salt, scoped
+        )
+        scoped = _octets(scoped)
+    auth_params = b"\x00" * 12
+    msg = build_message(msg_id, flags, engine_id, engine_boots, engine_time,
+                        username, auth_params, priv_params, scoped)
+    if flags & FLAG_AUTH:
+        auth_params = _auth_hmac(auth_protocol, localized_auth_key, msg)
+        msg = build_message(msg_id, flags, engine_id, engine_boots, engine_time,
+                            username, auth_params, priv_params, scoped)
+    return msg
+
+
+def snmpv3_walk(host: str, subtree_oid: str, username: str,
+                auth_protocol: str = AUTH_SHA, auth_password: str = "",
+                privacy_protocol: str = PRIV_NONE,
+                privacy_password: str | None = None,
+                 max_repetitions: int = 20, timeout: float = DEFAULT_TIMEOUT,
+                 port: int = DEFAULT_PORT, max_oids: int = 1024) -> dict[str, object]:
+    """Walk a table subtree via GETBULK, collecting {oid: value} pairs."""
+    subtree_oid = subtree_oid.rstrip(".")
+    privacy_password = privacy_password if privacy_password is not None else auth_password
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(timeout)
+    salt_gen = _SaltGenerator()
+    try:
+        engine_id, engine_boots, engine_time = _discover(
+            sock, host, port, username, [subtree_oid], timeout, salt_gen
+        )
+        localized_auth_key = None
+        if auth_protocol != AUTH_NONE:
+            localized_auth_key = localize_key(
+                auth_protocol, password_to_key(auth_protocol, auth_password), engine_id
+            )
+        localized_priv_key = None
+        if privacy_protocol != PRIV_NONE:
+            priv_hash_proto = auth_protocol
+            localized_priv_key = localize_key(
+                priv_hash_proto, password_to_key(priv_hash_proto, privacy_password), engine_id
+            )
+
+        results: dict[str, str] = {}
+        current_oid = subtree_oid
+        oid_count = 0
+        for _ in range(max_oids // max_repetitions + 1):
+            for _attempt in range(2):
+                msg_id = random.getrandbits(31)
+                request_id = random.getrandbits(31)
+                packet = _build_authed_bulk(
+                    msg_id, request_id, 0, max_repetitions, [current_oid],
+                    username.encode("utf-8"), engine_id, engine_boots, engine_time,
+                    auth_protocol, localized_auth_key,
+                    privacy_protocol, localized_priv_key, salt_gen.next()
+                )
+                try:
+                    data = _send_and_recv(sock, host, port, packet)
+                except socket.timeout:
+                    return results
+                resp = parse_v3_message(data, auth_protocol, localized_auth_key)
+                if resp.flags & FLAG_PRIV:
+                    resp = _decrypt_response(resp, privacy_protocol, localized_priv_key)
+                if resp.is_report:
+                    oid_r = next(iter(resp.varbinds), "")
+                    if oid_r in (USM_STATS_NOT_IN_TIME_WINDOWS, USM_STATS_UNKNOWN_ENGINE_IDS):
+                        engine_boots, engine_time = resp.engine_boots, resp.engine_time
+                        if resp.engine_id:
+                            engine_id = resp.engine_id
+                        continue
+                    return results
+                break
+            if resp.error_status != 0 or resp.request_id != request_id:
+                return results
+            for oid_key, val in resp.varbinds.items():
+                if not oid_key.startswith(subtree_oid):
+                    return results
+                results[oid_key] = val
+                current_oid = oid_key
+                oid_count += 1
+            if len(resp.varbinds) < max_repetitions:
+                break
+            if oid_count >= max_oids:
+                break
+        return results
+    except (socket.timeout, OSError, ValueError):
+        return {}
+    finally:
+        sock.close()
+
+
+# ── IF-MIB table walk ────────────────────────────────────────────────────────
+
+IF_NUMBER = "1.3.6.1.2.1.2.1"
+IF_TABLE  = "1.3.6.1.2.1.2.2.1"
+IF_XTABLE = "1.3.6.1.2.1.31.1.1.1"
+
+IF_COL_INDEX     = 1
+IF_COL_DESCR     = 2
+IF_COL_TYPE      = 3
+IF_COL_SPEED     = 5
+IF_COL_PHYS_ADDR = 6
+IF_COL_ADMIN     = 7
+IF_COL_OPER      = 8
+
+IFX_COL_NAME      = 1
+IFX_COL_HIGH_SPEED = 15
+IF_COL_IF_ALIAS   = 18
+IFX_COL_HCIN      = 6
+IFX_COL_HCOUT     = 10
+
+IF_TYPE_MAP = {
+    1: "other", 6: "ethernet", 24: "softwareLoopback", 53: "propVirtual",
+    135: "l2vlan", 136: "l3ipvlan", 161: "ieee8023adLag", 209: "bridge",
+}
+
+
+def _if_parts_from_oid(oid: str, subtree: str) -> tuple[str, str]:
+    prefix = subtree + "."
+    if oid.startswith(prefix):
+        parts = oid[len(prefix):].split(".", 2)
+        if len(parts) >= 2:
+            return parts[0], parts[1]
+    return "", ""
+
+
+def _if_index_from_oid(oid: str, subtree: str) -> str:
+    return _if_parts_from_oid(oid, subtree)[1]
+
+
+def walk_if_table(host: str, username: str, auth_protocol: str = AUTH_SHA,
+                  auth_password: str = "", privacy_protocol: str = PRIV_NONE,
+                  privacy_password: str | None = None,
+                  timeout: float = DEFAULT_TIMEOUT, port: int = DEFAULT_PORT,
+                  max_oids: int = 1024) -> list[dict[str, str]]:
+    """Walk ifTable + ifXTable, returning a list of per-interface dicts."""
+    kwargs = dict(username=username, auth_protocol=auth_protocol,
+                  auth_password=auth_password, privacy_protocol=privacy_protocol,
+                  privacy_password=privacy_password, timeout=timeout, port=port)
+
+    if_count_raw = snmpv3_get(host, oid_list=[IF_NUMBER + ".0"], username=username,
+                              auth_protocol=auth_protocol, auth_password=auth_password,
+                              privacy_protocol=privacy_protocol,
+                              privacy_password=privacy_password, timeout=timeout, port=port)
+    if_count = int(if_count_raw.get(IF_NUMBER + ".0", "0")) if if_count_raw else 0
+    if if_count == 0:
+        return []
+
+    if_raw = snmpv3_walk(host, IF_TABLE + ".", max_oids=max_oids, **kwargs)
+    ifx_raw = snmpv3_walk(host, IF_XTABLE + ".", max_oids=max_oids, **kwargs)
+
+    interfaces: dict[str, dict[str, str]] = {}
+    for oid, val in if_raw.items():
+        col, idx = _if_parts_from_oid(oid, IF_TABLE)
+        if not col or not idx:
+            continue
+        col = int(col)
+        if idx not in interfaces:
+            interfaces[idx] = {"ifIndex": idx}
+        entry = interfaces[idx]
+        if col == IF_COL_DESCR:
+            entry["ifDescr"] = _to_str(val)
+        elif col == IF_COL_TYPE:
+            entry["ifType"] = IF_TYPE_MAP.get(int(val), _to_str(val))
+        elif col == IF_COL_SPEED:
+            entry["ifSpeed"] = str(int(val)) if val is not None else ""
+        elif col == IF_COL_PHYS_ADDR:
+            entry["ifPhysAddress"] = ":".join(f"{b:02x}" for b in val) if isinstance(val, bytes) else ""
+        elif col == IF_COL_ADMIN:
+            entry["ifAdminStatus"] = {1: "up", 2: "down", 3: "testing"}.get(int(val), _to_str(val))
+        elif col == IF_COL_OPER:
+            entry["ifOperStatus"] = {1: "up", 2: "down", 3: "testing"}.get(int(val), _to_str(val))
+
+    for oid, val in ifx_raw.items():
+        col, idx = _if_parts_from_oid(oid, IF_XTABLE)
+        if not col or not idx or idx not in interfaces:
+            continue
+        col = int(col)
+        entry = interfaces[idx]
+        if col == IFX_COL_NAME:
+            entry["ifName"] = _to_str(val)
+        elif col == IFX_COL_HIGH_SPEED:
+            entry["ifHighSpeed"] = str(int(val)) if val is not None else ""
+        elif col == IF_COL_IF_ALIAS:
+            entry["ifAlias"] = _to_str(val)
+
+    return [interfaces[i] for i in sorted(interfaces, key=lambda x: int(x))]
 
 
 def _discover(sock: socket.socket, host: str, port: int, username: str, oid_list,
