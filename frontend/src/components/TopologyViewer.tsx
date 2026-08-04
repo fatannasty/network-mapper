@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -8,6 +8,7 @@ import {
   useEdgesState,
   type Node,
   type Edge,
+  type ReactFlowInstance,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useSearchParams } from 'react-router-dom'
@@ -18,42 +19,33 @@ import { getTopology, getDevices, type TopologyData, type Device } from '../api'
 
 const nodeTypes = { device: DeviceNode }
 
-function layoutNodes(nodes: Node[], links: { source: string; target: string }[]) {
-  const positions = new Map<string, { x: number; y: number }>()
+function layoutNodes(nodes: { id: string }[], links: { source: string; target: string }[]) {
   const adjacency = new Map<string, string[]>()
-
   for (const n of nodes) adjacency.set(n.id, [])
   for (const l of links) {
     adjacency.get(l.source)?.push(l.target)
     adjacency.get(l.target)?.push(l.source)
   }
 
+  const positions = new Map<string, { x: number; y: number }>()
   const visited = new Set<string>()
-  let x = 0
-  const SPACING_X = 220
-  const SPACING_Y = 180
+  const SPACING_X = 260
+  const SPACING_Y = 220
 
-  function dfs(id: string, depth: number) {
+  let col = 0
+
+  function dfs(id: string, row: number) {
     if (visited.has(id)) return
     visited.add(id)
-    const col = x++
-    positions.set(id, { x: col * SPACING_X, y: depth * SPACING_Y })
+    positions.set(id, { x: col * SPACING_X, y: row * SPACING_Y })
+    col++
     for (const neighbor of adjacency.get(id) || []) {
-      if (!visited.has(neighbor)) dfs(neighbor, depth + 1)
+      if (!visited.has(neighbor)) dfs(neighbor, row + 1)
     }
   }
 
   for (const n of nodes) {
-    if (!visited.has(n.id)) {
-      x = 0
-      dfs(n.id, 0)
-    }
-  }
-
-  for (const n of nodes) {
-    if (!positions.has(n.id)) {
-      positions.set(n.id, { x: Math.random() * 500, y: Math.random() * 500 })
-    }
+    if (!visited.has(n.id)) dfs(n.id, 0)
   }
 
   return positions
@@ -68,6 +60,7 @@ export default function TopologyViewer() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
+  const reactFlowKey = useRef(0)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -79,6 +72,7 @@ export default function TopologyViewer() {
       ])
       setTopology(topo)
       setDevices(devResp.devices || [])
+      reactFlowKey.current++
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load topology')
     } finally {
@@ -91,25 +85,24 @@ export default function TopologyViewer() {
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!topology) return { initialNodes: [], initialEdges: [] }
 
-    const rn: Node[] = topology.nodes.map((n) => ({
-      id: n.id,
-      type: 'device',
-      position: { x: 0, y: 0 },
-      data: {
-        id: n.id,
-        ip: n.ip,
-        hostname: n.hostname,
-        vendor: n.vendor,
-        model: n.model,
-        device_type: n.device_type,
-      },
-    }))
+    const positions = layoutNodes(topology.nodes, topology.links)
 
-    const positions = layoutNodes(rn, topology.links)
-    for (const n of rn) {
-      const p = positions.get(n.id)
-      if (p) n.position = p
-    }
+    const rn: Node[] = topology.nodes.map((n) => {
+      const pos = positions.get(n.id) || { x: 0, y: 0 }
+      return {
+        id: n.id,
+        type: 'device',
+        position: pos,
+        data: {
+          id: n.id,
+          ip: n.ip,
+          hostname: n.hostname,
+          vendor: n.vendor,
+          model: n.model,
+          device_type: n.device_type,
+        },
+      }
+    })
 
     const re: Edge[] = topology.links.map((l, i) => ({
       id: `e-${l.source}-${l.target}-${i}`,
@@ -132,6 +125,14 @@ export default function TopologyViewer() {
     setNodes(initialNodes)
     setEdges(initialEdges)
   }, [initialNodes, initialEdges, setNodes, setEdges])
+
+  const flowRef = useRef<ReactFlowInstance | null>(null)
+
+  useEffect(() => {
+    if (initialNodes.length > 0 && flowRef.current) {
+      setTimeout(() => flowRef.current?.fitView({ duration: 300, padding: 0.3 }), 50)
+    }
+  }, [initialNodes, reactFlowKey.current])
 
   const selectedDeviceData = useMemo(() => {
     if (!selectedDevice) return null
@@ -178,13 +179,16 @@ export default function TopologyViewer() {
     <div className="h-full flex">
       <div className="flex-1">
         <ReactFlow
+          key={reactFlowKey.current}
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onInit={(instance) => { flowRef.current = instance }}
           nodeTypes={nodeTypes}
           onNodeClick={(_e, node) => setSelectedDevice(node.id)}
           fitView
+          fitViewOptions={{ padding: 0.3 }}
           attributionPosition="bottom-left"
         >
           <Background color="#374151" gap={20} />
@@ -192,7 +196,7 @@ export default function TopologyViewer() {
           <MiniMap
             nodeColor={(n) => {
               const type = (n.data?.device_type as string) || 'unknown'
-              const map: Record<string, string> = {
+              const colors: Record<string, string> = {
                 switch: '#3b82f6',
                 router: '#f59e0b',
                 firewall: '#ef4444',
@@ -200,7 +204,7 @@ export default function TopologyViewer() {
                 'sd-wan': '#22c55e',
                 unknown: '#6b7280',
               }
-              return map[type] || '#6b7280'
+              return colors[type] || '#6b7280'
             }}
             className="!bg-gray-900 !border-gray-700"
           />
