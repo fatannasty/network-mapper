@@ -222,6 +222,7 @@ def api_discover(req: DiscoverRequest, db: Session = Depends(get_db)):
             device["site"] = req.site
         repositories.upsert_device(db, device, scan_id)
 
+    repositories.replace_links(db, scan_id, result["connections"])
     repositories.finish_scan_job(db, scan_id, result)
     return DiscoverResponse(scan_id=scan_id, **result)
 
@@ -264,6 +265,45 @@ def inventory_report(db: Session = Depends(get_db)):
         "by_site": repositories.device_counts(db, Device.site),
         "recent_scans": [j.to_dict() for j in repositories.list_scan_jobs(db, limit=5)],
     }
+
+
+@app.get("/api/topology", dependencies=[Depends(authenticated)])
+def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    from models import Device, ScanJob
+
+    if scan_id:
+        job = db.get(ScanJob, scan_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="scan not found")
+    else:
+        jobs = repositories.list_scan_jobs(db, limit=1)
+        if not jobs:
+            return {"scan_id": None, "nodes": [], "links": []}
+        job = jobs[0]
+
+    devices = db.query(Device).filter(Device.last_scan_id == job.id).all()
+    links = repositories.list_links(db, scan_id=job.id)
+
+    nodes: list[dict] = []
+    seen: set[str] = set()
+    for d in devices:
+        nodes.append({
+            "id": d.ip,
+            "ip": d.ip,
+            "hostname": d.hostname,
+            "vendor": d.vendor,
+            "model": d.model,
+            "device_type": d.device_type,
+        })
+        seen.add(d.ip)
+    for link in links:
+        for ep in (link.endpoint_a, link.endpoint_b):
+            if ep not in seen:
+                nodes.append({"id": ep, "ip": ep, "hostname": "", "vendor": "",
+                              "model": "", "device_type": "unknown"})
+                seen.add(ep)
+
+    return {"scan_id": job.id, "nodes": nodes, "links": [l.to_dict() for l in links]}
 
 
 @app.get("/api/inventory/credentials", dependencies=[Depends(authenticated)])

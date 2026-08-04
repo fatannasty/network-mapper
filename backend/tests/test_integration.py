@@ -5,6 +5,7 @@ import pytest
 import scanner
 from tests.test_snmp import MockAgent
 from tests.test_snmpv3 import MockV3Agent, AUTH_PW, PRIV_PW
+from tests.test_topology import TopologyMockAgent
 
 
 @pytest.fixture
@@ -51,3 +52,30 @@ def test_identify_host_v3_with_interfaces(v3agent):
     assert len(device["interfaces"]) == 2
     descrs = {i["ifDescr"] for i in device["interfaces"]}
     assert descrs == {"eth0", "lo"}
+
+
+# ── Sprint 5: discover → connections end-to-end ───────────────────────────────
+
+@pytest.fixture
+def topo_agent():
+    mock = TopologyMockAgent()
+    yield mock
+    mock.close()
+
+
+def test_discover_builds_connections_from_lldp_cdp(topo_agent):
+    result = scanner.discover("127.0.0.1/32", communities=["public"],
+                              exclude_pcs=False, snmp_port=topo_agent.port)
+    assert result["alive_hosts"] == 1
+    device = result["devices"][0]
+    assert device["ip"] == "127.0.0.1"
+    assert len(device["neighbors"]) == 3
+    protos = {n["protocol"] for n in device["neighbors"]}
+    assert protos == {"lldp", "cdp"}
+    assert len(result["connections"]) == 3
+    link_protos = {c["protocol"] for c in result["connections"]}
+    assert link_protos == {"lldp", "cdp"}
+    lldp_links = [c for c in result["connections"] if c["protocol"] == "lldp"]
+    assert len(lldp_links) == 2
+    cdp_links = [c for c in result["connections"] if c["protocol"] == "cdp"]
+    assert len(cdp_links) == 1

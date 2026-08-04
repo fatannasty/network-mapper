@@ -108,7 +108,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 # login: .venv/bin/python -c "from repositories import create_user; create_user(db,'admin','change-me','admin')"
 ```
 
-## Sprint 4 — Interface Discovery (current)
+## Sprint 4 — Interface Discovery ✅
 
 SNMP GETNEXT/GETBULK walks of the IF-MIB (`ifTable` + `ifXTable`) discover per-
 device interfaces, persisted alongside each device and returned by the API.
@@ -149,6 +149,51 @@ Each discovered device now includes:
   ...
 ]
 ```
+
+## Sprint 5 — Topology Collection (current) ✅
+
+LLDP-MIB (IEEE 802.1AB) and Cisco CDP-MIB walks discover neighbor relationships,
+which are parsed into per-device neighbor lists and turned into deduplicated
+bidirectional topology links.
+
+```
+backend/
+  topology.py      LLDP/CDP MIB constants, OID-oriented varbind parsers,
+                   v2c/v3 collectors, canonical link builder (build_links)
+  snmp.py          snmp_walk — v2c GETBULK loop, build_getbulk_request
+  scanner.py       collect_topology (parallel LLDP+CDP on snmp_identified
+                   devices), discover wires neighbors + connections
+  models.py        Link model (endpoint_a/b, interface_a/b, protocol)
+  repositories.py  replace_links / list_links
+  main.py          replace_links in api_discover, GET /api/topology endpoint
+  tests/           116 tests total (v2c GETBULK mock agent, parser/link
+                   builder, v2c/v3 collection, scanner wiring, link
+                   persistence, integration end-to-end, API topology)
+```
+
+- **LLDP remote table** (`1.0.8802.1.1.2.1.4.1.1.<col>.<time>.<port>.<rem>`):
+  chassis ID (hex MAC), port ID/desc, system name, system desc.
+- **CDP cache** (`1.3.6.1.4.1.9.9.23.1.2.1.1.<col>.<ifIndex>.<devIndex>`):
+  address (raw IPv4 → dotted-decimal), device ID, device port, platform.
+- **Link deduplication**: bidirectional LLDP/CDP reports of the same physical
+  link collapse into a single entry with sorted endpoint keys and per-endpoint
+  interface/hostname fields.
+- **Mock v2c agent** extended with GET and GETBULK support against an
+  in-memory MIB that includes LLDP/CDP entries (11 OIDs), plus the existing
+  MockV3Agent extended to the same MIB entries for SNMPv3 topology testing.
+
+### API (new)
+
+```
+GET  /api/topology?scan_id=  -> { scan_id, nodes[], links[] }
+```
+
+Nodes include discovered devices (by `last_scan_id`) plus unknown endpoint
+entries for targets not in the current scan (e.g. unmanaged switches
+reported via CDP).
+
+Each link: `{ source, target, source_interface, target_interface, protocol,
+source_hostname, target_hostname }`.
 
 ## Sprint 2 — Inventory Database ✅
 
@@ -194,8 +239,8 @@ GET /api/inventory/sites
 - **Sprint 2** PostgreSQL inventory (Devices, ScanJobs, Credentials) ✅
 - **Sprint 3** Encrypted credentials, SNMPv3, RBAC ✅
 - **Sprint 4** Interface discovery (SNMP GETBULK walks) ✅
-- **Sprint 5** Topology collection (LLDP/CDP -> links)
-- **Sprint 6** React Flow visualization
+- **Sprint 5** Topology collection (LLDP/CDP -> links) ✅
+- **Sprint 6** React Flow visualization (current)
 - **Sprint 7** VeloCloud Orchestrator + Cisco vManage integration
 - **Sprint 8** sysObjectID database for advanced identification
 - **Sprint 9** Configuration collection

@@ -7,6 +7,7 @@ OIDs used for device identification.
 
 from __future__ import annotations
 
+import random
 import socket
 from dataclasses import dataclass
 
@@ -77,6 +78,19 @@ def build_get_request(oid_list, community: str, request_id: int) -> bytes:
     vb_seq = b"\x30" + _encode_length(len(varbinds)) + varbinds
     pdu_body = _encode_integer(request_id) + _encode_integer(0) + _encode_integer(0) + vb_seq
     pdu = b"\xa0" + _encode_length(len(pdu_body)) + pdu_body  # GetRequest-PDU
+    msg_body = version + comm + pdu
+    return b"\x30" + _encode_length(len(msg_body)) + msg_body
+
+
+def build_getbulk_request(non_repeaters: int, max_repetitions: int, oid_list,
+                          community: str, request_id: int) -> bytes:
+    version = _encode_integer(1)  # SNMPv2c
+    comm = _encode_octet_string(community)
+    varbinds = b"".join(_encode_varbind(oid) for oid in oid_list)
+    vb_seq = b"\x30" + _encode_length(len(varbinds)) + varbinds
+    pdu_body = (_encode_integer(request_id) + _encode_integer(non_repeaters)
+                + _encode_integer(max_repetitions) + vb_seq)
+    pdu = b"\xa5" + _encode_length(len(pdu_body)) + pdu_body  # GetBulkRequest-PDU
     msg_body = version + comm + pdu
     return b"\x30" + _encode_length(len(msg_body)) + msg_body
 
@@ -193,7 +207,6 @@ def _skip_tlv(buf: bytes, offset: int) -> int:
 
 def send_get_request(host: str, oid_list, community: str, timeout: float = DEFAULT_TIMEOUT, port: int = SNMP_PORT):
     """Send one SNMP GET and return the decoded response dict or raise."""
-    import random
     request_id = random.getrandbits(31)
     packet = build_get_request(oid_list, community, request_id)
 
@@ -203,6 +216,42 @@ def send_get_request(host: str, oid_list, community: str, timeout: float = DEFAU
         sock.sendto(packet, (host, port))
         data, _ = sock.recvfrom(65535)
         return parse_response(data)
+    finally:
+        sock.close()
+
+
+def snmp_walk(host: str, subtree_oid: str, community: str,
+              max_repetitions: int = 20, timeout: float = DEFAULT_TIMEOUT,
+              port: int = SNMP_PORT, max_oids: int = 1024) -> dict:
+    """Walk a subtree via GETBULK, returning {oid: value}; {} on failure."""
+    subtree_oid = subtree_oid.rstrip(".")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(timeout)
+    results: dict = {}
+    current_oid = subtree_oid
+    oid_count = 0
+    try:
+        for _ in range(max_oids // max_repetitions + 1):
+            request_id = random.getrandbits(31)
+            packet = build_getbulk_request(0, max_repetitions, [current_oid], community, request_id)
+            sock.sendto(packet, (host, port))
+            data, _ = sock.recvfrom(65535)
+            resp = parse_response(data)
+            if not resp:
+                return results
+            for oid_key, val in resp.items():
+                if not oid_key.startswith(subtree_oid):
+                    return results
+                results[oid_key] = val
+                current_oid = oid_key
+                oid_count += 1
+            if len(resp) < max_repetitions:
+                break
+            if oid_count >= max_oids:
+                break
+        return results
+    except (socket.timeout, OSError, ValueError):
+        return {}
     finally:
         sock.close()
 

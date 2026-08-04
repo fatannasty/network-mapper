@@ -217,6 +217,37 @@ class Site(Base):
         }
 
 
+class Link(Base):
+    """A topology link between two devices, discovered via LLDP/CDP (Sprint 5)."""
+
+    __tablename__ = "links"
+
+    id = Column(Integer, primary_key=True)
+    scan_id = Column(String(32), ForeignKey("scan_jobs.id"), nullable=False, index=True)
+    endpoint_a = Column(String(128), nullable=False, index=True)
+    endpoint_b = Column(String(128), nullable=False, index=True)
+    interface_a = Column(String(128), default="")
+    interface_b = Column(String(128), default="")
+    protocol = Column(String(16), default="lldp")  # lldp | cdp
+    hostname_a = Column(String(255), default="")
+    hostname_b = Column(String(255), default="")
+    created_at = Column(DateTime, default=_utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "scan_id": self.scan_id,
+            "source": self.endpoint_a,
+            "target": self.endpoint_b,
+            "source_interface": self.interface_a,
+            "target_interface": self.interface_b,
+            "protocol": self.protocol,
+            "source_hostname": self.hostname_a,
+            "target_hostname": self.hostname_b,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class User(Base):
     """App user with an RBAC role: admin | operator | viewer."""
 

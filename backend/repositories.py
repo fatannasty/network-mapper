@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from models import Credential, Device, Interface, ScanJob, Site, User
+from models import Credential, Device, Interface, Link, ScanJob, Site, User
 from security import create_token, hash_password, verify_password
 
 
@@ -105,6 +105,29 @@ def device_counts(db: Session, column) -> dict:
 
 
 # ── Scan jobs ─────────────────────────────────────────────────────────────────
+
+def replace_links(db: Session, scan_id: str, links: list[dict]) -> None:
+    """Replace all links recorded for a scan with the freshly built set."""
+    db.query(Link).filter(Link.scan_id == scan_id).delete()
+    for link in links:
+        db.add(Link(
+            scan_id=scan_id,
+            endpoint_a=link.get("source", ""),
+            endpoint_b=link.get("target", ""),
+            interface_a=link.get("source_interface", ""),
+            interface_b=link.get("target_interface", ""),
+            protocol=link.get("protocol", "lldp"),
+            hostname_a=link.get("source_hostname", ""),
+            hostname_b=link.get("target_hostname", ""),
+        ))
+    db.commit()
+
+
+def list_links(db: Session, scan_id: str | None = None, limit: int = 500) -> list[Link]:
+    query = db.query(Link)
+    if scan_id:
+        query = query.filter(Link.scan_id == scan_id)
+    return query.order_by(Link.id).limit(limit).all()
 
 def create_scan_job(db: Session, scan_id: str, subnet: str, communities: list[str],
                     exclude_pcs: bool, snmpv3_username: str = "") -> ScanJob:

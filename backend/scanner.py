@@ -17,6 +17,7 @@ from classifier import NETWORK_DEVICE_TYPES, DEVICE_TYPE_ORDER, classify
 from snmp import SNMP_PORT, snmp_poll
 from snmpv3 import (AUTH_MD5, AUTH_NONE, AUTH_SHA, PRIV_AES, PRIV_DES, PRIV_NONE,
                     snmpv3_get, walk_if_table)
+from topology import build_links
 
 TCP_PORTS = [22, 23, 80, 443, 3389, 8080, 8443]
 PORT_SCAN_TIMEOUT = 0.8
@@ -172,9 +173,76 @@ def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT,
         "device_type": cls.device_type,
         "confidence": cls.confidence,
         "snmp_community": snmp_data.get("community", "") if snmp_data else "",
+        "snmp_identified": bool(snmp_data),
         "interfaces": interfaces,
     }
     return device
+
+
+# ── Topology collection (Sprint 5) ───────────────────────────────────────────
+
+def _neighbors_v2c(host: str, community: str, snmp_port: int, timeout: float) -> list[dict]:
+    from topology import collect_cdp_v2c, collect_lldp_v2c
+
+    try:
+        return collect_lldp_v2c(host, community, port=snmp_port, timeout=timeout) \
+            + collect_cdp_v2c(host, community, port=snmp_port, timeout=timeout)
+    except (socket.timeout, OSError, ValueError):
+        return []
+
+
+def _neighbors_v3(host: str, params: dict, snmp_port: int, timeout: float) -> list[dict]:
+    from topology import collect_cdp_v3, collect_lldp_v3
+
+    auth_protocol = (params.get("auth_protocol") or AUTH_SHA).lower()
+    privacy_protocol = (params.get("privacy_protocol") or PRIV_NONE).lower()
+    try:
+        return collect_lldp_v3(host, params["username"], auth_protocol=auth_protocol,
+                               auth_password=params.get("auth_password", ""),
+                               privacy_protocol=privacy_protocol,
+                               privacy_password=params.get("privacy_password") or params.get("auth_password", ""),
+                               port=snmp_port, timeout=timeout) \
+            + collect_cdp_v3(host, params["username"], auth_protocol=auth_protocol,
+                             auth_password=params.get("auth_password", ""),
+                             privacy_protocol=privacy_protocol,
+                             privacy_password=params.get("privacy_password") or params.get("auth_password", ""),
+                             port=snmp_port, timeout=timeout)
+    except (socket.timeout, OSError, ValueError):
+        return []
+
+
+def collect_topology(devices: list[dict], communities: list[str] | None = None,
+                     snmpv3: dict | None = None, snmp_port: int = SNMP_PORT,
+                     timeout: float = 2.0, progress_cb=None) -> dict[str, list[dict]]:
+    """Walk LLDP/CDP on each SNMP-identified device; return {ip: [neighbors]}."""
+    communities = communities or ["public"]
+
+    def report(percent: float, phase: str):
+        if progress_cb:
+            progress_cb(percent, phase)
+
+    report(50, "topology")
+    identified = [d for d in devices if d.get("snmp_identified")]
+    neighbors_by_ip: dict[str, list[dict]] = {}
+
+    if identified:
+        def work(device: dict):
+            if snmpv3:
+                return device["ip"], _neighbors_v3(device["ip"], snmpv3, snmp_port, timeout)
+            community = device.get("snmp_community") or communities[0]
+            return device["ip"], _neighbors_v2c(device["ip"], community, snmp_port, timeout)
+
+        with ThreadPoolExecutor(max_workers=16) as pool:
+            futures = [pool.submit(work, d) for d in identified]
+            done = 0
+            for future in as_completed(futures):
+                ip, neighbors = future.result()
+                neighbors_by_ip[ip] = neighbors
+                done += 1
+                report(50 + 50 * done / max(len(identified), 1), "topology")
+
+    report(100, "topology")
+    return neighbors_by_ip
 
 
 # ── Orchestration ────────────────────────────────────────────────────────────
@@ -220,7 +288,13 @@ def discover(cidr: str, communities: list[str] | None = None, exclude_pcs: bool 
     if exclude_pcs:
         devices = [d for d in devices if d["device_type"] in NETWORK_DEVICE_TYPES]
 
-    snmp_identified = sum(1 for d in devices if d["snmp_community"])
+    neighbors = collect_topology(devices, communities, snmpv3=snmpv3,
+                                 snmp_port=snmp_port, progress_cb=report)
+    for device in devices:
+        device["neighbors"] = neighbors.get(device["ip"], [])
+    connections = build_links(devices)
+
+    snmp_identified = sum(1 for d in devices if d.get("snmp_identified"))
     report(100, "done")
 
     return {
@@ -231,5 +305,5 @@ def discover(cidr: str, communities: list[str] | None = None, exclude_pcs: bool 
         "device_count": len(devices),
         "snmp_identified": snmp_identified,
         "devices": devices,
-        "connections": [],
+        "connections": connections,
     }

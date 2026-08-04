@@ -115,6 +115,16 @@ class MockV3Agent:
         # ifXTable (index 2)
         "1.3.6.1.2.1.31.1.1.1.1.2":  "lo",
         "1.3.6.1.2.1.31.1.1.1.15.2": "1",
+        # LLDP remote table: localPort 1, remIndex 1
+        "1.0.8802.1.1.2.1.4.1.1.5.0.1.1": b"\x00\x11\x22\x33\x44\x55",
+        "1.0.8802.1.1.2.1.4.1.1.7.0.1.1": b"Eth1/0/1",
+        "1.0.8802.1.1.2.1.4.1.1.8.0.1.1": b"uplink to sw2",
+        "1.0.8802.1.1.2.1.4.1.1.9.0.1.1": b"sw2",
+        # CDP cache: ifIndex 1, deviceIndex 1
+        "1.3.6.1.4.1.9.9.23.1.2.1.1.3.1.1": b"\x0a\x00\x00\x02",
+        "1.3.6.1.4.1.9.9.23.1.2.1.1.6.1.1": b"sw2",
+        "1.3.6.1.4.1.9.9.23.1.2.1.1.7.1.1": b"Eth1/0/1",
+        "1.3.6.1.4.1.9.9.23.1.2.1.1.8.1.1": b"Cisco C9300",
     }
     # Sorted OID list for GETNEXT walk ordering.
     _SORTED_OIDS = sorted(MIB.keys(), key=lambda o: list(map(int, o.split("."))))
@@ -227,6 +237,8 @@ class MockV3Agent:
     def _encode_value(self, oid, val):
         if oid == snmpv3.OIDS["sysObjectID"]:
             return snmpv3._encode_oid(val)
+        if isinstance(val, bytes):
+            return _octets(val)
         return _octets(val.encode("latin-1"))
 
     def close(self):

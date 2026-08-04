@@ -159,3 +159,47 @@ def test_device_to_dict_includes_interfaces():
         data = device.to_dict()
         assert len(data["interfaces"]) == 2
         assert data["interfaces"][0]["ifDescr"] == "eth0"
+
+
+# ── Link persistence (Sprint 5) ───────────────────────────────────────────────
+
+_LINKS = [
+    {"source": "10.0.0.1", "target": "10.0.0.2", "source_interface": "Gi1/0/1",
+     "target_interface": "Gi1/0/1", "protocol": "lldp",
+     "source_hostname": "sw1", "target_hostname": "sw2"},
+    {"source": "10.0.0.1", "target": "10.0.0.3", "source_interface": "Gi1/0/2",
+     "target_interface": "Eth1/0/24", "protocol": "cdp",
+     "source_hostname": "sw1", "target_hostname": "sw3"},
+]
+
+
+def test_replace_links_and_list_links_roundtrip():
+    with SessionLocal() as db:
+        repositories.replace_links(db, "scan-links-a", _LINKS)
+        links = repositories.list_links(db, scan_id="scan-links-a")
+        assert len(links) == 2
+        protos = {l.protocol for l in links}
+        assert protos == {"lldp", "cdp"}
+        l = next(ll for ll in links if ll.protocol == "lldp")
+        assert l.endpoint_a == "10.0.0.1"
+        assert l.endpoint_b == "10.0.0.2"
+        assert l.interface_a == "Gi1/0/1"
+        assert l.hostname_a == "sw1"
+        assert l.hostname_b == "sw2"
+
+
+def test_replace_links_overwrites_previous_scan():
+    with SessionLocal() as db:
+        repositories.replace_links(db, "scan-links-a", _LINKS)
+        repositories.replace_links(db, "scan-links-a", _LINKS[:1])
+        links = repositories.list_links(db, scan_id="scan-links-a")
+        assert len(links) == 1
+        assert links[0].endpoint_b == "10.0.0.2"
+
+
+def test_list_links_defaults_without_scan_id():
+    with SessionLocal() as db:
+        repositories.replace_links(db, "scan-links-a", _LINKS)
+        repositories.replace_links(db, "scan-links-b", _LINKS[:1])
+        links = repositories.list_links(db)
+        assert len(links) >= 3
