@@ -7,6 +7,9 @@
     "setup": "cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
     "api": "cd backend && .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload",
     "test": "cd backend && .venv/bin/python -m pytest tests/ -q",
+    "test:frontend": "cd frontend && npx vitest run",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
     "watch": "./auto-push.sh"
   }
 }

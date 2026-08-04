@@ -1,0 +1,137 @@
+import axios from 'axios'
+
+const api = axios.create()
+
+let token: string | null = localStorage.getItem('token')
+
+export function setToken(t: string | null) {
+  token = t
+  if (t) localStorage.setItem('token', t)
+  else localStorage.removeItem('token')
+}
+
+api.interceptors.request.use((config) => {
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+api.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err.response?.status === 401) {
+      setToken(null)
+      window.location.reload()
+    }
+    return Promise.reject(err)
+  },
+)
+
+export interface ScanResult {
+  scan_id: string
+  subnet: string
+  scanned_hosts: number
+  alive_hosts: number
+  device_count: number
+  snmp_identified: number
+  devices: Device[]
+  connections: Link[]
+}
+
+export interface Device {
+  ip: string
+  hostname: string
+  vendor: string
+  model: string
+  device_type: string
+  confidence: number
+  open_ports: number[]
+  snmp_community: string
+  snmp_identified: boolean
+  interfaces: Interface[]
+  site?: string
+}
+
+export interface Interface {
+  ifIndex: string
+  ifDescr: string
+  ifName: string
+  ifType: string
+  ifSpeed: string
+  ifPhysAddress: string
+  ifAdminStatus: string
+  ifOperStatus: string
+  ifHighSpeed: string
+  ifAlias: string
+}
+
+export interface Link {
+  source: string
+  target: string
+  source_interface: string
+  target_interface: string
+  protocol: string
+  source_hostname: string
+  target_hostname: string
+}
+
+export interface TopologyData {
+  scan_id: string | null
+  nodes: TopoNode[]
+  links: TopoLink[]
+}
+
+export interface TopoNode {
+  id: string
+  ip: string
+  hostname: string
+  vendor: string
+  model: string
+  device_type: string
+}
+
+export interface TopoLink {
+  source: string
+  target: string
+  source_interface: string
+  target_interface: string
+  protocol: string
+  source_hostname: string
+  target_hostname: string
+}
+
+export async function login(username: string, password: string) {
+  const r = await api.post('/api/auth/login', { username, password })
+  return r.data
+}
+
+export async function discover(subnet: string, communities: string[], snmpv3?: object) {
+  const r = await api.post('/api/discover', {
+    subnet,
+    communities: communities.length > 0 ? communities : ['public'],
+    exclude_pcs: false,
+    snmpv3,
+  })
+  return r.data as ScanResult
+}
+
+export async function getTopology(scanId?: string) {
+  const r = await api.get('/api/topology', {
+    params: scanId ? { scan_id: scanId } : {},
+  })
+  return r.data as TopologyData
+}
+
+export async function getDevices(params?: Record<string, string>) {
+  const r = await api.get('/api/inventory/devices', { params })
+  return r.data
+}
+
+export async function getDevice(id: number) {
+  const r = await api.get(`/api/inventory/devices/${id}`)
+  return r.data
+}
+
+export async function getScans(limit = 20) {
+  const r = await api.get('/api/inventory/scans', { params: { limit } })
+  return r.data
+}
