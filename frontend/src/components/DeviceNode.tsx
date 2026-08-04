@@ -27,19 +27,21 @@ export default function DeviceNode({ data }: NodeProps<Node<DeviceData>>) {
   const label = deviceData.hostname || deviceData.ip || deviceData.id
 
   return (
-    <div className={`px-3 py-2 rounded-lg border-2 ${color} text-white text-sm min-w-[140px] cursor-pointer shadow-lg`}>
+    <div className={`px-3 py-2 rounded-lg border-2 ${color} text-white text-sm min-w-[160px] cursor-pointer shadow-lg`}>
       <Handle type="target" position={Position.Top} className="!bg-gray-500" />
-      <div className="font-semibold truncate max-w-[180px]">{label}</div>
+      <div className="font-semibold truncate max-w-[200px]">{label}</div>
+      {deviceData.ip && deviceData.ip !== label && (
+        <div className="text-blue-400 text-[11px] font-mono mt-0.5">{deviceData.ip}</div>
+      )}
       <div className="text-gray-400 text-xs mt-0.5">
         {deviceData.vendor && <span>{deviceData.vendor}</span>}
         {deviceData.model && <span> {deviceData.model}</span>}
       </div>
-      <div className="text-gray-500 text-[10px] mt-0.5">
-        {deviceData.ip && deviceData.ip !== label && <span>{deviceData.ip}</span>}
-        {deviceData.device_type && deviceData.device_type !== 'unknown' && (
-          <span className="ml-2 uppercase">{deviceData.device_type}</span>
-        )}
-      </div>
+      {deviceData.device_type && deviceData.device_type !== 'unknown' && (
+        <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase bg-white/10 text-gray-300">
+          {deviceData.device_type}
+        </span>
+      )}
       <Handle type="source" position={Position.Bottom} className="!bg-gray-500" />
     </div>
   )

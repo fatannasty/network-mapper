@@ -104,16 +104,30 @@ export default function TopologyViewer() {
       }
     })
 
-    const re: Edge[] = topology.links.map((l, i) => ({
-      id: `e-${l.source}-${l.target}-${i}`,
-      source: l.source,
-      target: l.target,
-      label: l.protocol.toUpperCase(),
-      labelStyle: { fill: '#6b7280', fontSize: 10, fontWeight: 600 },
-      style: { stroke: l.protocol === 'cdp' ? '#f59e0b' : '#3b82f6', strokeWidth: 2 },
-      animated: true,
-      type: 'smoothstep',
-    }))
+    const re: Edge[] = topology.links.map((l, i) => {
+      const srcIface = l.source_interface || ''
+      const tgtIface = l.target_interface || ''
+      const ifaceLabel = srcIface && tgtIface
+        ? `${srcIface} → ${tgtIface}`
+        : srcIface || tgtIface || ''
+      const label = ifaceLabel
+        ? `${ifaceLabel}\n${l.protocol.toUpperCase()}`
+        : l.protocol.toUpperCase()
+
+      return {
+        id: `e-${l.source}-${l.target}-${i}`,
+        source: l.source,
+        target: l.target,
+        label,
+        labelStyle: { fill: '#9ca3af', fontSize: 9, fontWeight: 500 },
+        labelBgStyle: { fill: '#1f2937', fillOpacity: 0.85 },
+        labelBgPadding: [6, 3] as [number, number],
+        labelBgBorderRadius: 4,
+        style: { stroke: l.protocol === 'cdp' ? '#f59e0b' : '#3b82f6', strokeWidth: 2 },
+        animated: true,
+        type: 'smoothstep',
+      }
+    })
 
     return { initialNodes: rn, initialEdges: re }
   }, [topology])
@@ -136,8 +150,13 @@ export default function TopologyViewer() {
 
   const selectedDeviceData = useMemo(() => {
     if (!selectedDevice) return null
-    return devices.find((d) => d.ip === selectedDevice) || null
-  }, [selectedDevice, devices])
+    const device = devices.find((d) => d.ip === selectedDevice)
+    if (!device) return null
+    const connectedLinks = (topology?.links || []).filter(
+      (l) => l.source === selectedDevice || l.target === selectedDevice,
+    )
+    return { device, connectedLinks }
+  }, [selectedDevice, devices, topology])
 
   if (loading) {
     return (
@@ -213,7 +232,8 @@ export default function TopologyViewer() {
 
       {selectedDeviceData && (
         <DeviceDetail
-          device={selectedDeviceData}
+          device={selectedDeviceData.device}
+          connectedLinks={selectedDeviceData.connectedLinks}
           onClose={() => setSelectedDevice(null)}
         />
       )}
