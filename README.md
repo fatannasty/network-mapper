@@ -1,190 +1,124 @@
-# Network Topology Mapper
+# Network Discovery and Topology Mapping Platform
 
-A web-based network topology diagram tool with **automatic network discovery**. Scans your real network, identifies devices, and visualizes the topology.
+A NetBrain-style discovery and topology application for switches, routers,
+SD-WAN, and VMware VeloCloud devices. PCs and printers are excluded from
+topology output.
 
-## Features
+Target stack (from the sprint plan):
 
-- **Auto-scan** - discovers devices on your real network via ARP, ping sweep, and port scanning
-- **Device identification** - detects routers, switches (Core/Access), access points, firewalls, servers, PCs
-- **Cisco icons** - professional Cisco-style SVG icons for all device types
-- **Hierarchical diagrams** - Core Switch → Access Switch topology layout
-- **Cable types** - color-coded connections (Fiber, Cat6, Cat6a, DAC)
-- **Port labels** - show port connections (e.g. GI1/0/1 ↔ TE1/1/1)
-- **VLAN display** - show uplink/downlink VLANs on connection lines
-- **Location tracking** - geographic site information per device
-- **Drag & drop** - manually add and position network devices
-- **Device properties** - hostname, IP, model, location, open ports, notes
-- **Demo mode** - generate a sample topology without scanning
-- **Save/Load** - export/import topologies as JSON
-- **Auto Layout** - arrange devices in a circle
-- **Catalyst Center** - integration with Cisco DNA Center
-- **Multi-site** - scanner agents for multiple locations
+| Layer      | Technology                  |
+|------------|-----------------------------|
+| Frontend   | React / Next.js, React Flow |
+| Backend    | FastAPI (Python)            |
+| Database   | PostgreSQL                  |
+| Graph      | Neo4j (optional)            |
+| Discovery  | Nmap, SNMPv2c/v3, SSH, APIs |
 
-## Live Demo
+## Sprint 1 — Discovery and Classification MVP (current)
 
-**https://networkmapper-5cloudmedia.pages.dev** (demo mode, no scanning)
+Deliverables: `scanner.py`, `snmp.py`, `classifier.py`, `main.py`.
+Success criteria: accurately identify Cisco, Aruba, Fortinet, and VeloCloud devices.
 
-## Quick Start
+```
+backend/
+  main.py         FastAPI app (GET /health, POST /api/discover)
+  scanner.py      CIDR parsing, ping sweep, TCP scan, UDP/161 probe, orchestration
+  snmp.py         Pure-Python SNMPv2c client (BER encode/decode, no deps)
+  classifier.py   Vendor OID map + sysDescr/hostname rules -> vendor/model/type
+  tests/          35 unit + integration tests (mock SNMP agent)
+```
 
-### Option 1: Docker (Recommended)
+### Run it
 
 ```bash
-git clone https://github.com/fatannasty/network-mapper.git
-cd network-mapper
-docker compose up -d --build
+npm run setup        # or: cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+npm run api          # uvicorn on http://localhost:8000 (reload enabled)
 ```
 
-Open **http://localhost:7777**
+### API
 
-### Option 2: Node.js
+```
+GET  /health                      -> service status + local IP
+POST /api/discover
+     { "subnet": "10.0.0.0/24",
+       "communities": ["public"],
+       "exclude_pcs": true,
+       "site": "Miami Station" }
+     -> { scan_id, subnet, scanned_hosts, alive_hosts, device_count,
+          snmp_identified, devices[], connections[] }
+```
+
+Each device: `{ ip, open_ports, hostname, vendor, model, device_type,
+confidence, snmp_community }`.
+
+### Test
 
 ```bash
-git clone https://github.com/fatannasty/network-mapper.git
-cd network-mapper
-npm install
-npm start
+npm test            # pytest: mock SNMP agent, classifier, scanner, API
 ```
 
-Open **http://localhost:7777**
+The SNMP client is validated against a live net-snmp `snmpd` as well as the
+mock agent.
 
-### Option 3: Direct
+## Sprint 2 — Inventory Database (current)
 
-Open `index.html` in any browser. Click **Demo** to see a sample topology.
+SQLAlchemy ORM written for PostgreSQL with a SQLite local fallback. Discovery
+results are persisted with last-seen tracking; inventory reports aggregate
+the database.
 
-## Docker Deployment
+```
+backend/
+  database.py     engine/session, DATABASE_URL config (sqlite default, postgres-ready)
+  models.py       Device, ScanJob, Credential, Site
+  repositories.py upsert_device (keyed on IP), scan job lifecycle, queries
+  tests/          45 tests total (in-memory DB isolation)
+```
 
-### Single Server
+- **Devices** keyed on `ip` (unique); re-discovery updates `last_seen`/fields
+  and preserves `first_seen`.
+- **ScanJobs** record subnet, communities, status, host/device counts, timestamps.
+- **Credentials** (plaintext for now; encrypted in Sprint 3) and **Sites**.
+
+### PostgreSQL
+
+Switch engines with one env var — no code changes:
 
 ```bash
-# Clone and run
-git clone https://github.com/fatannasty/network-mapper.git
-cd network-mapper
-docker compose up -d --build
-
-# Check status
-docker logs -f network-mapper
-
-# Stop
-docker compose down
-
-# Restart
-docker compose restart
+DATABASE_URL="postgresql+psycopg://user:pass@host:5432/network_mapper" npm run api
 ```
 
-### Multi-Site Deployment (Ubuntu)
-
-Deploy one container at each switch location:
-
-**On each Ubuntu server:**
-
-```bash
-# Install Docker (one-time)
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Clone and run
-git clone https://github.com/fatannasty/network-mapper.git
-cd network-mapper
-docker compose up -d --build
-```
-
-**Access each site:**
-
-| Location | Server | URL |
-|----------|--------|-----|
-| Site A | 10.1.1.10 | http://10.1.1.10:7777 |
-| Site B | 10.2.1.10 | http://10.2.1.10:7777 |
-| Site C | 10.3.1.10 | http://10.3.1.10:7777 |
-
-### Docker with Custom Port
-
-```yaml
-# docker-compose.yml
-services:
-  network-mapper:
-    build: .
-    ports:
-      - "8080:7777"
-    restart: unless-stopped
-```
-
-### Docker with Host Networking (Recommended for Scanning)
-
-```yaml
-services:
-  network-mapper:
-    build: .
-    network_mode: host
-    restart: unless-stopped
-```
-
-## Deployment Options
-
-### Cloudflare Pages (Frontend Only)
-
-```bash
-npm run deploy
-```
-
-Frontend always available at: **https://networkmapper-5cloudmedia.pages.dev**
-
-### Cloudflare Tunnel (Remote Scanning)
-
-```bash
-npm run setup-tunnel  # One-time setup
-npm start             # Start server
-npm run tunnel        # Start tunnel
-```
-
-Custom domain: **https://networkmapper.5cloudmedia.com**
-
-### Scanner Agent (Multi-Site)
-
-```bash
-# At each location with VPN access
-LOCATION_ID=miami LOCATION_NAME="Miami Station" node agent.js
-```
-
-Or with Docker:
-
-```bash
-docker compose -f docker-compose.agent.yml up -d
-```
-
-## Catalyst Center Integration
-
-1. Open the web UI
-2. Enter Cat Center URL, username, and password in the sidebar
-3. Click **Test Connection** to verify
-4. Click **Scan via Cat Center** to import all devices and topology
-
-## Commands Reference
-
-| Command | Description |
-|---------|-------------|
-| `npm start` | Start local server |
-| `npm run deploy` | Deploy to Cloudflare Pages |
-| `npm run tunnel` | Start Cloudflare Tunnel |
-| `npm run watch` | Auto-push to GitHub |
-| `docker compose up -d` | Start Docker container |
-| `docker compose down` | Stop Docker container |
-| `docker compose logs -f` | View container logs |
-
-## File Structure
+### API (new)
 
 ```
-network-mapper/
-  index.html            - Main HTML page
-  style.css             - Styles (modern dark theme)
-  app.js                - Frontend application
-  server.js             - Express server with scan API
-  scanner.js            - Network scanning engine
-  agent.js              - Multi-site scanner agent
-  catalyst-agent.js     - Cisco Cat Center integration
-  icons/                - Cisco-style SVG icons
-  worker/               - Cloudflare Worker API
-  Dockerfile            - Docker build file
-  docker-compose.yml    - Docker Compose config
-  docker-compose.agent.yml - Agent Docker config
+GET /api/inventory/devices            ?device_type=&vendor=&site=&limit=
+GET /api/inventory/devices/{id}
+GET /api/inventory/scans
+GET /api/inventory/report             totals + counts by type/vendor/site
+GET /api/inventory/credentials
+GET /api/inventory/sites
 ```
+
+## Roadmap
+
+- **Sprint 1** Discovery + classification MVP ✅
+- **Sprint 2** PostgreSQL inventory (Devices, ScanJobs, Credentials) ✅
+- **Sprint 3** Encrypted credentials, SNMPv3, RBAC
+- **Sprint 3** Encrypted credentials, SNMPv3, RBAC
+- **Sprint 4** Interface discovery (SNMP/SSH)
+- **Sprint 5** Topology collection (LLDP/CDP -> links)
+- **Sprint 6** React Flow visualization
+- **Sprint 7** VeloCloud Orchestrator + Cisco vManage integration
+- **Sprint 8** sysObjectID database for advanced identification
+- **Sprint 9** Configuration collection
+- **Sprint 10** Layer 3 path analysis
+- **Sprint 11** Change detection
+- **Sprint 12** Reporting
+- **Sprint 13** Redis/Celery scale-out
+- **Sprint 14** Security hardening
+- **Sprint 15** Production release
+
+## Legacy files
+
+`agent.js`, `catalyst-agent.js`, `worker/` and the Cloudflare deploy scripts
+are legacy artifacts from the previous Node.js version and are not part of
+the current build.

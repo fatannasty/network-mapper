@@ -1,3 +1,10 @@
 node_modules/
 .DS_Store
 *.log
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+backend/.pytest_cache/
+backend/network_mapper.db
