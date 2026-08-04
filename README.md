@@ -195,6 +195,46 @@ reported via CDP).
 Each link: `{ source, target, source_interface, target_interface, protocol,
 source_hostname, target_hostname }`.
 
+## Sprint 6 — React Flow Topology Visualization ✅
+
+Vite + React + TypeScript frontend with React Flow canvas for interactive
+network topology graphing, deployed to Cloudflare Pages.
+
+```
+frontend/
+  src/
+    api.ts                  Axios client with auth interceptor, all API calls
+    App.tsx                 Router + auth state (login gating)
+    components/
+      LoginForm.tsx         Credentials -> POST /api/auth/login
+      Layout.tsx            Nav bar (Topology, Discover) + logout
+      DiscoveryForm.tsx     Subnet/community/SNMPv3 form -> POST /api/discover
+      TopologyViewer.tsx    React Flow canvas: nodes (devices), edges (links),
+                            custom DeviceNode, device detail sidebar
+      DeviceNode.tsx        Custom node: hostname, vendor, model, type-colored
+      DeviceDetail.tsx      Sidebar: IP, vendor, model, interfaces, open ports
+  vite.config.ts            Tailwind CSS plugin + /api proxy to localhost:8000
+```
+
+- **React Flow** with custom device nodes (color-coded by type: switch blue,
+  router amber, firewall red, core-switch purple), smooth-step links (CDP
+  amber, LLDP blue), animated edges, minimap, controls, and background grid.
+- **Layout algorithm**: depth-first traversal for tree-like topologies.
+- **Device detail sidebar**: click any node to see IP, vendor, model, type,
+  SNMP status, open ports, and all interfaces with status/speed/MAC.
+- **Auth**: JWT bearer token stored in localStorage, auto-redirects to login
+  on 401.
+- **Proxy**: Vite dev server proxies `/api/*` to the FastAPI backend on
+  port 8000 for zero-config local development.
+
+### Run it
+
+```bash
+npm run api              # backend on :8000
+npm run frontend:dev     # frontend on :5173 (proxies /api -> :8000)
+npm run frontend:build   # production build -> frontend/dist/
+```
+
 ## Sprint 2 — Inventory Database ✅
 
 SQLAlchemy ORM written for PostgreSQL with a SQLite local fallback. Discovery
@@ -240,7 +280,7 @@ GET /api/inventory/sites
 - **Sprint 3** Encrypted credentials, SNMPv3, RBAC ✅
 - **Sprint 4** Interface discovery (SNMP GETBULK walks) ✅
 - **Sprint 5** Topology collection (LLDP/CDP -> links) ✅
-- **Sprint 6** React Flow visualization (current)
+- **Sprint 6** React Flow visualization ✅
 - **Sprint 7** VeloCloud Orchestrator + Cisco vManage integration
 - **Sprint 8** sysObjectID database for advanced identification
 - **Sprint 9** Configuration collection
