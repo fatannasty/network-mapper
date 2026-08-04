@@ -15,12 +15,35 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.types import TypeDecorator
 
 from database import Base
+from security import decrypt_secret, encrypt_secret
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class EncryptedString(TypeDecorator):
+    """Text column whose contents are encrypted at rest (Fernet).
+
+    Legacy plaintext values decrypt transparently (pass-through), so an
+    existing database needs no migration.
+    """
+
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return encrypt_secret(str(value))
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return decrypt_secret(value)
 
 
 class Device(Base):
@@ -74,6 +97,7 @@ class ScanJob(Base):
     exclude_pcs = Column(Boolean, default=True)
     status = Column(String(16), default="running", index=True)
     local_ip = Column(String(45), default="")
+    snmpv3_username = Column(String(64), default="", index=True)
     scanned_hosts = Column(Integer, default=0)
     alive_hosts = Column(Integer, default=0)
     device_count = Column(Integer, default=0)
@@ -92,6 +116,7 @@ class ScanJob(Base):
             "exclude_pcs": self.exclude_pcs,
             "status": self.status,
             "local_ip": self.local_ip,
+            "snmpv3_username": self.snmpv3_username,
             "scanned_hosts": self.scanned_hosts,
             "alive_hosts": self.alive_hosts,
             "device_count": self.device_count,
@@ -103,7 +128,11 @@ class ScanJob(Base):
 
 
 class Credential(Base):
-    """Stored device credentials. Plaintext in Sprint 2; encrypted in Sprint 3."""
+    """Stored device credentials, encrypted at rest (Sprint 3).
+
+    Secrets never leave the API: password and snmp_community are only ever
+    returned in encrypted form (and the default to_dict omits them entirely).
+    """
 
     __tablename__ = "credentials"
 
@@ -111,13 +140,13 @@ class Credential(Base):
     name = Column(String(128), nullable=False, unique=True)
     credential_type = Column(String(32), default="snmp")  # snmp | ssh | api
     username = Column(String(128), default="")
-    password = Column(Text, default="")
-    snmp_community = Column(String(128), default="")
+    password = Column(EncryptedString(), default="")
+    snmp_community = Column(EncryptedString(), default="")
     site = Column(String(255), default="", index=True)
     created_at = Column(DateTime, default=_utcnow)
 
-    def to_dict(self, secret: bool = False) -> dict:
-        data = {
+    def to_dict(self) -> dict:
+        return {
             "id": self.id,
             "name": self.name,
             "credential_type": self.credential_type,
@@ -125,9 +154,6 @@ class Credential(Base):
             "site": self.site,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
-        if secret:
-            data["snmp_community"] = self.snmp_community
-        return data
 
 
 class Site(Base):
@@ -145,5 +171,27 @@ class Site(Base):
             "id": self.id,
             "name": self.name,
             "location": self.location,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class User(Base):
+    """App user with an RBAC role: admin | operator | viewer."""
+
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String(64), nullable=False, unique=True, index=True)
+    password_hash = Column(Text, nullable=False)
+    role = Column(String(16), nullable=False, default="viewer")  # admin | operator | viewer
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "username": self.username,
+            "role": self.role,
+            "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

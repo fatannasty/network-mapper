@@ -1,12 +1,11 @@
 """Sprint 2: inventory persistence (Devices, ScanJobs) via the API + repositories."""
 
-from fastapi.testclient import TestClient
+from conftest import make_client
 
 import repositories
 from database import SessionLocal
-from main import app
 
-client = TestClient(app)
+client = make_client("admin")
 
 
 def _run_discovery(site=None):

@@ -8,3 +8,4 @@ __pycache__/
 *.pyc
 backend/.pytest_cache/
 backend/network_mapper.db
+backend/.secret_key

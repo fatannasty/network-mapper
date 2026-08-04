@@ -1,20 +1,18 @@
 """API tests for the FastAPI app (via TestClient)."""
 
-from fastapi.testclient import TestClient
+from conftest import make_client, public_client
 
-from main import app
-
-client = TestClient(app)
+admin = make_client("admin")
 
 
-def test_health():
-    resp = client.get("/health")
+def test_health_is_public():
+    resp = public_client().get("/health")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
 
 
 def test_discover_loopback():
-    resp = client.post("/api/discover", json={
+    resp = admin.post("/api/discover", json={
         "subnet": "127.0.0.1/32",
         "communities": ["public"],
         "exclude_pcs": False,
@@ -28,5 +26,15 @@ def test_discover_loopback():
 
 
 def test_discover_invalid_cidr():
-    resp = client.post("/api/discover", json={"subnet": "bogus"})
+    resp = admin.post("/api/discover", json={"subnet": "bogus"})
     assert resp.status_code == 400
+
+
+def test_discover_requires_auth():
+    resp = public_client().post("/api/discover", json={"subnet": "127.0.0.1/32"})
+    assert resp.status_code == 401
+
+
+def test_inventory_requires_auth():
+    resp = public_client().get("/api/inventory/devices")
+    assert resp.status_code == 401

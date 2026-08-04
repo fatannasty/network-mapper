@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from models import Credential, Device, ScanJob, Site
+from models import Credential, Device, ScanJob, Site, User
+from security import create_token, hash_password, verify_password
 
 
 # ── Devices ───────────────────────────────────────────────────────────────────
@@ -73,8 +74,9 @@ def device_counts(db: Session, column) -> dict:
 # ── Scan jobs ─────────────────────────────────────────────────────────────────
 
 def create_scan_job(db: Session, scan_id: str, subnet: str, communities: list[str],
-                    exclude_pcs: bool) -> ScanJob:
-    job = ScanJob(id=scan_id, subnet=subnet, communities=communities, exclude_pcs=exclude_pcs)
+                    exclude_pcs: bool, snmpv3_username: str = "") -> ScanJob:
+    job = ScanJob(id=scan_id, subnet=subnet, communities=communities, exclude_pcs=exclude_pcs,
+                  snmpv3_username=snmpv3_username)
     db.add(job)
     db.commit()
     db.refresh(job)
@@ -118,6 +120,7 @@ def list_scan_jobs(db: Session, limit: int = 20) -> list[ScanJob]:
 def create_credential(db: Session, name: str, credential_type: str = "snmp",
                       username: str = "", password: str = "", snmp_community: str = "",
                       site: str = "") -> Credential:
+    """Create a credential. password/snmp_community are encrypted at rest."""
     cred = Credential(name=name, credential_type=credential_type, username=username,
                       password=password, snmp_community=snmp_community, site=site)
     db.add(cred)
@@ -128,6 +131,75 @@ def create_credential(db: Session, name: str, credential_type: str = "snmp",
 
 def list_credentials(db: Session) -> list[Credential]:
     return db.query(Credential).order_by(Credential.name).all()
+
+
+def delete_credential(db: Session, credential_id: int) -> bool:
+    cred = db.get(Credential, credential_id)
+    if cred is None:
+        return False
+    db.delete(cred)
+    db.commit()
+    return True
+
+
+# ── Users ─────────────────────────────────────────────────────────────────────
+
+def create_user(db: Session, username: str, password: str, role: str = "viewer") -> User:
+    """Create an app user with a scrypt-hashed password."""
+    from sqlalchemy.exc import IntegrityError
+
+    user = User(username=username, password_hash=hash_password(password), role=role)
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise ValueError(f"username '{username}' already exists") from None
+    db.refresh(user)
+    return user
+
+
+def list_users(db: Session) -> list[User]:
+    return db.query(User).order_by(User.username).all()
+
+
+def get_user(db: Session, user_id: int) -> User | None:
+    return db.get(User, user_id)
+
+
+def delete_user(db: Session, user_id: int) -> bool:
+    user = db.get(User, user_id)
+    if user is None:
+        return False
+    db.delete(user)
+    db.commit()
+    return True
+
+
+def authenticate(db: Session, username: str, password: str) -> User | None:
+    """Verify credentials and return the user, or None."""
+    user = db.query(User).filter(User.username == username).first()
+    if user is None or not user.is_active:
+        return None
+    if not verify_password(password, user.password_hash):
+        return None
+    return user
+
+
+def issue_token(db: Session, username: str, password: str) -> dict | None:
+    """Authenticate and return {token, role, username} or None on failure."""
+    user = authenticate(db, username, password)
+    if user is None:
+        return None
+    token = create_token(user.id, user.username, user.role)
+    return {"token": token, "token_type": "bearer", "username": user.username, "role": user.role}
+
+
+def get_user_by_token(token: str) -> dict | None:
+    """Return the token payload if valid (no DB round-trip needed)."""
+    from security import verify_token
+
+    return verify_token(token)
 
 
 def create_site(db: Session, name: str, location: str = "") -> Site:

@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from classifier import NETWORK_DEVICE_TYPES, DEVICE_TYPE_ORDER, classify
 from snmp import SNMP_PORT, snmp_poll
+from snmpv3 import AUTH_MD5, AUTH_NONE, AUTH_SHA, PRIV_AES, PRIV_DES, PRIV_NONE, snmpv3_get
 
 TCP_PORTS = [22, 23, 80, 443, 3389, 8080, 8443]
 PORT_SCAN_TIMEOUT = 0.8
@@ -90,15 +91,49 @@ def udp_port_open(ip: str, port: int = SNMP_PORT, timeout: float = SNMP_PROBE_TI
 
 # ── Identification ───────────────────────────────────────────────────────────
 
-def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT) -> dict:
-    """Port-scan one host, optionally SNMP-poll it, and classify."""
+def snmpv3_poll(host: str, params: dict, snmp_port: int = SNMP_PORT,
+                timeout: float = 2.0) -> dict | None:
+    """SNMPv3 poll using the given USM params dict."""
+    auth_protocol = (params.get("auth_protocol") or AUTH_SHA).lower()
+    privacy_protocol = (params.get("privacy_protocol") or PRIV_NONE).lower()
+    if auth_protocol not in (AUTH_MD5, AUTH_SHA, AUTH_NONE):
+        raise ValueError(f"unsupported auth_protocol: {auth_protocol}")
+    if privacy_protocol not in (PRIV_AES, PRIV_DES, PRIV_NONE):
+        raise ValueError(f"unsupported privacy_protocol: {privacy_protocol}")
+    if auth_protocol != AUTH_NONE and not params.get("auth_password"):
+        raise ValueError("auth_password is required for SNMPv3 auth")
+    if privacy_protocol != PRIV_NONE and not params.get("privacy_password") and not params.get("auth_password"):
+        raise ValueError("privacy_password is required for SNMPv3 privacy")
+
+    result = snmpv3_get(
+        host,
+        username=params["username"],
+        auth_protocol=auth_protocol,
+        auth_password=params.get("auth_password", ""),
+        privacy_protocol=privacy_protocol,
+        privacy_password=params.get("privacy_password") or params.get("auth_password", ""),
+        timeout=timeout,
+        port=snmp_port,
+    )
+    if result is None:
+        return None
+    result["community"] = ""
+    return result
+
+
+def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT,
+                  snmpv3: dict | None = None) -> dict:
+    """Port-scan one host, optionally SNMP-poll it (v2c or v3), and classify."""
     tcp_ports = [p for p in TCP_PORTS if tcp_port_open(ip, p)]
     snmp_open = udp_port_open(ip, snmp_port)
     open_ports = sorted(tcp_ports + ([snmp_port] if snmp_open else []))
 
     snmp_data = None
     if snmp_open:
-        snmp_data = snmp_poll(ip, communities, port=snmp_port)
+        if snmpv3:
+            snmp_data = snmpv3_poll(ip, snmpv3, snmp_port=snmp_port)
+        else:
+            snmp_data = snmp_poll(ip, communities, port=snmp_port)
 
     hostname = snmp_data.get("sysName", "") if snmp_data else ""
     cls = classify(snmp_data, hostname=hostname)
@@ -119,7 +154,8 @@ def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT) -
 # ── Orchestration ────────────────────────────────────────────────────────────
 
 def discover(cidr: str, communities: list[str] | None = None, exclude_pcs: bool = True,
-             progress_cb=None, snmp_port: int = SNMP_PORT) -> dict:
+             progress_cb=None, snmp_port: int = SNMP_PORT,
+             snmpv3: dict | None = None) -> dict:
     """Scan a subnet and return identified devices plus summary stats."""
     communities = communities or ["public"]
     hosts = hosts_from_cidr(cidr)
@@ -142,7 +178,7 @@ def discover(cidr: str, communities: list[str] | None = None, exclude_pcs: bool 
 
     devices: list[dict] = []
     with ThreadPoolExecutor(max_workers=32) as pool:
-        futures = {pool.submit(identify_host, ip, communities, snmp_port): ip for ip in alive}
+        futures = {pool.submit(identify_host, ip, communities, snmp_port, snmpv3): ip for ip in alive}
         for future in as_completed(futures):
             try:
                 devices.append(future.result())
