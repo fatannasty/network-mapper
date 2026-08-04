@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -8,16 +8,17 @@ import {
   useEdgesState,
   type Node,
   type Edge,
-  type ReactFlowInstance,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useSearchParams } from 'react-router-dom'
 
 import DeviceNode from './DeviceNode'
 import DeviceDetail from './DeviceDetail'
-import { getTopology, getDevices, type TopologyData, type Device } from '../api'
+import { getTopology, getDevices, type TopologyData, type Device, type TopoLink } from '../api'
 
 const nodeTypes = { device: DeviceNode }
+
+type ProtocolFilter = 'all' | 'lldp' | 'cdp'
 
 function layoutNodes(nodes: { id: string }[], links: { source: string; target: string }[]) {
   const adjacency = new Map<string, string[]>()
@@ -60,7 +61,13 @@ export default function TopologyViewer() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
-  const reactFlowKey = useRef(0)
+  const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all')
+
+  const deviceByIp = useMemo(() => {
+    const map = new Map<string, Device>()
+    for (const d of devices) map.set(d.ip, d)
+    return map
+  }, [devices])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -72,7 +79,6 @@ export default function TopologyViewer() {
       ])
       setTopology(topo)
       setDevices(devResp.devices || [])
-      reactFlowKey.current++
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load topology')
     } finally {
@@ -82,13 +88,20 @@ export default function TopologyViewer() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  const filteredLinks: TopoLink[] = useMemo(() => {
+    const all = topology?.links || []
+    if (protocolFilter === 'all') return all
+    return all.filter((l) => l.protocol === protocolFilter)
+  }, [topology, protocolFilter])
+
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!topology) return { initialNodes: [], initialEdges: [] }
 
-    const positions = layoutNodes(topology.nodes, topology.links)
+    const positions = layoutNodes(topology.nodes, filteredLinks)
 
     const rn: Node[] = topology.nodes.map((n) => {
       const pos = positions.get(n.id) || { x: 0, y: 0 }
+      const dev = deviceByIp.get(n.id)
       return {
         id: n.id,
         type: 'device',
@@ -96,15 +109,15 @@ export default function TopologyViewer() {
         data: {
           id: n.id,
           ip: n.ip,
-          hostname: n.hostname,
-          vendor: n.vendor,
-          model: n.model,
-          device_type: n.device_type,
+          hostname: n.hostname || dev?.hostname || '',
+          vendor: n.vendor || dev?.vendor || '',
+          model: n.model || dev?.model || '',
+          device_type: n.device_type || dev?.device_type || '',
         },
       }
     })
 
-    const re: Edge[] = topology.links.map((l, i) => {
+    const re: Edge[] = filteredLinks.map((l, i) => {
       const srcIface = l.source_interface || ''
       const tgtIface = l.target_interface || ''
       const ifaceLabel = srcIface && tgtIface
@@ -130,7 +143,7 @@ export default function TopologyViewer() {
     })
 
     return { initialNodes: rn, initialEdges: re }
-  }, [topology])
+  }, [topology, filteredLinks, deviceByIp])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -140,23 +153,15 @@ export default function TopologyViewer() {
     setEdges(initialEdges)
   }, [initialNodes, initialEdges, setNodes, setEdges])
 
-  const flowRef = useRef<ReactFlowInstance | null>(null)
-
-  useEffect(() => {
-    if (initialNodes.length > 0 && flowRef.current) {
-      setTimeout(() => flowRef.current?.fitView({ duration: 300, padding: 0.3 }), 50)
-    }
-  }, [initialNodes, reactFlowKey.current])
-
   const selectedDeviceData = useMemo(() => {
     if (!selectedDevice) return null
-    const device = devices.find((d) => d.ip === selectedDevice)
+    const device = deviceByIp.get(selectedDevice)
     if (!device) return null
-    const connectedLinks = (topology?.links || []).filter(
+    const connectedLinks = filteredLinks.filter(
       (l) => l.source === selectedDevice || l.target === selectedDevice,
     )
     return { device, connectedLinks }
-  }, [selectedDevice, devices, topology])
+  }, [selectedDevice, deviceByIp, filteredLinks])
 
   if (loading) {
     return (
@@ -194,49 +199,92 @@ export default function TopologyViewer() {
     )
   }
 
+  const linkCounts = { lldp: 0, cdp: 0 }
+  for (const l of topology.links) {
+    if (l.protocol === 'lldp') linkCounts.lldp++
+    else if (l.protocol === 'cdp') linkCounts.cdp++
+  }
+
   return (
-    <div className="h-full flex">
-      <div className="flex-1">
-        <ReactFlow
-          key={reactFlowKey.current}
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onInit={(instance) => { flowRef.current = instance }}
-          nodeTypes={nodeTypes}
-          onNodeClick={(_e, node) => setSelectedDevice(node.id)}
-          fitView
-          fitViewOptions={{ padding: 0.3 }}
-          attributionPosition="bottom-left"
-        >
-          <Background color="#374151" gap={20} />
-          <Controls className="!bg-gray-900 !border-gray-700 !fill-gray-400" />
-          <MiniMap
-            nodeColor={(n) => {
-              const type = (n.data?.device_type as string) || 'unknown'
-              const colors: Record<string, string> = {
-                switch: '#3b82f6',
-                router: '#f59e0b',
-                firewall: '#ef4444',
-                'core-switch': '#a855f7',
-                'sd-wan': '#22c55e',
-                unknown: '#6b7280',
-              }
-              return colors[type] || '#6b7280'
-            }}
-            className="!bg-gray-900 !border-gray-700"
-          />
-        </ReactFlow>
+    <div className="h-full flex flex-col">
+      <div className="flex items-center gap-3 px-4 py-2 bg-gray-900 border-b border-gray-800 shrink-0 text-sm">
+        <span className="text-gray-500">
+          {topology.nodes.length} devices
+          {topology.links.length > 0 && (
+            <span className="ml-2">
+              &middot; {topology.links.length} links
+              {linkCounts.lldp > 0 && (
+                <span className="text-blue-400 ml-1">{linkCounts.lldp} LLDP</span>
+              )}
+              {linkCounts.cdp > 0 && (
+                <span className="text-amber-400 ml-1">{linkCounts.cdp} CDP</span>
+              )}
+            </span>
+          )}
+        </span>
+
+        <div className="flex-1" />
+
+        {topology.links.length > 0 && (
+          <select
+            value={protocolFilter}
+            onChange={(e) => setProtocolFilter(e.target.value as ProtocolFilter)}
+            className="px-3 py-1 bg-gray-800 border border-gray-700 rounded text-gray-300 text-xs focus:outline-none focus:border-blue-500"
+          >
+            <option value="all">All Links</option>
+            <option value="lldp">LLDP Only</option>
+            <option value="cdp">CDP Only</option>
+          </select>
+        )}
+
+        {topology.links.length === 0 && (
+          <span className="text-gray-600 text-xs">
+            No auto-discovered links — run SNMP discovery on switches with LLDP/CDP enabled
+          </span>
+        )}
       </div>
 
-      {selectedDeviceData && (
-        <DeviceDetail
-          device={selectedDeviceData.device}
-          connectedLinks={selectedDeviceData.connectedLinks}
-          onClose={() => setSelectedDevice(null)}
-        />
-      )}
+      <div className="flex-1 flex">
+        <div className="flex-1">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            nodeTypes={nodeTypes}
+            onNodeClick={(_e, node) => setSelectedDevice(node.id)}
+            fitView
+            fitViewOptions={{ padding: 0.3 }}
+            attributionPosition="bottom-left"
+          >
+            <Background color="#374151" gap={20} />
+            <Controls className="!bg-gray-900 !border-gray-700 !fill-gray-400" />
+            <MiniMap
+              nodeColor={(n) => {
+                const type = (n.data?.device_type as string) || 'unknown'
+                const colors: Record<string, string> = {
+                  switch: '#3b82f6',
+                  router: '#f59e0b',
+                  firewall: '#ef4444',
+                  'core-switch': '#a855f7',
+                  'sd-wan': '#22c55e',
+                  unknown: '#6b7280',
+                }
+                return colors[type] || '#6b7280'
+              }}
+              className="!bg-gray-900 !border-gray-700"
+            />
+          </ReactFlow>
+        </div>
+
+        {selectedDeviceData && (
+          <DeviceDetail
+            device={selectedDeviceData.device}
+            connectedLinks={selectedDeviceData.connectedLinks}
+            onClose={() => setSelectedDevice(null)}
+          />
+        )}
+      </div>
     </div>
   )
 }
