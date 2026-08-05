@@ -205,13 +205,26 @@ def import_devices(base_url: str, username: str, password: str,
         errors.append(f"Topology fetch failed: {e}")
         raw_topology: list[dict] = []
 
+    # Show sample site names for reference
+    if raw_devices:
+        samples = set()
+        for d in raw_devices[:100]:
+            s = d.get("siteName", "") or d.get("siteHierarchy", "") or ""
+            if s:
+                samples.add(s)
+        if samples:
+            debug_sample["available_sites_sample"] = sorted(samples)[:20]
+
     if site_name and raw_devices:
         before = len(raw_devices)
-        site_lower = site_name.lower()
+        terms = [t.strip().lower() for t in site_name.split(",") if t.strip()]
         raw_devices = [
             d for d in raw_devices
-            if site_lower in (d.get("siteName", "") or "").lower()
-            or site_lower in (d.get("siteHierarchy", "") or "").lower()
+            if any(
+                term in (d.get("siteName", "") or "").lower()
+                or term in (d.get("siteHierarchy", "") or "").lower()
+                for term in terms
+            )
         ]
         errors.append(f"Site filter '{site_name}': matched {len(raw_devices)} of {before} devices")
 

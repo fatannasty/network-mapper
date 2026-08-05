@@ -70,9 +70,9 @@ export default function CatalystForm() {
               value={siteName}
               onChange={(e) => setSiteName(e.target.value)}
               className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
-              placeholder="e.g. Miami, Florida"
+              placeholder="e.g. Miami or Florida"
             />
-            <p className="text-gray-600 text-[11px] mt-0.5">Leave empty to import all devices</p>
+            <p className="text-gray-600 text-[11px] mt-0.5">Separate multiple with commas. Leave empty to import all.</p>
           </div>
 
           <div className="flex gap-3">
