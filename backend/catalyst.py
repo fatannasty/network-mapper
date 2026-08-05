@@ -39,34 +39,81 @@ def _request(url: str, token: str, method: str = "GET",
 
 def authenticate(base_url: str, username: str, password: str,
                  timeout: float = 30.0) -> str:
-    """Authenticate with Catalyst Center and return a token."""
+    """Authenticate with Catalyst Center and return a token.
+
+    Tries both the classic DNAC API path and the newer Catalyst 2.3.5+ path.
+    """
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
 
     auth = base64.b64encode(f"{username}:{password}".encode()).decode()
-    url = f"{base_url.rstrip('/')}/dna/system/api/v1/auth/token"
-    req = urllib.request.Request(url)
-    req.add_header("Authorization", f"Basic {auth}")
+    base = base_url.rstrip("/")
 
-    try:
-        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-            data = json.loads(resp.read().decode())
-            token = data.get("Token", "")
-            if not token:
-                raise CatalystError("No token in response")
-            return token
-    except urllib.error.HTTPError as e:
-        msg = e.read().decode()[:500] if e.fp else str(e)
-        raise CatalystError(f"Auth failed (HTTP {e.code}): {msg}") from e
-    except OSError as e:
-        raise CatalystError(f"Connection failed: {e}") from e
+    # Strip any path suffix the user might have included
+    for suffix in ("/dna", "/api", "/dna/intent/api", "/dna/system/api"):
+        if base.endswith(suffix):
+            base = base[: -len(suffix)]
+            break
+
+    auth_paths = [
+        f"{base}/dna/system/api/v1/auth/token",
+        f"{base}/api/system/v1/auth/token",
+    ]
+
+    last_error = ""
+    for url in auth_paths:
+        req = urllib.request.Request(url)
+        req.add_header("Authorization", f"Basic {auth}")
+
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+                data = json.loads(resp.read().decode())
+                token = data.get("Token", "")
+                if not token:
+                    raise CatalystError("No token in response")
+                return token
+        except urllib.error.HTTPError as e:
+            msg = e.read().decode()[:300] if e.fp else str(e)
+            last_error = f"HTTP {e.code} from {url}: {msg}"
+        except OSError as e:
+            last_error = f"Connection to {url} failed: {e}"
+
+    raise CatalystError(
+        f"Authentication failed. Tried {len(auth_paths)} endpoints.\n"
+        f"Verify the URL, username, and password.\n"
+        f"Last error: {last_error}"
+    )
+
+
+def _resolve_base(base_url: str) -> str:
+    """Strip extra path segments from the base URL."""
+    base = base_url.rstrip("/")
+    for suffix in ("/dna", "/api", "/dna/intent/api", "/dna/system/api", "/dna/intent/api/v1"):
+        if base.endswith(suffix):
+            return base[: -len(suffix)]
+    return base
+
+
+def test_connection(base_url: str, username: str, password: str,
+                    timeout: float = 15.0) -> dict:
+    """Test connectivity and return device count without importing."""
+    token = authenticate(base_url, username, password, timeout=timeout)
+    base = _resolve_base(base_url)
+    devices = get_devices(base, token, limit=1, timeout=timeout)
+    all_devices = get_devices(base, token, limit=500, timeout=timeout)
+    return {
+        "connected": True,
+        "device_count": len(all_devices),
+        "sample": devices[0] if devices else None,
+    }
 
 
 def get_devices(base_url: str, token: str, limit: int = 1000,
                 timeout: float = 60.0) -> list[dict]:
     """Fetch all network devices from Catalyst Center."""
-    url = f"{base_url.rstrip('/')}/dna/intent/api/v1/network-device"
+    base = _resolve_base(base_url)
+    url = f"{base}/dna/intent/api/v1/network-device"
     params = f"?limit={limit}&offset=1"
     data = _request(f"{url}{params}", token, timeout=timeout)
     devices = data.get("response", [])
@@ -76,7 +123,8 @@ def get_devices(base_url: str, token: str, limit: int = 1000,
 def get_physical_topology(base_url: str, token: str,
                           timeout: float = 60.0) -> list[dict]:
     """Fetch physical topology links from Catalyst Center."""
-    url = f"{base_url.rstrip('/')}/dna/intent/api/v1/topology/physical-topology"
+    base = _resolve_base(base_url)
+    url = f"{base}/dna/intent/api/v1/topology/physical-topology"
     data = _request(url, token, timeout=timeout)
     return data.get("response", {}).get("links", [])
 
@@ -84,7 +132,8 @@ def get_physical_topology(base_url: str, token: str,
 def get_device_detail(base_url: str, token: str, device_id: str,
                       timeout: float = 30.0) -> dict:
     """Fetch detailed info for a single device."""
-    url = f"{base_url.rstrip('/')}/dna/intent/api/v1/network-device/{device_id}"
+    base = _resolve_base(base_url)
+    url = f"{base}/dna/intent/api/v1/network-device/{device_id}"
     data = _request(url, token, timeout=timeout)
     return data.get("response", {})
 
@@ -92,7 +141,8 @@ def get_device_detail(base_url: str, token: str, device_id: str,
 def get_device_interfaces(base_url: str, token: str, device_id: str,
                           timeout: float = 30.0) -> list[dict]:
     """Fetch interfaces for a device."""
-    url = f"{base_url.rstrip('/')}/dna/intent/api/v1/interface"
+    base = _resolve_base(base_url)
+    url = f"{base}/dna/intent/api/v1/interface"
     params = f"?deviceId={device_id}"
     data = _request(f"{url}{params}", token, timeout=timeout)
     return data.get("response", [])

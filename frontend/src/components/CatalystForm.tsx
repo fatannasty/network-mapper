@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { importFromCatalyst } from '../api'
+import { importFromCatalyst, testCatalyst } from '../api'
 
 export default function CatalystForm() {
   const [baseUrl, setBaseUrl] = useState('https://')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<string | null>(null)
   const [result, setResult] = useState<{ scan_id: string; device_count: number; links_found: number } | null>(null)
   const [error, setError] = useState('')
   const navigate = useNavigate()
@@ -61,13 +63,40 @@ export default function CatalystForm() {
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2 rounded font-medium transition-colors"
-          >
-            {loading ? 'Importing...' : 'Import from Catalyst Center'}
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              disabled={testing}
+              onClick={async () => {
+                setTesting(true)
+                setTestResult(null)
+                try {
+                  const r = await testCatalyst(baseUrl, username, password)
+                  setTestResult(`Connected! Found ${r.device_count} devices.`)
+                } catch (err: unknown) {
+                  setTestResult(err instanceof Error ? err.message : 'Connection failed')
+                } finally {
+                  setTesting(false)
+                }
+              }}
+              className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white rounded text-sm transition-colors"
+            >
+              {testing ? 'Testing...' : 'Test Connection'}
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2 rounded font-medium transition-colors"
+            >
+              {loading ? 'Importing...' : 'Import'}
+            </button>
+          </div>
+
+          {testResult && (
+            <div className={`rounded p-3 text-xs ${testResult.startsWith('Connected') ? 'bg-green-900/50 border border-green-800 text-green-300' : 'bg-red-900/50 border border-red-800 text-red-300'}`}>
+              {testResult}
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-900/50 border border-red-800 rounded p-4">

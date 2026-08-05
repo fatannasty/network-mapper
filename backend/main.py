@@ -394,6 +394,18 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
             "links_found": len(links)}
 
 
+@app.post("/api/catalyst/test", dependencies=[Depends(operator)])
+def catalyst_test(req: CatalystImportRequest):
+    import catalyst
+
+    try:
+        result = catalyst.test_connection(req.base_url, req.username, req.password)
+    except catalyst.CatalystError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return result
+
+
 if __name__ == "__main__":
     import uvicorn
 

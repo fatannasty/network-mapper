@@ -142,6 +142,11 @@ export async function getCredentials() {
   return r.data as { count: number; credentials: Credential[] }
 }
 
+export async function testCatalyst(baseUrl: string, username: string, password: string) {
+  const r = await api.post('/api/catalyst/test', { base_url: baseUrl, username, password })
+  return r.data as { connected: boolean; device_count: number; sample: Record<string, unknown> | null }
+}
+
 export async function importFromCatalyst(baseUrl: string, username: string, password: string) {
   const r = await api.post('/api/catalyst/import', { base_url: baseUrl, username, password })
   return r.data as { scan_id: string; device_count: number; links_found: number }
