@@ -181,7 +181,7 @@ export default function CatalystForm() {
               value={deviceFilter}
               onChange={(e) => setDeviceFilter(e.target.value)}
               className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
-              placeholder="e.g. velocloud, 610, or 10.10.1.20"
+              placeholder="e.g. AMT-, 610, or 10.10.1.20"
             />
             <p className="text-gray-600 text-[11px] mt-0.5">
               Imports only matching devices plus all links touching them.
