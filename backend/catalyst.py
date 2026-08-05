@@ -519,18 +519,30 @@ def import_devices(base_url: str, username: str, password: str,
 
     # Site membership filter (preferred — works even when devices have no site fields)
     membership_applied = False
-    if site_id and raw_devices:
-        related_ids = [site_id]
+    site_filter_requested = bool(site_id or site_name)
+    if site_filter_requested and raw_devices:
+        # Resolve the site to UUIDs. site_id may be empty for state-only picks,
+        # so match the readable path (site_name) against the site tree first.
+        related_ids = set()
+        if site_id:
+            related_ids.add(site_id)
         try:
             site_result = get_sites(base_url, token, timeout=timeout)
+            if site_name:
+                terms = [t.strip().lower() for t in site_name.replace(">", "/").replace(",", "/").split("/") if t.strip()]
+                for s in site_result["sites"]:
+                    hay = ((s.get("hierarchy") or "") + "/" + (s.get("name") or "")).lower()
+                    if all(t in hay for t in terms):
+                        related_ids.add(s["site_id"])
             for s in site_result["sites"]:
-                if s["site_id"] != site_id and site_id in (s.get("hierarchy_ids") or ""):
-                    related_ids.append(s["site_id"])
+                for rid in list(related_ids):
+                    if s["site_id"] != rid and rid in (s.get("hierarchy_ids") or ""):
+                        related_ids.add(s["site_id"])
         except Exception as e:
-            errors.append(f"Child-site lookup skipped: {e}")
+            errors.append(f"Site/child lookup skipped: {e}")
 
         member_ids: set[str] = set()
-        for sid in related_ids[:30]:
+        for sid in list(related_ids)[:30]:
             member_ids.update(get_site_members(base_url, token, sid, timeout=timeout))
 
         if member_ids:
@@ -540,14 +552,16 @@ def import_devices(base_url: str, username: str, password: str,
                 if str(d.get("id") or d.get("instanceUuid") or "") in member_ids
             ]
             errors.append(
-                f"Site membership ({len(related_ids)} sites, {len(member_ids)} members): "
+                f"Site filter ({len(related_ids)} site(s), {len(member_ids)} members): "
                 f"matched {len(raw_devices)} of {before} devices")
             membership_applied = True
         else:
-            errors.append(f"Site membership lookup for {len(related_ids)} sites returned no devices; "
-                          f"falling back to name filter")
+            errors.append(f"Site filter resolved to {len(related_ids)} site(s) but membership "
+                          f"returned no devices; no devices will be imported")
+            if not site_name:
+                raw_devices = []
 
-    # Apply site name filter (fallback)
+    # Apply site name filter (fallback for environments where membership is unavailable)
     if site_name and raw_devices and not membership_applied:
         terms = [t.strip().lower() for t in site_name.replace("/", ",").split(",") if t.strip()]
         raw_devices = [
