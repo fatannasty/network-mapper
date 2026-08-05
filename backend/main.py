@@ -370,7 +370,7 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
     import catalyst
 
     try:
-        devices, links = catalyst.import_devices(
+        devices, links, debug = catalyst.import_devices(
             req.base_url, req.username, req.password)
     except catalyst.CatalystError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -391,7 +391,7 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
     })
 
     return {"scan_id": scan_id, "device_count": len(devices),
-            "links_found": len(links)}
+            "links_found": len(links), "debug": debug}
 
 
 @app.post("/api/catalyst/test", dependencies=[Depends(operator)])

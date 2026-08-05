@@ -172,8 +172,8 @@ def get_device_interfaces(base_url: str, token: str, device_id: str,
 
 
 def import_devices(base_url: str, username: str, password: str,
-                   timeout: float = 120.0) -> tuple[list[dict], list[dict]]:
-    """Authenticate, fetch devices and topology, return (devices, links).
+                   timeout: float = 120.0) -> tuple[list[dict], list[dict], dict]:
+    """Authenticate, fetch devices and topology, return (devices, links, debug).
 
     Devices are normalized to our standard dict format:
         {ip, hostname, vendor, model, device_type, interfaces, ...}
@@ -195,15 +195,34 @@ def import_devices(base_url: str, username: str, password: str,
         errors.append(f"Topology fetch failed: {e}")
         raw_topology: list[dict] = []
 
+    # Debug: dump first device keys and sample IP fields
+    debug_sample = {}
+    if raw_devices:
+        d0 = raw_devices[0]
+        debug_sample = {
+            "keys": sorted(d0.keys()),
+            "managementIpAddress": d0.get("managementIpAddress"),
+            "ipAddress": d0.get("ipAddress"),
+            "hostname": d0.get("hostname"),
+            "type": d0.get("type"),
+            "family": d0.get("family"),
+            "reachabilityStatus": d0.get("reachabilityStatus"),
+            "platformId": d0.get("platformId"),
+            "softwareType": d0.get("softwareType"),
+        }
+
     # Map device IDs to IPs for topology link resolution
     device_by_id: dict[str, dict] = {}
     for d in raw_devices:
-        device_by_id[d["id"]] = d
+        device_by_id[str(d.get("id", d.get("instanceId", d.get("instanceUuid", ""))))] = d
 
     devices: list[dict] = []
+    skipped_no_ip = 0
     for d in raw_devices:
-        ip = d.get("managementIpAddress", "") or d.get("ipAddress", "")
+        ip = (d.get("managementIpAddress") or d.get("ipAddress")
+              or d.get("deviceIp") or d.get("networkDeviceIpAddress") or "")
         if not ip:
+            skipped_no_ip += 1
             continue
 
         hostname = d.get("hostname", "") or d.get("dnsName", "")
@@ -243,8 +262,10 @@ def import_devices(base_url: str, username: str, password: str,
             continue
         src_dev = device_by_id.get(src, {})
         tgt_dev = device_by_id.get(tgt, {})
-        src_ip = src_dev.get("managementIpAddress", "") or src_dev.get("ipAddress", "")
-        tgt_ip = tgt_dev.get("managementIpAddress", "") or tgt_dev.get("ipAddress", "")
+        src_ip = (src_dev.get("managementIpAddress") or src_dev.get("ipAddress")
+                  or src_dev.get("deviceIp") or "")
+        tgt_ip = (tgt_dev.get("managementIpAddress") or tgt_dev.get("ipAddress")
+                  or tgt_dev.get("deviceIp") or "")
         if not src_ip or not tgt_ip:
             continue
 
@@ -258,4 +279,10 @@ def import_devices(base_url: str, username: str, password: str,
             "target_hostname": tgt_dev.get("hostname", ""),
         })
 
-    return devices, links
+    debug = {
+        "debug_sample": debug_sample,
+        "skipped_no_ip": skipped_no_ip,
+        "raw_devices": len(raw_devices),
+        "raw_topology": len(raw_topology),
+    }
+    return devices, links, debug    return devices, links
