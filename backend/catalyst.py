@@ -278,6 +278,62 @@ def get_site_members(base_url: str, token: str, site_id: str,
     return ids
 
 
+def debug_site_membership(base_url: str, username: str, password: str,
+                          site_id: str, timeout: float = 30.0) -> dict:
+    """Dump raw responses from the membership APIs for a site (debugging)."""
+    token = authenticate(base_url, username, password, timeout=timeout)
+    base = _resolve_base(base_url)
+    urls = [
+        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500",
+        f"{base}/dna/intent/api/v1/site-member/{site_id}/member?memberType=networkdevice&limit=500",
+    ]
+
+    results = []
+    for url in urls:
+        entry: dict = {"url": url, "error": None, "status": None, "raw": None}
+        try:
+            data = _request(url, token, timeout=timeout)
+            entry["status"] = "ok"
+            # Truncate deeply to keep the response readable
+            entry["raw"] = _truncate_json(data, depth=3, max_items=20)
+        except Exception as e:
+            entry["status"] = "error"
+            entry["error"] = str(e)
+        results.append(entry)
+
+    parsed = None
+    try:
+        parsed = {
+            "ids": sorted(get_site_members(base_url, token, site_id, timeout=timeout)),
+        }
+    except Exception as e:
+        parsed = {"ids": [], "error": str(e)}
+
+    return {"site_id": site_id, "endpoints": results, "parsed": parsed}
+
+
+def _truncate_json(obj, depth: int = 0, max_items: int = 20):
+    """Deeply truncate a JSON structure to keep it readable for debug output."""
+    if depth > 3:
+        return "..."
+    if isinstance(obj, dict):
+        out = {}
+        for i, (k, v) in enumerate(obj.items()):
+            if i >= max_items:
+                out["..."] = f"{len(obj) - max_items} more keys"
+                break
+            out[k] = _truncate_json(v, depth + 1, max_items)
+        return out
+    if isinstance(obj, list):
+        out = [_truncate_json(v, depth + 1, max_items) for v in obj[:max_items]]
+        if len(obj) > max_items:
+            out.append(f"... {len(obj) - max_items} more")
+        return out
+    if isinstance(obj, str) and len(obj) > 200:
+        return obj[:200] + "..."
+    return obj
+
+
 def import_devices(base_url: str, username: str, password: str,
                    timeout: float = 120.0, site_name: str = "",
                    site_id: str = "") -> tuple[list[dict], list[dict], dict]:

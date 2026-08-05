@@ -415,6 +415,25 @@ def catalyst_sites(req: CatalystImportRequest):
         raise HTTPException(status_code=500, detail=f"Error: {e}\n\n{traceback.format_exc()}")
 
 
+@app.post("/api/catalyst/site-members-debug", dependencies=[Depends(operator)])
+def catalyst_site_members_debug(req: CatalystImportRequest):
+    import catalyst
+    import traceback
+
+    if not req.site_id:
+        raise HTTPException(status_code=400, detail="site_id is required")
+
+    try:
+        result = catalyst.debug_site_membership(
+            req.base_url, req.username, req.password, req.site_id)
+    except catalyst.CatalystError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {e}\n\n{traceback.format_exc()}")
+
+    return result
+
+
 @app.post("/api/catalyst/test", dependencies=[Depends(operator)])
 def catalyst_test(req: CatalystImportRequest):
     import catalyst

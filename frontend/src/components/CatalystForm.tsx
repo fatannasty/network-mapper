@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { importFromCatalyst, testCatalyst, fetchSites, type SiteInfo } from '../api'
+import { importFromCatalyst, testCatalyst, fetchSites, debugSiteMembership, type SiteInfo } from '../api'
 
 export default function CatalystForm() {
   const [baseUrl, setBaseUrl] = useState('https://')
@@ -8,6 +8,8 @@ export default function CatalystForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [debuggingMembership, setDebuggingMembership] = useState(false)
+  const [membershipDebug, setMembershipDebug] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<string | null>(null)
   const [result, setResult] = useState<{ scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> } | null>(null)
   const [error, setError] = useState('')
@@ -34,6 +36,22 @@ export default function CatalystForm() {
 
   const selectedSiteName = sites.find((s) => s.site_id === selectedSite)?.name || ''
   const siteFilter = selectedSiteName || siteText
+
+  const handleDebugMembership = async () => {
+    if (!selectedSite) return
+    setDebuggingMembership(true)
+    setMembershipDebug(null)
+    setError('')
+    try {
+      const data = await debugSiteMembership(baseUrl, username, password, selectedSite)
+      setMembershipDebug(JSON.stringify(data, null, 2))
+    } catch (err: unknown) {
+      setMembershipDebug(null)
+      setError(err instanceof Error ? err.message : 'Debug failed')
+    } finally {
+      setDebuggingMembership(false)
+    }
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -127,6 +145,22 @@ export default function CatalystForm() {
                 : `Click "Load Sites" to fetch from Catalyst Center, or type a hostname pattern.`}
             </p>
           </div>
+
+          {selectedSite && (
+            <button
+              type="button"
+              disabled={debuggingMembership}
+              onClick={handleDebugMembership}
+              className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 border border-gray-700 rounded text-sm transition-colors"
+            >
+              {debuggingMembership ? 'Querying membership API...' : 'Debug Site Membership'}
+            </button>
+          )}
+          {membershipDebug && (
+            <pre className="bg-gray-950 border border-gray-800 rounded p-3 text-[11px] text-gray-300 overflow-auto max-h-96 whitespace-pre-wrap">
+              {membershipDebug}
+            </pre>
+          )}
 
           <div className="flex gap-3">
             <button

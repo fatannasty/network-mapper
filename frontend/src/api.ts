@@ -166,6 +166,13 @@ export async function importFromCatalyst(baseUrl: string, username: string, pass
   return r.data as { scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> }
 }
 
+export async function debugSiteMembership(baseUrl: string, username: string, password: string, siteId: string) {
+  const r = await api.post('/api/catalyst/site-members-debug', {
+    base_url: baseUrl, username, password, site_id: siteId,
+  })
+  return r.data as { site_id: string; endpoints: { url: string; status: string; error?: string; raw: unknown }[]; parsed: { ids: string[] } }
+}
+
 export async function getTopology(scanId?: string) {
   const r = await api.get('/api/topology', {
     params: scanId ? { scan_id: scanId } : {},
