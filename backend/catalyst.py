@@ -298,49 +298,27 @@ def import_devices(base_url: str, username: str, password: str,
         errors.append(f"Physical topology failed: {e}")
         raw_topology: list[dict] = []
 
-    # Also try layer-2 topology (includes AP-to-switch links)
-    l2_links: list[dict] = []
+    # Also try site-topology (broader than physical, includes more links)
+    site_links: list[dict] = []
     try:
         base = _resolve_base(base_url)
-        url2 = f"{base}/dna/intent/api/v1/topology/l2-topology"
-        l2_data = _request(url2, token, timeout=timeout)
-        l2_resp = l2_data.get("response", [])
-        if isinstance(l2_resp, dict):
-            l2_links = l2_resp.get("links", l2_resp.get("networkElements", []))
-        elif isinstance(l2_resp, list):
-            l2_links = l2_resp
-        errors.append(f"Layer-2 topology: {len(l2_links)} links")
+        st_url = f"{base}/dna/intent/api/v1/topology/site-topology"
+        st_data = _request(st_url, token, timeout=timeout)
+        st_resp = st_data.get("response", [])
+        if isinstance(st_resp, dict):
+            site_links = st_resp.get("links", [])
+        elif isinstance(st_resp, list):
+            site_links = st_resp
+        errors.append(f"Site topology: {len(site_links)} links")
     except Exception as e:
-        errors.append(f"Layer-2 topology failed: {e}")
+        errors.append(f"Site topology skipped: {e}")
 
     # Merge topology sources
-    raw_topology = list(raw_topology) + list(l2_links)
+    raw_topology = list(raw_topology) + list(site_links)
 
-    # Show sample site names for reference
-    if raw_devices:
-        samples = set()
-        for d in raw_devices[:100]:
-            s = d.get("siteName", "") or d.get("siteHierarchy", "") or ""
-            if s:
-                samples.add(s)
-        if samples:
-            debug_sample["available_sites_sample"] = sorted(samples)[:20]
+    raw_device_count_before = len(raw_devices)
 
-    if site_name and raw_devices:
-        before = len(raw_devices)
-        terms = [t.strip().lower() for t in site_name.split(",") if t.strip()]
-        raw_devices = [
-            d for d in raw_devices
-            if any(
-                term in (d.get("siteName", "") or "").lower()
-                or term in (d.get("siteHierarchy", "") or "").lower()
-                or term in (d.get("siteId", "") or "").lower()
-                for term in terms
-            )
-        ]
-        errors.append(f"Site filter '{site_name}': matched {len(raw_devices)} of {before} devices")
-
-    # Debug: dump first device keys and sample IP fields
+    # Collect debug sample BEFORE site filtering
     debug_sample = {}
     if raw_devices:
         d0 = raw_devices[0]
@@ -354,7 +332,32 @@ def import_devices(base_url: str, username: str, password: str,
             "reachabilityStatus": d0.get("reachabilityStatus"),
             "platformId": d0.get("platformId"),
             "softwareType": d0.get("softwareType"),
+            "siteName": d0.get("siteName"),
+            "siteHierarchy": d0.get("siteHierarchy"),
+            "siteId": d0.get("siteId"),
         }
+        # Collect available site names for reference
+        site_samples = set()
+        for d in raw_devices[:200]:
+            s = d.get("siteName") or d.get("siteHierarchy") or ""
+            if s:
+                site_samples.add(s)
+        if site_samples:
+            debug_sample["available_sites_sample"] = sorted(site_samples)[:30]
+
+    # Apply site filter
+    if site_name and raw_devices:
+        terms = [t.strip().lower() for t in site_name.replace("/", ",").split(",") if t.strip()]
+        raw_devices = [
+            d for d in raw_devices
+            if any(
+                term in (d.get("siteName", "") or "").lower()
+                or term in (d.get("siteHierarchy", "") or "").lower()
+                or term in (d.get("siteId", "") or "").lower()
+                for term in terms
+            )
+        ]
+        errors.append(f"Site filter '{site_name}' (terms: {terms}): matched {len(raw_devices)} of {raw_device_count_before} devices")
 
     # Map device IDs to IPs for topology link resolution
     device_by_id: dict[str, dict] = {}
@@ -437,6 +440,7 @@ def import_devices(base_url: str, username: str, password: str,
         "debug_sample": debug_sample,
         "skipped_no_ip": skipped_no_ip,
         "raw_devices": len(raw_devices),
+        "raw_devices_fetched": raw_device_count_before,
         "raw_topology": len(raw_topology),
         "errors": errors,
     }
