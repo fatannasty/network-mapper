@@ -32,7 +32,8 @@ export default function CatalystForm() {
 
   useEffect(() => { setSites([]); setSelectedSite(''); setSiteText('') }, [baseUrl])
 
-  const siteFilter = selectedSite || siteText
+  const selectedSiteName = sites.find((s) => s.site_id === selectedSite)?.name || ''
+  const siteFilter = selectedSiteName || siteText
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -40,7 +41,9 @@ export default function CatalystForm() {
     setResult(null)
     setError('')
     try {
-      const data = await importFromCatalyst(baseUrl, username, password, siteFilter || undefined)
+      const data = await importFromCatalyst(
+        baseUrl, username, password,
+        siteFilter || undefined, selectedSite || undefined)
       setResult(data)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Import failed')
@@ -105,7 +108,7 @@ export default function CatalystForm() {
               >
                 <option value="">All Sites</option>
                 {sites.map((s) => (
-                  <option key={s.site_id} value={s.name}>
+                  <option key={s.site_id} value={s.site_id}>
                     {s.hierarchy || s.name}
                   </option>
                 ))}

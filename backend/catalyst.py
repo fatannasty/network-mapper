@@ -239,8 +239,48 @@ def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
     }
 
 
+def get_site_members(base_url: str, token: str, site_id: str,
+                     timeout: float = 30.0) -> set[str]:
+    """Return network-device IDs assigned to a site (membership API)."""
+    base = _resolve_base(base_url)
+    urls = [
+        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500",
+        f"{base}/dna/intent/api/v1/site-member/{site_id}/member?memberType=networkdevice&limit=500",
+    ]
+
+    ids: set[str] = set()
+    for url in urls:
+        try:
+            data = _request(url, token, timeout=timeout)
+        except Exception:
+            continue
+
+        resp = data.get("response", data)
+        # membership API: {"device": [{"response": [devices]}], "site": {...}}
+        groups = []
+        if isinstance(resp, dict):
+            groups = resp.get("device", [])
+        elif isinstance(data, dict) and "device" in data:
+            groups = data.get("device", [])
+        if isinstance(resp, list):
+            for d in resp:
+                did = str(d.get("instanceUuid") or d.get("id") or "")
+                if did:
+                    ids.add(did)
+        for grp in groups:
+            for d in grp.get("response", []):
+                did = str(d.get("instanceUuid") or d.get("id") or "")
+                if did:
+                    ids.add(did)
+        if ids:
+            break
+
+    return ids
+
+
 def import_devices(base_url: str, username: str, password: str,
-                   timeout: float = 120.0, site_name: str = "") -> tuple[list[dict], list[dict], dict]:
+                   timeout: float = 120.0, site_name: str = "",
+                   site_id: str = "") -> tuple[list[dict], list[dict], dict]:
     """Authenticate, fetch devices and topology, return (devices, links, debug).
 
     If site_name is given, filters devices by case-insensitive substring match
@@ -314,8 +354,38 @@ def import_devices(base_url: str, username: str, password: str,
         if loc_samples:
             debug_sample["available_locations"] = sorted(loc_samples)[:50]
 
-    # Apply site filter
-    if site_name and raw_devices:
+    # Site membership filter (preferred — works even when devices have no site fields)
+    membership_applied = False
+    if site_id and raw_devices:
+        related_ids = [site_id]
+        try:
+            site_result = get_sites(base_url, token, timeout=timeout)
+            for s in site_result["sites"]:
+                if s["site_id"] != site_id and site_id in (s.get("hierarchy") or ""):
+                    related_ids.append(s["site_id"])
+        except Exception as e:
+            errors.append(f"Child-site lookup skipped: {e}")
+
+        member_ids: set[str] = set()
+        for sid in related_ids[:30]:
+            member_ids.update(get_site_members(base_url, token, sid, timeout=timeout))
+
+        if member_ids:
+            before = len(raw_devices)
+            raw_devices = [
+                d for d in raw_devices
+                if str(d.get("id") or d.get("instanceUuid") or "") in member_ids
+            ]
+            errors.append(
+                f"Site membership ({len(related_ids)} sites, {len(member_ids)} members): "
+                f"matched {len(raw_devices)} of {before} devices")
+            membership_applied = True
+        else:
+            errors.append(f"Site membership lookup for {len(related_ids)} sites returned no devices; "
+                          f"falling back to name filter")
+
+    # Apply site name filter (fallback)
+    if site_name and raw_devices and not membership_applied:
         terms = [t.strip().lower() for t in site_name.replace("/", ",").split(",") if t.strip()]
         raw_devices = [
             d for d in raw_devices
