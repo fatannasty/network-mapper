@@ -356,8 +356,9 @@ export default function TopologyViewer() {
                   router: '#f59e0b',
                   firewall: '#ef4444',
                   'core-switch': '#a855f7',
-                  'sd-wan': '#22c55e',
-                  unknown: '#6b7280',
+                'sd-wan': '#22c55e',
+                'access-point': '#10b981',
+                unknown: '#6b7280',
                 }
                 return colors[type] || '#6b7280'
               }}

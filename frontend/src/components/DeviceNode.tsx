@@ -17,6 +17,7 @@ const colors: Record<string, string> = {
   'core-switch': 'border-purple-400 bg-purple-950',
   'sd-wan': 'border-green-400 bg-green-950',
   'wireless-controller': 'border-cyan-400 bg-cyan-950',
+  'access-point': 'border-emerald-400 bg-emerald-950',
   'load-balancer': 'border-pink-400 bg-pink-950',
   unknown: 'border-gray-500 bg-gray-900',
 }

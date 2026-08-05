@@ -363,6 +363,7 @@ class CatalystImportRequest(BaseModel):
     base_url: str
     username: str
     password: str
+    site_name: str = ""
 
 
 @app.post("/api/catalyst/import", dependencies=[Depends(operator)])
@@ -371,7 +372,7 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
 
     try:
         devices, links, debug = catalyst.import_devices(
-            req.base_url, req.username, req.password)
+            req.base_url, req.username, req.password, site_name=req.site_name)
     except catalyst.CatalystError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:

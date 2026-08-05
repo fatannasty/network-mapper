@@ -179,8 +179,11 @@ def get_device_interfaces(base_url: str, token: str, device_id: str,
 
 
 def import_devices(base_url: str, username: str, password: str,
-                   timeout: float = 120.0) -> tuple[list[dict], list[dict], dict]:
+                   timeout: float = 120.0, site_name: str = "") -> tuple[list[dict], list[dict], dict]:
     """Authenticate, fetch devices and topology, return (devices, links, debug).
+
+    If site_name is given, filters devices by case-insensitive substring match
+    on siteName or siteHierarchy, and keeps only topology links between matching devices.
 
     Devices are normalized to our standard dict format:
         {ip, hostname, vendor, model, device_type, interfaces, ...}
@@ -201,6 +204,16 @@ def import_devices(base_url: str, username: str, password: str,
     except CatalystError as e:
         errors.append(f"Topology fetch failed: {e}")
         raw_topology: list[dict] = []
+
+    if site_name and raw_devices:
+        before = len(raw_devices)
+        site_lower = site_name.lower()
+        raw_devices = [
+            d for d in raw_devices
+            if site_lower in (d.get("siteName", "") or "").lower()
+            or site_lower in (d.get("siteHierarchy", "") or "").lower()
+        ]
+        errors.append(f"Site filter '{site_name}': matched {len(raw_devices)} of {before} devices")
 
     # Debug: dump first device keys and sample IP fields
     debug_sample = {}
@@ -237,7 +250,9 @@ def import_devices(base_url: str, username: str, password: str,
         typ = d.get("type", "") or ""
         device_type = ""
 
-        if "switch" in typ.lower() or "switch" in family:
+        if "access point" in typ.lower() or "ap" in family.lower():
+            device_type = "access-point"
+        elif "switch" in typ.lower() or "switch" in family:
             device_type = "switch"
         elif "router" in typ.lower() or "router" in family:
             device_type = "router"

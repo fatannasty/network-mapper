@@ -8,6 +8,7 @@ export default function CatalystForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [siteName, setSiteName] = useState('')
   const [testResult, setTestResult] = useState<string | null>(null)
   const [result, setResult] = useState<{ scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> } | null>(null)
   const [error, setError] = useState('')
@@ -19,7 +20,7 @@ export default function CatalystForm() {
     setResult(null)
     setError('')
     try {
-      const data = await importFromCatalyst(baseUrl, username, password)
+      const data = await importFromCatalyst(baseUrl, username, password, siteName || undefined)
       setResult(data)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Import failed')
@@ -61,6 +62,17 @@ export default function CatalystForm() {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
             />
+          </div>
+
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">Site Filter (State or City)</label>
+            <input
+              value={siteName}
+              onChange={(e) => setSiteName(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+              placeholder="e.g. Miami, Florida"
+            />
+            <p className="text-gray-600 text-[11px] mt-0.5">Leave empty to import all devices</p>
           </div>
 
           <div className="flex gap-3">
