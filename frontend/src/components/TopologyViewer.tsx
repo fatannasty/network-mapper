@@ -19,8 +19,9 @@ import { getTopology, getDevices, type TopologyData, type Device, type TopoLink 
 const nodeTypes = { device: DeviceNode }
 
 type ProtocolFilter = 'all' | 'lldp' | 'cdp'
+type LayoutMode = 'tree' | 'free'
 
-function layoutNodes(nodes: { id: string }[], links: { source: string; target: string }[]) {
+function freeLayout(nodes: { id: string }[], links: { source: string; target: string }[]) {
   const adjacency = new Map<string, string[]>()
   for (const n of nodes) adjacency.set(n.id, [])
   for (const l of links) {
@@ -30,15 +31,14 @@ function layoutNodes(nodes: { id: string }[], links: { source: string; target: s
 
   const positions = new Map<string, { x: number; y: number }>()
   const visited = new Set<string>()
-  const SPACING_X = 260
-  const SPACING_Y = 220
-
+  const SX = 260
+  const SY = 220
   let col = 0
 
   function dfs(id: string, row: number) {
     if (visited.has(id)) return
     visited.add(id)
-    positions.set(id, { x: col * SPACING_X, y: row * SPACING_Y })
+    positions.set(id, { x: col * SX, y: row * SY })
     col++
     for (const neighbor of adjacency.get(id) || []) {
       if (!visited.has(neighbor)) dfs(neighbor, row + 1)
@@ -47,6 +47,74 @@ function layoutNodes(nodes: { id: string }[], links: { source: string; target: s
 
   for (const n of nodes) {
     if (!visited.has(n.id)) dfs(n.id, 0)
+  }
+
+  return positions
+}
+
+function treeLayout(nodes: { id: string }[], links: { source: string; target: string }[]) {
+  const adjacency = new Map<string, string[]>()
+  for (const n of nodes) adjacency.set(n.id, [])
+  for (const l of links) {
+    adjacency.get(l.source)?.push(l.target)
+    adjacency.get(l.target)?.push(l.source)
+  }
+
+  // Find root: node with most connections, or first node
+  let root = nodes[0]?.id || ''
+  let maxDeg = 0
+  for (const [id, neighbors] of adjacency) {
+    if (neighbors.length > maxDeg) {
+      maxDeg = neighbors.length
+      root = id
+    }
+  }
+
+  const positions = new Map<string, { x: number; y: number }>()
+  const visited = new Set<string>()
+  const SX = 260
+  const SY = 200
+
+  // BFS from root, track children per level
+  const levelNodes: Map<number, string[]> = new Map()
+  const queue: { id: string; level: number }[] = [{ id: root, level: 0 }]
+  visited.add(root)
+
+  while (queue.length > 0) {
+    const { id, level } = queue.shift()!
+    const children = levelNodes.get(level) || []
+    children.push(id)
+    levelNodes.set(level, children)
+
+    for (const neighbor of adjacency.get(id) || []) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor)
+        queue.push({ id: neighbor, level: level + 1 })
+      }
+    }
+  }
+
+  // Position each level centered
+  for (const [level, ids] of levelNodes) {
+    const totalWidth = (ids.length - 1) * SX
+    const startX = -totalWidth / 2
+    ids.forEach((id, i) => {
+      positions.set(id, { x: startX + i * SX, y: level * SY })
+    })
+  }
+
+  // Unvisited nodes (disconnected) go below
+  let row = levelNodes.size
+  let col = -(nodes.length * SX) / 4
+  for (const n of nodes) {
+    if (!positions.has(n.id)) {
+      positions.set(n.id, { x: col, y: row * SY })
+      col += SX
+      if (col > (nodes.length * SX) / 4) {
+        col = -(nodes.length * SX) / 4
+        row++
+      }
+    }
   }
 
   return positions
@@ -62,6 +130,7 @@ export default function TopologyViewer() {
   const [error, setError] = useState('')
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
   const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all')
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('tree')
 
   const deviceByIp = useMemo(() => {
     const map = new Map<string, Device>()
@@ -97,7 +166,8 @@ export default function TopologyViewer() {
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!topology) return { initialNodes: [], initialEdges: [] }
 
-    const positions = layoutNodes(topology.nodes, filteredLinks)
+    const layoutFn = layoutMode === 'tree' ? treeLayout : freeLayout
+    const positions = layoutFn(topology.nodes, filteredLinks)
 
     const rn: Node[] = topology.nodes.map((n) => {
       const pos = positions.get(n.id) || { x: 0, y: 0 }
@@ -143,7 +213,7 @@ export default function TopologyViewer() {
     })
 
     return { initialNodes: rn, initialEdges: re }
-  }, [topology, filteredLinks, deviceByIp])
+  }, [topology, filteredLinks, deviceByIp, layoutMode])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -224,6 +294,25 @@ export default function TopologyViewer() {
         </span>
 
         <div className="flex-1" />
+
+        <div className="flex items-center gap-1 bg-gray-800 rounded p-0.5">
+          <button
+            onClick={() => setLayoutMode('tree')}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              layoutMode === 'tree' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Tree
+          </button>
+          <button
+            onClick={() => setLayoutMode('free')}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              layoutMode === 'free' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Free
+          </button>
+        </div>
 
         {topology.links.length > 0 && (
           <select

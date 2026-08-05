@@ -158,6 +158,11 @@ def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT,
             snmp_data = snmp_poll(ip, communities, port=snmp_port)
 
     hostname = snmp_data.get("sysName", "") if snmp_data else ""
+    if not hostname:
+        try:
+            hostname = socket.gethostbyaddr(ip)[0]
+        except (socket.herror, socket.gaierror, OSError):
+            pass
     cls = classify(snmp_data, hostname=hostname)
 
     interfaces: list[dict] = []
