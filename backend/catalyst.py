@@ -118,23 +118,25 @@ def test_connection(base_url: str, username: str, password: str,
     }
 
 
-def get_devices(base_url: str, token: str, limit: int = 1000,
+def get_devices(base_url: str, token: str, limit: int = 500,
                 timeout: float = 60.0) -> list[dict]:
     """Fetch all network devices from Catalyst Center."""
     base = _resolve_base(base_url)
     url = f"{base}/dna/intent/api/v1/network-device"
 
-    # Try offset=0 first (newer API), fallback to offset=1 (classic)
-    for offset in (0, 1):
+    last_error = ""
+    # Try offset=1 first (classic API), fallback to offset=0 (newer)
+    for offset in (1, 0):
         try:
             data = _request(f"{url}?limit={limit}&offset={offset}", token, timeout=timeout)
             devices = data.get("response", [])
             if devices:
                 return devices
-        except Exception:
-            continue
+            last_error = f"offset={offset}: empty response"
+        except CatalystError as e:
+            last_error = f"offset={offset}: {e}"
 
-    return []
+    raise CatalystError(f"Failed to fetch devices from {base}: {last_error}")
 
 
 def get_physical_topology(base_url: str, token: str,
@@ -188,12 +190,12 @@ def import_devices(base_url: str, username: str, password: str,
     """
     token = authenticate(base_url, username, password, timeout=timeout)
 
+    errors: list[str] = []
     try:
         raw_devices = get_devices(base_url, token, timeout=timeout)
     except CatalystError as e:
-        raise CatalystError(f"Failed to fetch devices: {e}") from e
-
-    errors: list[str] = []
+        errors.append(f"Device fetch failed: {e}")
+        raw_devices: list[dict] = []
     try:
         raw_topology = get_physical_topology(base_url, token, timeout=timeout)
     except CatalystError as e:
@@ -289,5 +291,6 @@ def import_devices(base_url: str, username: str, password: str,
         "skipped_no_ip": skipped_no_ip,
         "raw_devices": len(raw_devices),
         "raw_topology": len(raw_topology),
+        "errors": errors,
     }
     return devices, links, debug
