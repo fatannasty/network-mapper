@@ -9,7 +9,7 @@ export default function CatalystForm() {
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<string | null>(null)
-  const [result, setResult] = useState<{ scan_id: string; device_count: number; links_found: number } | null>(null)
+  const [result, setResult] = useState<{ scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> } | null>(null)
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
@@ -116,6 +116,11 @@ export default function CatalystForm() {
               >
                 View Topology
               </button>
+              {result.debug && (
+                <pre className="text-xs text-green-300 bg-black/30 p-2 rounded max-h-60 overflow-auto whitespace-pre-wrap">
+                  {JSON.stringify(result.debug, null, 2)}
+                </pre>
+              )}
             </div>
           )}
         </form>

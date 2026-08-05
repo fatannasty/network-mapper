@@ -149,7 +149,7 @@ export async function testCatalyst(baseUrl: string, username: string, password: 
 
 export async function importFromCatalyst(baseUrl: string, username: string, password: string) {
   const r = await api.post('/api/catalyst/import', { base_url: baseUrl, username, password })
-  return r.data as { scan_id: string; device_count: number; links_found: number }
+  return r.data as { scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> }
 }
 
 export async function getTopology(scanId?: string) {
