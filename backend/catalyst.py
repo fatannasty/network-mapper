@@ -179,14 +179,12 @@ def get_device_interfaces(base_url: str, token: str, device_id: str,
 
 
 def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
-    """Fetch site hierarchy and return state/city pairs.
+    """Fetch site hierarchy from Catalyst Center.
 
-    Returns {sites, debug} where sites is the list of {state, city, site_id}
-    and debug includes raw info for troubleshooting.
+    Returns all site names and hierarchy paths as flat list plus debug info.
     """
     base = _resolve_base(base_url)
 
-    # Try multiple API paths
     urls = [
         f"{base}/dna/intent/api/v1/site",
         f"{base}/dna/intent/api/v1/site?type=area,building,floor",
@@ -202,71 +200,41 @@ def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
 
     raw_sites = data.get("response", [])
     if not raw_sites:
-        return {"sites": [], "debug": {"raw_count": 0, "sample": [], "note": "No sites returned"}}
+        # Return empty — sites are not configured
+        return {"sites": [], "debug": {"raw_count": 0, "note": "No sites in API response"}}
 
-    # Show raw sample for debugging
-    sample_raw = []
-    for s in raw_sites[:3]:
-        sample_raw.append({
+    # Collect all site names and hierarchies regardless of type
+    sites: list[dict] = []
+    seen = set()
+    for s in raw_sites:
+        name = s.get("name", "")
+        hier = s.get("siteHierarchy", "")
+        if name and name not in seen:
+            seen.add(name)
+            sites.append({
+                "name": name,
+                "hierarchy": hier,
+                "site_id": s.get("id", ""),
+            })
+
+    sites.sort(key=lambda x: x["hierarchy"] or x["name"])
+
+    # Raw samples for debugging
+    samples = []
+    for s in raw_sites[:5]:
+        samples.append({
             "name": s.get("name"),
-            "siteHierarchy": s.get("siteHierarchy"),
-            "id": s.get("id", "")[:12],
-            "parentId": s.get("parentId", "")[:12],
-            "type": s.get("siteType", s.get("groupType", s.get("type", "?"))),
+            "hierarchy": s.get("siteHierarchy"),
+            "type": s.get("siteType", s.get("groupType", s.get("type", ""))),
+            "parentId": str(s.get("parentId", ""))[:12],
         })
 
-    # Build lookup
-    by_id: dict[str, dict] = {}
-    for s in raw_sites:
-        sid = s.get("id", "")
-        by_id[sid] = {
-            "id": sid,
-            "name": s.get("name", ""),
-            "parentId": s.get("parentId", ""),
-            "hierarchy": s.get("siteHierarchy", "") or s.get("name", ""),
-            "type": (s.get("siteType") or s.get("groupType") or s.get("type") or "").lower(),
-        }
-
-    result: list[dict] = []
-    for s in raw_sites:
-        info = by_id.get(s.get("id", ""), {})
-        parent = by_id.get(info.get("parentId", ""), {})
-        typ = info.get("type", "")
-
-        if "building" in typ or "floor" in typ:
-            result.append({
-                "state": parent.get("name", ""),
-                "city": info.get("name", ""),
-                "site_id": info.get("id", ""),
-            })
-        elif "area" in typ:
-            state = info.get("name", "")
-            for child in raw_sites:
-                cinfo = by_id.get(child.get("id", ""), {})
-                if cinfo.get("parentId") == info.get("id"):
-                    ct = cinfo.get("type", "")
-                    if "building" in ct or "floor" in ct:
-                        result.append({
-                            "state": state,
-                            "city": cinfo.get("name", ""),
-                            "site_id": cinfo.get("id", ""),
-                        })
-
-    # Sort and deduplicate
-    result.sort(key=lambda x: (x["state"], x["city"]))
-    deduped, seen = [], set()
-    for r in result:
-        key = (r["state"], r["city"])
-        if r["city"] and key not in seen:
-            seen.add(key)
-            deduped.append(r)
-
     return {
-        "sites": deduped,
+        "sites": sites,
         "debug": {
             "raw_count": len(raw_sites),
-            "parsed_locations": len(deduped),
-            "sample_raw": sample_raw,
+            "parsed": len(sites),
+            "samples": samples,
         },
     }
 
@@ -357,6 +325,7 @@ def import_devices(base_url: str, username: str, password: str,
                 or term in (d.get("siteId", "") or "").lower()
                 or term in (d.get("locationName", "") or "").lower()
                 or term in (d.get("location", "") or "").lower()
+                or term in (d.get("hostname", "") or "").lower()
                 for term in terms
             )
         ]

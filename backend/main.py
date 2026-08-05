@@ -405,10 +405,7 @@ def catalyst_sites(req: CatalystImportRequest):
     try:
         token = catalyst.authenticate(req.base_url, req.username, req.password)
         result = catalyst.get_sites(req.base_url, token)
-        sites = result["sites"]
-        return {"states": sorted(set(s["state"] for s in sites if s["state"])),
-                "cities": sorted(set(s["city"] for s in sites if s["city"])),
-                "sites": sites,
+        return {"sites": result["sites"],
                 "debug": result.get("debug", {})}
     except catalyst.CatalystError as e:
         raise HTTPException(status_code=400, detail=str(e))

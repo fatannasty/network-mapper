@@ -148,8 +148,8 @@ export async function testCatalyst(baseUrl: string, username: string, password: 
 }
 
 export interface SiteInfo {
-  state: string
-  city: string
+  name: string
+  hierarchy: string
   site_id: string
 }
 

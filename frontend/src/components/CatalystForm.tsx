@@ -14,15 +14,9 @@ export default function CatalystForm() {
 
   const [sites, setSites] = useState<SiteInfo[]>([])
   const [loadingSites, setLoadingSites] = useState(false)
-  const [selectedState, setSelectedState] = useState('')
-  const [selectedCity, setSelectedCity] = useState('')
+  const [selectedSite, setSelectedSite] = useState('')
+  const [siteText, setSiteText] = useState('')
   const navigate = useNavigate()
-
-  const states = [...new Set(sites.map((s) => s.state).filter(Boolean))].sort()
-  const cities = (selectedState
-    ? [...new Set(sites.filter((s) => s.state === selectedState).map((s) => s.city).filter(Boolean))]
-    : [...new Set(sites.map((s) => s.city).filter(Boolean))]
-  ).sort()
 
   const loadSites = async () => {
     setLoadingSites(true)
@@ -36,9 +30,9 @@ export default function CatalystForm() {
     }
   }
 
-  useEffect(() => { setSites([]); setSelectedState(''); setSelectedCity('') }, [baseUrl])
+  useEffect(() => { setSites([]); setSelectedSite(''); setSiteText('') }, [baseUrl])
 
-  const siteFilter = selectedCity || selectedState
+  const siteFilter = selectedSite || siteText
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -104,41 +98,30 @@ export default function CatalystForm() {
             </div>
 
             {sites.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                <select
-                  value={selectedState}
-                  onChange={(e) => { setSelectedState(e.target.value); setSelectedCity('') }}
-                  className="px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500 text-sm"
-                >
-                  <option value="">All States</option>
-                  {states.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                <select
-                  value={selectedCity}
-                  onChange={(e) => setSelectedCity(e.target.value)}
-                  className="px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500 text-sm"
-                  disabled={cities.length === 0}
-                >
-                  <option value="">All Cities</option>
-                  {cities.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={selectedSite}
+                onChange={(e) => setSelectedSite(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+              >
+                <option value="">All Sites</option>
+                {sites.map((s) => (
+                  <option key={s.site_id} value={s.name}>
+                    {s.hierarchy || s.name}
+                  </option>
+                ))}
+              </select>
             ) : (
               <input
-                value={siteFilter}
-                onChange={(e) => setSelectedCity(e.target.value)}
+                value={siteText}
+                onChange={(e) => setSiteText(e.target.value)}
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
-                placeholder="Or type a city/state — click Load Sites first"
+                placeholder="Type site name or hostname pattern"
               />
             )}
             <p className="text-gray-600 text-[11px] mt-0.5">
               {sites.length > 0
-                ? `${sites.length} locations loaded. Select state to filter cities.`
-                : 'Click "Load Sites" to fetch locations from Catalyst Center.'}
+                ? `${sites.length} sites loaded. Filter matches location, hierarchy, or hostname.`
+                : `Click "Load Sites" to fetch from Catalyst Center, or type a hostname pattern.`}
             </p>
           </div>
 
