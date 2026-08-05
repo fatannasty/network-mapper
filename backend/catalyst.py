@@ -214,9 +214,9 @@ def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
             or ""
         )
         hier = (
-            s.get("siteHierarchy")
-            or s.get("siteNameHierarchy")
+            s.get("siteNameHierarchy")
             or s.get("groupNameHierarchy")
+            or s.get("siteHierarchy")
             or name
         )
         site_id = str(s.get("id") or s.get("siteId") or "")
