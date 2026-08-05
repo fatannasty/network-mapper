@@ -119,24 +119,53 @@ def test_connection(base_url: str, username: str, password: str,
 
 
 def get_devices(base_url: str, token: str, limit: int = 500,
-                timeout: float = 60.0) -> list[dict]:
-    """Fetch all network devices from Catalyst Center."""
+                timeout: float = 60.0, extra_params: str = "") -> list[dict]:
+    """Fetch all network devices from Catalyst Center.
+
+    If extra_params is given (e.g. 'platformId=VeloCloud'), it is appended to
+    the query string so Catalyst Center does the filtering server-side.
+    """
     base = _resolve_base(base_url)
     url = f"{base}/dna/intent/api/v1/network-device"
 
+    all_devices: list[dict] = []
+    offset = 1
     last_error = ""
-    # Try offset=1 first (classic API), fallback to offset=0 (newer)
-    for offset in (1, 0):
+    while True:
+        query = f"limit={limit}&offset={offset}"
+        if extra_params:
+            query += "&" + extra_params
         try:
-            data = _request(f"{url}?limit={limit}&offset={offset}", token, timeout=timeout)
-            devices = data.get("response", [])
-            if devices:
-                return devices
-            last_error = f"offset={offset}: empty response"
+            data = _request(f"{url}?{query}", token, timeout=timeout)
         except CatalystError as e:
+            if last_error and offset > 1:
+                break  # partial page failure: keep what we have
             last_error = f"offset={offset}: {e}"
+            if offset > 1:
+                break
+            # Try offset=0 fallback (newer API) once
+            try:
+                data = _request(f"{url}?limit={limit}&offset=0"
+                                + (f"&{extra_params}" if extra_params else ""),
+                                token, timeout=timeout)
+                devices = data.get("response", [])
+                if devices:
+                    return devices
+            except CatalystError as e2:
+                last_error = f"offset=0: {e2}"
+            break
 
-    raise CatalystError(f"Failed to fetch devices from {base}: {last_error}")
+        devices = data.get("response", [])
+        if not devices:
+            break
+        all_devices.extend(devices)
+        if len(devices) < limit:
+            break
+        offset += limit
+
+    if all_devices:
+        return all_devices
+    raise CatalystError(f"Failed to fetch devices from {base}: {last_error or 'empty response'}")
 
 
 def get_physical_topology(base_url: str, token: str,
@@ -350,13 +379,74 @@ def _truncate_json(obj, depth: int = 0, max_items: int = 20):
     return obj
 
 
+def get_device_neighbors(base_url: str, token: str, device_id: str,
+                         timeout: float = 30.0) -> list[dict]:
+    """Fetch CDP/LLDP neighbors for a device via per-interface lookup.
+
+    Returns a list of neighbor dicts with keys:
+        {neighbor_device, neighbor_port, local_port, neighbor_ip}
+    """
+    base = _resolve_base(base_url)
+    neighbors: list[dict] = []
+
+    # 1. Get the device's interfaces
+    try:
+        data = _request(f"{base}/dna/intent/api/v1/interface?deviceId={device_id}&limit=500",
+                        token, timeout=timeout)
+    except CatalystError:
+        return neighbors
+    interfaces = data.get("response", [])
+    if not isinstance(interfaces, list):
+        return neighbors
+
+    for iface in interfaces:
+        if_uuid = iface.get("id") or iface.get("interfaceId") or iface.get("instanceUuid")
+        if not if_uuid:
+            continue
+        local_port = (iface.get("portName") or iface.get("interfaceName")
+                      or iface.get("name") or "")
+        try:
+            nd = _request(
+                f"{base}/dna/intent/api/v1/network-device/{device_id}"
+                f"/interface/{if_uuid}/neighbor",
+                token, timeout=timeout)
+        except CatalystError:
+            continue
+        resp = nd.get("response", [])
+        if isinstance(resp, dict):
+            resp = [resp]
+        if not isinstance(resp, list):
+            continue
+        for r in resp:
+            neighbor_device = (r.get("neighborDevice")
+                               or r.get("deviceName")
+                               or r.get("hostname") or "")
+            neighbor_port = (r.get("neighborPort")
+                             or r.get("portId")
+                             or r.get("remotePort") or "")
+            if not neighbor_device and not neighbor_port:
+                continue
+            neighbors.append({
+                "neighbor_device": neighbor_device,
+                "neighbor_port": neighbor_port,
+                "local_port": local_port,
+                "neighbor_ip": "",
+            })
+
+    return neighbors
+
+
 def import_devices(base_url: str, username: str, password: str,
                    timeout: float = 120.0, site_name: str = "",
-                   site_id: str = "") -> tuple[list[dict], list[dict], dict]:
+                   site_id: str = "", device_filter: str = "") -> tuple[list[dict], list[dict], dict]:
     """Authenticate, fetch devices and topology, return (devices, links, debug).
 
     If site_name is given, filters devices by case-insensitive substring match
     on siteName or siteHierarchy, and keeps only topology links between matching devices.
+
+    If device_filter is given, only devices whose hostname, platformId, type,
+    family or management IP contains the term are imported, along with all links
+    touching them.
 
     Devices are normalized to our standard dict format:
         {ip, hostname, vendor, model, device_type, interfaces, ...}
@@ -473,6 +563,21 @@ def import_devices(base_url: str, username: str, password: str,
         ]
         errors.append(f"Site filter '{site_name}' (terms: {terms}): matched {len(raw_devices)} of {raw_device_count_before} devices")
 
+    # Apply device filter (hostname/model/type/IP substring)
+    if device_filter and raw_devices:
+        term = device_filter.strip().lower()
+        before = len(raw_devices)
+        raw_devices = [
+            d for d in raw_devices
+            if term in (d.get("hostname", "") or "").lower()
+            or term in (d.get("platformId", "") or "").lower()
+            or term in (d.get("type", "") or "").lower()
+            or term in (d.get("family", "") or "").lower()
+            or term in (d.get("managementIpAddress", "") or "").lower()
+            or term in (d.get("ipAddress", "") or "").lower()
+        ]
+        errors.append(f"Device filter '{device_filter}': matched {len(raw_devices)} of {before} devices")
+
     # Map device IDs to IPs for topology link resolution
     device_by_id: dict[str, dict] = {}
     for d in raw_devices:
@@ -524,6 +629,7 @@ def import_devices(base_url: str, username: str, password: str,
             "snmp_identified": False,
             "interfaces": [],
             "neighbors": [],
+            "_id": d.get("id", ""),
         })
 
     # Build links from physical topology
@@ -559,12 +665,51 @@ def import_devices(base_url: str, username: str, password: str,
             "target_hostname": tgt_dev.get("hostname", ""),
         })
 
+    # Enrich with per-device CDP/LLDP neighbor links (helps SD-WAN edges and
+    # devices missing from the physical/site topology). Hostname-based lookup.
+    neighbor_links_added = 0
+    if devices:
+        ip_by_hostname: dict[str, str] = {}
+        for dev in devices:
+            if dev.get("hostname"):
+                ip_by_hostname[dev["hostname"].lower()] = dev["ip"]
+
+        existing = {(l["source"], l["target"]) for l in links}
+        for dev in devices:
+            dev_id = dev.get("_id", "")
+            if not dev_id:
+                continue
+            try:
+                nb = get_device_neighbors(base_url, token, dev_id, timeout=timeout)
+            except Exception:
+                continue
+            for n in nb:
+                nhost = (n.get("neighbor_device") or "").lower()
+                tgt_ip = ip_by_hostname.get(nhost, "")
+                if not tgt_ip or tgt_ip == dev["ip"]:
+                    continue
+                pair = (dev["ip"], tgt_ip)
+                if pair in existing:
+                    continue
+                existing.add(pair)
+                links.append({
+                    "source": dev["ip"],
+                    "target": tgt_ip,
+                    "source_interface": n.get("local_port", ""),
+                    "target_interface": n.get("neighbor_port", ""),
+                    "protocol": "cdp-lldp",
+                    "source_hostname": dev.get("hostname", ""),
+                    "target_hostname": n.get("neighbor_device", ""),
+                })
+                neighbor_links_added += 1
+
     debug = {
         "debug_sample": debug_sample,
         "skipped_no_ip": skipped_no_ip,
         "raw_devices": len(raw_devices),
         "raw_devices_fetched": raw_device_count_before,
         "raw_topology": len(raw_topology),
+        "neighbor_links_added": neighbor_links_added,
         "errors": errors,
     }
     return devices, links, debug

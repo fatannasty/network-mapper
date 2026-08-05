@@ -29,6 +29,7 @@ export default function CatalystForm() {
   const [sitesDebug, setSitesDebug] = useState<string | null>(null)
   const [selectedSite, setSelectedSite] = useState('')
   const [siteText, setSiteText] = useState('')
+  const [deviceFilter, setDeviceFilter] = useState('')
   const navigate = useNavigate()
 
   const loadSites = async () => {
@@ -76,7 +77,7 @@ export default function CatalystForm() {
     try {
       const data = await importFromCatalyst(
         baseUrl, username, password,
-        siteFilter || undefined, selectedSite || undefined)
+        siteFilter || undefined, selectedSite || undefined, deviceFilter || undefined)
       setResult(data)
     } catch (err: unknown) {
       setError(errDetail(err))
@@ -171,6 +172,21 @@ export default function CatalystForm() {
               </pre>
             </details>
           )}
+
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">
+              Device filter <span className="text-gray-600">(hostname / model / IP substring)</span>
+            </label>
+            <input
+              value={deviceFilter}
+              onChange={(e) => setDeviceFilter(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+              placeholder="e.g. velocloud, 610, or 10.10.1.20"
+            />
+            <p className="text-gray-600 text-[11px] mt-0.5">
+              Imports only matching devices plus all links touching them.
+            </p>
+          </div>
 
           {selectedSite && (
             <button

@@ -158,10 +158,10 @@ export async function fetchSites(baseUrl: string, username: string, password: st
   return r.data as { states: string[]; cities: string[]; sites: SiteInfo[]; debug?: { raw_count?: number; parsed?: number; samples?: unknown[] } }
 }
 
-export async function importFromCatalyst(baseUrl: string, username: string, password: string, siteName?: string, siteId?: string) {
+export async function importFromCatalyst(baseUrl: string, username: string, password: string, siteName?: string, siteId?: string, deviceFilter?: string) {
   const r = await api.post('/api/catalyst/import', {
     base_url: baseUrl, username, password,
-    site_name: siteName || '', site_id: siteId || '',
+    site_name: siteName || '', site_id: siteId || '', device_filter: deviceFilter || '',
   })
   return r.data as { scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> }
 }
