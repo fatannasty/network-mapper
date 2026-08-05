@@ -254,6 +254,7 @@ def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
             sites.append({
                 "name": name,
                 "hierarchy": hier,
+                "hierarchy_ids": s.get("siteHierarchy", "") or s.get("groupNameHierarchy", ""),
                 "site_id": site_id,
             })
 
@@ -523,7 +524,7 @@ def import_devices(base_url: str, username: str, password: str,
         try:
             site_result = get_sites(base_url, token, timeout=timeout)
             for s in site_result["sites"]:
-                if s["site_id"] != site_id and site_id in (s.get("hierarchy") or ""):
+                if s["site_id"] != site_id and site_id in (s.get("hierarchy_ids") or ""):
                     related_ids.append(s["site_id"])
         except Exception as e:
             errors.append(f"Child-site lookup skipped: {e}")

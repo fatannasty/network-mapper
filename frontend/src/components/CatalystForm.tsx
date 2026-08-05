@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react'
+import { useState, useEffect, useMemo, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AxiosError } from 'axios'
 import { importFromCatalyst, testCatalyst, fetchSites, debugSiteMembership, type SiteInfo } from '../api'
@@ -10,6 +10,51 @@ function errDetail(err: unknown): string {
     return JSON.stringify(d).slice(0, 2000)
   }
   return err instanceof Error ? err.message : String(err)
+}
+
+interface CityOption { name: string; site_id: string }
+interface StateGroup { name: string; site_id: string; cities: CityOption[] }
+
+function parseSiteTree(sites: SiteInfo[]): StateGroup[] {
+  const states = new Map<string, StateGroup>()
+  const byId = new Map(sites.map((s) => [s.site_id, s]))
+
+  for (const s of sites) {
+    const parts = (s.hierarchy || s.name || '').split('/').map((p) => p.trim()).filter(Boolean)
+    if (parts.length >= 4) {
+      const stateName = parts[2]
+      const cityName = parts[3]
+      let grp = states.get(stateName)
+      if (!grp) {
+        grp = { name: stateName, site_id: '', cities: [] }
+        states.set(stateName, grp)
+      }
+      if (cityName && !grp.cities.some((c) => c.name === cityName)) {
+        const citySite = sites.find((x) => (x.hierarchy || x.name) === parts.slice(0, 4).join('/'))
+        grp.cities.push({ name: cityName, site_id: citySite?.site_id || s.site_id })
+      }
+    } else if (parts.length === 3) {
+      const stateName = parts[2]
+      const existing = states.get(stateName)
+      if (!existing) {
+        states.set(stateName, { name: stateName, site_id: s.site_id, cities: [] })
+      } else if (!existing.site_id) {
+        existing.site_id = s.site_id
+      }
+    }
+  }
+
+  for (const grp of states.values()) {
+    if (!grp.site_id) {
+      const stateSite = sites.find((s) => (s.hierarchy || s.name) === `Global/United States/${grp.name}`)
+      grp.site_id = stateSite?.site_id || ''
+    }
+    grp.cities.sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  const result = Array.from(states.values()).sort((a, b) => a.name.localeCompare(b.name))
+  void byId
+  return result
 }
 
 export default function CatalystForm() {
@@ -27,10 +72,20 @@ export default function CatalystForm() {
   const [sites, setSites] = useState<SiteInfo[]>([])
   const [loadingSites, setLoadingSites] = useState(false)
   const [sitesDebug, setSitesDebug] = useState<string | null>(null)
-  const [selectedSite, setSelectedSite] = useState('')
+  const [selectedState, setSelectedState] = useState('')
+  const [selectedCity, setSelectedCity] = useState('')
   const [siteText, setSiteText] = useState('')
   const [deviceFilter, setDeviceFilter] = useState('')
   const navigate = useNavigate()
+
+  const siteTree = useMemo(() => parseSiteTree(sites), [sites])
+  const stateGroups = siteTree.filter((g) => g.name === selectedState)
+  const cities = selectedState ? (stateGroups[0]?.cities || []) : []
+
+  const selectedStateSiteId = selectedState ? (stateGroups[0]?.site_id || '') : ''
+  const selectedCitySiteId = selectedCity
+    ? (cities.find((c) => c.name === selectedCity)?.site_id || '') : ''
+  const selectedSite = selectedCitySiteId || selectedStateSiteId
 
   const loadSites = async () => {
     setLoadingSites(true)
@@ -48,9 +103,13 @@ export default function CatalystForm() {
     }
   }
 
-  useEffect(() => { setSites([]); setSelectedSite(''); setSiteText('') }, [baseUrl])
+  useEffect(() => {
+    setSites([]); setSelectedState(''); setSelectedCity(''); setSiteText('')
+  }, [baseUrl])
 
-  const selectedSiteName = sites.find((s) => s.site_id === selectedSite)?.name || ''
+  const selectedSiteName = selectedCity
+    ? `${selectedState} > ${selectedCity}`
+    : (selectedState || '')
   const siteFilter = selectedSiteName || siteText
 
   const handleDebugMembership = async () => {
@@ -135,18 +194,39 @@ export default function CatalystForm() {
             </div>
 
             {sites.length > 0 ? (
-              <select
-                value={selectedSite}
-                onChange={(e) => setSelectedSite(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
-              >
-                <option value="">All Sites</option>
-                {sites.map((s) => (
-                  <option key={s.site_id} value={s.site_id}>
-                    {s.hierarchy || s.name}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <select
+                    value={selectedState}
+                    onChange={(e) => { setSelectedState(e.target.value); setSelectedCity('') }}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">All States</option>
+                    {siteTree.map((g) => (
+                      <option key={g.name} value={g.name}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <select
+                    value={selectedCity}
+                    onChange={(e) => setSelectedCity(e.target.value)}
+                    disabled={!selectedState}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                  >
+                    <option value="">
+                      {selectedState ? `All ${selectedState} sites` : 'State first'}
+                    </option>
+                    {cities.map((c) => (
+                      <option key={c.site_id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             ) : (
               <input
                 value={siteText}
@@ -157,7 +237,7 @@ export default function CatalystForm() {
             )}
             <p className="text-gray-600 text-[11px] mt-0.5">
               {sites.length > 0
-                ? `${sites.length} sites loaded. Filter matches location, hierarchy, or hostname.`
+                ? `Pick a state then city (e.g. Florida > Miami). Choosing a state imports all sites under it.`
                 : `Click "Load Sites" to fetch from Catalyst Center, or type a hostname pattern.`}
             </p>
           </div>
