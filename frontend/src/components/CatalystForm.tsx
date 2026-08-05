@@ -1,6 +1,16 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { AxiosError } from 'axios'
 import { importFromCatalyst, testCatalyst, fetchSites, debugSiteMembership, type SiteInfo } from '../api'
+
+function errDetail(err: unknown): string {
+  if (err instanceof AxiosError && err.response?.data) {
+    const d = err.response.data as Record<string, unknown>
+    if (typeof d.detail === 'string') return d.detail
+    return JSON.stringify(d).slice(0, 2000)
+  }
+  return err instanceof Error ? err.message : String(err)
+}
 
 export default function CatalystForm() {
   const [baseUrl, setBaseUrl] = useState('https://')
@@ -16,15 +26,20 @@ export default function CatalystForm() {
 
   const [sites, setSites] = useState<SiteInfo[]>([])
   const [loadingSites, setLoadingSites] = useState(false)
+  const [sitesDebug, setSitesDebug] = useState<string | null>(null)
   const [selectedSite, setSelectedSite] = useState('')
   const [siteText, setSiteText] = useState('')
   const navigate = useNavigate()
 
   const loadSites = async () => {
     setLoadingSites(true)
+    setSitesDebug(null)
     try {
       const data = await fetchSites(baseUrl, username, password)
       setSites(data.sites || [])
+      if (data.debug && data.debug.samples) {
+        setSitesDebug(JSON.stringify(data.debug.samples, null, 2))
+      }
     } catch {
       setSites([])
     } finally {
@@ -47,7 +62,7 @@ export default function CatalystForm() {
       setMembershipDebug(JSON.stringify(data, null, 2))
     } catch (err: unknown) {
       setMembershipDebug(null)
-      setError(err instanceof Error ? err.message : 'Debug failed')
+      setError(errDetail(err))
     } finally {
       setDebuggingMembership(false)
     }
@@ -64,7 +79,7 @@ export default function CatalystForm() {
         siteFilter || undefined, selectedSite || undefined)
       setResult(data)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Import failed')
+      setError(errDetail(err))
     } finally {
       setLoading(false)
     }
@@ -146,6 +161,17 @@ export default function CatalystForm() {
             </p>
           </div>
 
+          {sitesDebug && (
+            <details className="border border-gray-800 rounded bg-gray-950">
+              <summary className="px-3 py-2 text-xs text-gray-400 cursor-pointer hover:text-gray-300">
+                Raw site API samples
+              </summary>
+              <pre className="px-3 pb-3 text-[11px] text-gray-400 overflow-auto max-h-64 whitespace-pre-wrap">
+                {sitesDebug}
+              </pre>
+            </details>
+          )}
+
           {selectedSite && (
             <button
               type="button"
@@ -173,7 +199,7 @@ export default function CatalystForm() {
                   const r = await testCatalyst(baseUrl, username, password)
                   setTestResult(`Connected! Found ${r.device_count} devices.`)
                 } catch (err: unknown) {
-                  setTestResult(err instanceof Error ? err.message : 'Connection failed')
+                  setTestResult(errDetail(err))
                 } finally {
                   setTesting(false)
                 }

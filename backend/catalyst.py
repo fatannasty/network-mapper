@@ -207,14 +207,25 @@ def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
     sites: list[dict] = []
     seen = set()
     for s in raw_sites:
-        name = s.get("name", "")
-        hier = s.get("siteHierarchy", "")
-        if name and name not in seen:
-            seen.add(name)
+        name = (
+            s.get("name")
+            or s.get("siteNameHierarchy")
+            or s.get("groupNameHierarchy")
+            or ""
+        )
+        hier = (
+            s.get("siteHierarchy")
+            or s.get("siteNameHierarchy")
+            or s.get("groupNameHierarchy")
+            or name
+        )
+        site_id = str(s.get("id") or s.get("siteId") or "")
+        if name and site_id and site_id not in seen:
+            seen.add(site_id)
             sites.append({
                 "name": name,
                 "hierarchy": hier,
-                "site_id": s.get("id", ""),
+                "site_id": site_id,
             })
 
     sites.sort(key=lambda x: x["hierarchy"] or x["name"])
@@ -224,9 +235,14 @@ def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
     for s in raw_sites[:5]:
         samples.append({
             "name": s.get("name"),
-            "hierarchy": s.get("siteHierarchy"),
+            "siteNameHierarchy": s.get("siteNameHierarchy"),
+            "groupNameHierarchy": s.get("groupNameHierarchy"),
+            "siteHierarchy": s.get("siteHierarchy"),
+            "id": str(s.get("id", ""))[:12],
+            "siteId": str(s.get("siteId", ""))[:12],
             "type": s.get("siteType", s.get("groupType", s.get("type", ""))),
             "parentId": str(s.get("parentId", ""))[:12],
+            "all_keys": sorted(s.keys())[:30],
         })
 
     return {

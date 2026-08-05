@@ -155,7 +155,7 @@ export interface SiteInfo {
 
 export async function fetchSites(baseUrl: string, username: string, password: string) {
   const r = await api.post('/api/catalyst/sites', { base_url: baseUrl, username, password })
-  return r.data as { states: string[]; cities: string[]; sites: SiteInfo[]; debug?: Record<string, unknown> }
+  return r.data as { states: string[]; cities: string[]; sites: SiteInfo[]; debug?: { raw_count?: number; parsed?: number; samples?: unknown[] } }
 }
 
 export async function importFromCatalyst(baseUrl: string, username: string, password: string, siteName?: string, siteId?: string) {
