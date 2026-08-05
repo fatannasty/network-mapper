@@ -397,6 +397,23 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
             "links_found": len(links), "debug": debug}
 
 
+@app.post("/api/catalyst/sites", dependencies=[Depends(operator)])
+def catalyst_sites(req: CatalystImportRequest):
+    import catalyst
+    import traceback
+
+    try:
+        token = catalyst.authenticate(req.base_url, req.username, req.password)
+        sites = catalyst.get_sites(req.base_url, token)
+        return {"states": sorted(set(s["state"] for s in sites if s["state"])),
+                "cities": sorted(set(s["city"] for s in sites if s["city"])),
+                "sites": sites}
+    except catalyst.CatalystError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {e}\n\n{traceback.format_exc()}")
+
+
 @app.post("/api/catalyst/test", dependencies=[Depends(operator)])
 def catalyst_test(req: CatalystImportRequest):
     import catalyst

@@ -178,6 +178,76 @@ def get_device_interfaces(base_url: str, token: str, device_id: str,
     return data.get("response", [])
 
 
+def get_sites(base_url: str, token: str, timeout: float = 30.0) -> list[dict]:
+    """Fetch site hierarchy and return state/city pairs.
+
+    Catalyst Center site hierarchy: Global > Area > Building > Floor
+    We map Area → state, Building → city.
+    """
+    base = _resolve_base(base_url)
+    url = f"{base}/dna/intent/api/v1/site"
+    data = _request(url, token, timeout=timeout)
+    sites = data.get("response", [])
+
+    # Build lookup: site id → {name, parentId, hierarchy}
+    by_id: dict[str, dict] = {}
+    for s in sites:
+        sid = s.get("id", "")
+        hier = s.get("siteHierarchy", "") or s.get("name", "")
+        by_id[sid] = {
+            "id": sid,
+            "name": s.get("name", ""),
+            "parentId": s.get("parentId", ""),
+            "hierarchy": hier,
+            "type": s.get("siteType", "") or s.get("groupType", ""),
+        }
+
+    result: list[dict] = []
+    for s in sites:
+        sid = s.get("id", "")
+        info = by_id.get(sid, {})
+        parent_id = info.get("parentId", "")
+        parent = by_id.get(parent_id, {})
+
+        # Building level: name = city, parent = area = state
+        if "building" in info.get("type", "").lower() or "floor" in info.get("type", "").lower():
+            state = parent.get("name", "") if parent else ""
+            city = info.get("name", "")
+
+        # Area level: name = state, no city
+        elif "area" in info.get("type", "").lower():
+            state = info.get("name", "")
+            city = ""
+            # Collect buildings under this area
+            for child in sites:
+                cid = child.get("id", "")
+                cparent = by_id.get(child.get("parentId", ""), {})
+                if cparent.get("id") == sid:
+                    ctype = (child.get("siteType", "") or child.get("groupType", "")).lower()
+                    if "building" in ctype or "floor" in ctype:
+                        cname = child.get("name", "")
+                        if cname:
+                            result.append({"state": state, "city": cname, "site_id": cid})
+            continue
+        else:
+            continue
+
+        if city:
+            result.append({"state": state, "city": city, "site_id": sid})
+
+    # Sort and deduplicate
+    result.sort(key=lambda x: (x["state"], x["city"]))
+    deduped: list[dict] = []
+    seen = set()
+    for r in result:
+        key = (r["state"], r["city"])
+        if key not in seen:
+            seen.add(key)
+            deduped.append(r)
+
+    return deduped
+
+
 def import_devices(base_url: str, username: str, password: str,
                    timeout: float = 120.0, site_name: str = "") -> tuple[list[dict], list[dict], dict]:
     """Authenticate, fetch devices and topology, return (devices, links, debug).
@@ -223,6 +293,7 @@ def import_devices(base_url: str, username: str, password: str,
             if any(
                 term in (d.get("siteName", "") or "").lower()
                 or term in (d.get("siteHierarchy", "") or "").lower()
+                or term in (d.get("siteId", "") or "").lower()
                 for term in terms
             )
         ]

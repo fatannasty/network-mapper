@@ -147,6 +147,17 @@ export async function testCatalyst(baseUrl: string, username: string, password: 
   return r.data as { connected: boolean; device_count: number; sample: Record<string, unknown> | null }
 }
 
+export interface SiteInfo {
+  state: string
+  city: string
+  site_id: string
+}
+
+export async function fetchSites(baseUrl: string, username: string, password: string) {
+  const r = await api.post('/api/catalyst/sites', { base_url: baseUrl, username, password })
+  return r.data as { states: string[]; cities: string[]; sites: SiteInfo[] }
+}
+
 export async function importFromCatalyst(baseUrl: string, username: string, password: string, siteName?: string) {
   const r = await api.post('/api/catalyst/import', { base_url: baseUrl, username, password, site_name: siteName || '' })
   return r.data as { scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> }
