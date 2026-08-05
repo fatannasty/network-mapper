@@ -118,10 +118,18 @@ def get_devices(base_url: str, token: str, limit: int = 1000,
     """Fetch all network devices from Catalyst Center."""
     base = _resolve_base(base_url)
     url = f"{base}/dna/intent/api/v1/network-device"
-    params = f"?limit={limit}&offset=1"
-    data = _request(f"{url}{params}", token, timeout=timeout)
-    devices = data.get("response", [])
-    return devices
+
+    # Try offset=0 first (newer API), fallback to offset=1 (classic)
+    for offset in (0, 1):
+        try:
+            data = _request(f"{url}?limit={limit}&offset={offset}", token, timeout=timeout)
+            devices = data.get("response", [])
+            if devices:
+                return devices
+        except CatalystError:
+            continue
+
+    return []
 
 
 def get_physical_topology(base_url: str, token: str,
@@ -129,8 +137,19 @@ def get_physical_topology(base_url: str, token: str,
     """Fetch physical topology links from Catalyst Center."""
     base = _resolve_base(base_url)
     url = f"{base}/dna/intent/api/v1/topology/physical-topology"
-    data = _request(url, token, timeout=timeout)
-    return data.get("response", {}).get("links", [])
+    try:
+        data = _request(url, token, timeout=timeout)
+    except CatalystError:
+        # Try alternative endpoint
+        url2 = f"{base}/dna/intent/api/v1/topology/site-topology"
+        data = _request(url2, token, timeout=timeout)
+
+    resp = data.get("response", [])
+    if isinstance(resp, dict):
+        return resp.get("links", [])
+    if isinstance(resp, list):
+        return resp
+    return []
 
 
 def get_device_detail(base_url: str, token: str, device_id: str,
@@ -164,8 +183,17 @@ def import_devices(base_url: str, username: str, password: str,
     """
     token = authenticate(base_url, username, password, timeout=timeout)
 
-    raw_devices = get_devices(base_url, token, timeout=timeout)
-    raw_topology = get_physical_topology(base_url, token, timeout=timeout)
+    try:
+        raw_devices = get_devices(base_url, token, timeout=timeout)
+    except CatalystError as e:
+        raise CatalystError(f"Failed to fetch devices: {e}") from e
+
+    errors: list[str] = []
+    try:
+        raw_topology = get_physical_topology(base_url, token, timeout=timeout)
+    except CatalystError as e:
+        errors.append(f"Topology fetch failed: {e}")
+        raw_topology: list[dict] = []
 
     # Map device IDs to IPs for topology link resolution
     device_by_id: dict[str, dict] = {}
