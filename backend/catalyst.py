@@ -59,30 +59,34 @@ def authenticate(base_url: str, username: str, password: str,
     auth_paths = [
         f"{base}/dna/system/api/v1/auth/token",
         f"{base}/api/system/v1/auth/token",
+        f"{base}/api/v1/auth/token",
+        f"{base}/dna/intent/api/v1/auth/token",
     ]
 
-    last_error = ""
+    errors: list[str] = []
     for url in auth_paths:
-        req = urllib.request.Request(url)
+        req = urllib.request.Request(url, method="POST")
         req.add_header("Authorization", f"Basic {auth}")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Accept", "application/json")
 
         try:
             with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-                data = json.loads(resp.read().decode())
-                token = data.get("Token", "")
-                if not token:
-                    raise CatalystError("No token in response")
-                return token
+                raw_body = resp.read().decode()
+                data = json.loads(raw_body)
+                token = data.get("Token") or data.get("token") or ""
+                if token:
+                    return token
+                errors.append(f"{url}: HTTP {resp.status} — no token in: {raw_body[:200]}")
         except urllib.error.HTTPError as e:
-            msg = e.read().decode()[:300] if e.fp else str(e)
-            last_error = f"HTTP {e.code} from {url}: {msg}"
+            body = e.read().decode()[:300] if e.fp else "(no body)"
+            errors.append(f"{url}: HTTP {e.code} — {body}")
         except OSError as e:
-            last_error = f"Connection to {url} failed: {e}"
+            errors.append(f"{url}: {e}")
 
     raise CatalystError(
-        f"Authentication failed. Tried {len(auth_paths)} endpoints.\n"
-        f"Verify the URL, username, and password.\n"
-        f"Last error: {last_error}"
+        f"Authentication failed trying {len(auth_paths)} endpoints.\n"
+        + "\n".join(errors)
     )
 
 
