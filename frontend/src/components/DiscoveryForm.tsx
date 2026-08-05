@@ -1,31 +1,56 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { discover } from '../api'
+import { discover, getCredentials, type ScanResult, type Credential } from '../api'
+
+const COMMON_COMMUNITIES = ['public', 'private', 'cisco', 'admin', 'snmp', 'read', 'write', 'monitor']
 
 export default function DiscoveryForm() {
   const [subnet, setSubnet] = useState('127.0.0.1/32')
-  const [community, setCommunity] = useState('public')
+  const [communitiesText, setCommunitiesText] = useState('public')
   const [snmpPort, setSnmpPort] = useState('161')
   const [snmpv3, setSnmpv3] = useState(false)
   const [username, setUsername] = useState('')
   const [authPass, setAuthPass] = useState('')
   const [privPass, setPrivPass] = useState('')
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<string | null>(null)
+  const [result, setResult] = useState<ScanResult | null>(null)
+  const [error, setError] = useState('')
+  const [credentials, setCredentials] = useState<Credential[]>([])
   const navigate = useNavigate()
+
+  useEffect(() => {
+    getCredentials().then((d) => setCredentials(d.credentials || [])).catch(() => {})
+  }, [])
+
+  const communities = communitiesText
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  const applyCredentials = (cred: Credential) => {
+    if (cred.credential_type === 'snmp' && cred.snmp_community) {
+      setCommunitiesText(cred.snmp_community)
+      setSnmpv3(false)
+    } else if (cred.credential_type === 'snmpv3') {
+      setUsername(cred.username || '')
+      setSnmpv3(true)
+    }
+    if (cred.site) alert(`Site: ${cred.site}`)
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setResult(null)
+    setError('')
     try {
       const v3 = snmpv3
         ? { username, auth_protocol: 'sha', auth_password: authPass, privacy_protocol: 'aes', privacy_password: privPass || authPass }
         : undefined
-      const data = await discover(subnet, community ? [community] : [], parseInt(snmpPort) || 161, v3)
-      setResult(data.scan_id)
+      const data = await discover(subnet, communities, parseInt(snmpPort) || 161, v3)
+      setResult(data)
     } catch (err: unknown) {
-      setResult(err instanceof Error ? err.message : 'Discovery failed')
+      setError(err instanceof Error ? err.message : 'Discovery failed')
     } finally {
       setLoading(false)
     }
@@ -45,15 +70,8 @@ export default function DiscoveryForm() {
               placeholder="10.0.0.0/24"
             />
           </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-gray-400 text-sm mb-1">SNMP Community</label>
-              <input
-                value={community}
-                onChange={(e) => setCommunity(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
-              />
-            </div>
             <div>
               <label className="block text-gray-400 text-sm mb-1">SNMP Port</label>
               <input
@@ -63,6 +81,29 @@ export default function DiscoveryForm() {
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
               />
             </div>
+            <div>
+              <label className="block text-gray-400 text-sm mb-1">&nbsp;</label>
+              <button
+                type="button"
+                onClick={() => setCommunitiesText(COMMON_COMMUNITIES.join('\n'))}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-300 text-sm hover:bg-gray-700 transition-colors"
+              >
+                Try Common Communities
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-gray-400 text-sm mb-1">
+              SNMP Communities (one per line or comma-separated)
+            </label>
+            <textarea
+              value={communitiesText}
+              onChange={(e) => setCommunitiesText(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500 font-mono text-sm resize-y"
+              placeholder="public&#10;private&#10;cisco"
+            />
           </div>
 
           <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
@@ -100,6 +141,25 @@ export default function DiscoveryForm() {
             </div>
           )}
 
+          {credentials.length > 0 && (
+            <div>
+              <label className="block text-gray-400 text-sm mb-1">Saved Credentials</label>
+              <div className="flex flex-wrap gap-1">
+                {credentials.map((cred) => (
+                  <button
+                    key={cred.id}
+                    type="button"
+                    onClick={() => applyCredentials(cred)}
+                    className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-gray-300 hover:bg-gray-700 transition-colors"
+                    title={cred.credential_type === 'snmpv3' ? `SNMPv3 user: ${cred.username}` : `Community: ${cred.snmp_community}`}
+                  >
+                    {cred.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -108,22 +168,84 @@ export default function DiscoveryForm() {
             {loading ? 'Scanning...' : 'Start Discovery'}
           </button>
 
-          {result && result.length === 12 && (
-            <div className="bg-green-900/50 border border-green-800 rounded p-4">
-              <p className="text-green-300">Discovery complete.</p>
-              <button
-                type="button"
-                onClick={() => navigate(`/topology?scan_id=${result}`)}
-                className="mt-2 px-4 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded text-sm transition-colors"
-              >
-                View Topology
-              </button>
+          {error && (
+            <div className="bg-red-900/50 border border-red-800 rounded p-4">
+              <p className="text-red-300">{error}</p>
             </div>
           )}
 
-          {result && result.length !== 12 && (
-            <div className="bg-red-900/50 border border-red-800 rounded p-4">
-              <p className="text-red-300">{result}</p>
+          {result && (
+            <div className="bg-gray-800 border border-gray-700 rounded p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-green-400 font-medium text-sm">Scan Complete</span>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/topology?scan_id=${result.scan_id}`)}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs transition-colors"
+                >
+                  View Topology
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-gray-900 rounded p-2">
+                  <span className="text-gray-500">Subnet</span>
+                  <p className="text-white font-mono">{result.subnet}</p>
+                </div>
+                <div className="bg-gray-900 rounded p-2">
+                  <span className="text-gray-500">Hosts Scanned</span>
+                  <p className="text-white">{result.scanned_hosts}</p>
+                </div>
+                <div className="bg-gray-900 rounded p-2">
+                  <span className="text-gray-500">Alive</span>
+                  <p className="text-green-400">{result.alive_hosts}</p>
+                </div>
+                <div className="bg-gray-900 rounded p-2">
+                  <span className="text-gray-500">Devices Found</span>
+                  <p className="text-white">{result.device_count}</p>
+                </div>
+                <div className={`bg-gray-900 rounded p-2 ${result.snmp_identified > 0 ? 'border border-blue-800' : ''}`}>
+                  <span className="text-gray-500">SNMP Identified</span>
+                  <p className={result.snmp_identified > 0 ? 'text-blue-400' : 'text-gray-600'}>
+                    {result.snmp_identified}
+                  </p>
+                </div>
+                <div className={`bg-gray-900 rounded p-2 ${result.connections.length > 0 ? 'border border-amber-800' : ''}`}>
+                  <span className="text-gray-500">Links Found</span>
+                  <p className={result.connections.length > 0 ? 'text-amber-400' : 'text-gray-600'}>
+                    {result.connections.length}
+                  </p>
+                </div>
+              </div>
+
+              {result.snmp_identified > 0 && (
+                <div>
+                  <span className="text-gray-500 text-xs block mb-1">SNMP Devices</span>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {result.devices
+                      .filter((d) => d.snmp_identified)
+                      .map((d) => (
+                        <div key={d.ip} className="bg-gray-900 rounded px-2 py-1 text-xs flex items-center gap-2">
+                          <span className="text-blue-400 font-mono">{d.ip}</span>
+                          <span className="text-white">{d.hostname || '\u2014'}</span>
+                          {d.snmp_community && (
+                            <span className="text-gray-500">({d.snmp_community})</span>
+                          )}
+                          {d.vendor && (
+                            <span className="text-gray-400 ml-auto">{d.vendor}</span>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {result.snmp_identified === 0 && result.alive_hosts > 0 && (
+                <div className="bg-amber-900/30 border border-amber-800 rounded p-3 text-xs text-amber-300">
+                  No devices responded to SNMP with the provided communities.
+                  Try adding more community strings or check SNMP credentials.
+                </div>
+              )}
             </div>
           )}
         </form>

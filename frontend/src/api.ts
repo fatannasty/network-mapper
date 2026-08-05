@@ -104,6 +104,15 @@ export async function login(username: string, password: string) {
   return r.data
 }
 
+export interface Credential {
+  id: number
+  name: string
+  credential_type: string
+  snmp_community: string
+  username: string
+  site: string
+}
+
 export async function discover(subnet: string, communities: string[], snmpPort?: number, snmpv3?: object) {
   const r = await api.post('/api/discover', {
     subnet,
@@ -113,6 +122,11 @@ export async function discover(subnet: string, communities: string[], snmpPort?:
     snmpv3,
   })
   return r.data as ScanResult
+}
+
+export async function getCredentials() {
+  const r = await api.get('/api/inventory/credentials')
+  return r.data as { count: number; credentials: Credential[] }
 }
 
 export async function getTopology(scanId?: string) {
