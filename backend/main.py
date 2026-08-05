@@ -374,6 +374,8 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
             req.base_url, req.username, req.password)
     except catalyst.CatalystError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}") from e
 
     scan_id = uuid.uuid4().hex[:12]
     repositories.create_scan_job(db, scan_id, "catalyst-center", [], False)
@@ -402,6 +404,8 @@ def catalyst_test(req: CatalystImportRequest):
         result = catalyst.test_connection(req.base_url, req.username, req.password)
     except catalyst.CatalystError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}") from e
 
     return result
 

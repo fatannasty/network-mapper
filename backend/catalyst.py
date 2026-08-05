@@ -29,7 +29,12 @@ def _request(url: str, token: str, method: str = "GET",
 
     try:
         with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-            return json.loads(resp.read().decode()) if resp.status < 300 else {}
+            raw = resp.read().decode()
+            if resp.status < 300:
+                return json.loads(raw) if raw.strip() else {}
+            raise CatalystError(f"HTTP {resp.status}: {raw[:500]}")
+    except json.JSONDecodeError as e:
+        raise CatalystError(f"Invalid JSON response: {e}") from e
     except urllib.error.HTTPError as e:
         msg = e.read().decode()[:500] if e.fp else str(e)
         raise CatalystError(f"HTTP {e.code}: {msg}") from e
@@ -100,16 +105,16 @@ def _resolve_base(base_url: str) -> str:
 
 
 def test_connection(base_url: str, username: str, password: str,
-                    timeout: float = 15.0) -> dict:
+                    timeout: float = 30.0) -> dict:
     """Test connectivity and return device count without importing."""
     token = authenticate(base_url, username, password, timeout=timeout)
     base = _resolve_base(base_url)
-    devices = get_devices(base, token, limit=1, timeout=timeout)
-    all_devices = get_devices(base, token, limit=500, timeout=timeout)
+    devices = get_devices(base, token, limit=50, timeout=timeout)
+    sample = devices[0] if devices else None
     return {
         "connected": True,
-        "device_count": len(all_devices),
-        "sample": devices[0] if devices else None,
+        "device_count": len(devices),
+        "sample": sample,
     }
 
 
@@ -126,7 +131,7 @@ def get_devices(base_url: str, token: str, limit: int = 1000,
             devices = data.get("response", [])
             if devices:
                 return devices
-        except CatalystError:
+        except Exception:
             continue
 
     return []
