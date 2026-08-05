@@ -9,6 +9,7 @@ interface Props {
 const links = [
   { to: '/topology', label: 'Topology' },
   { to: '/discover', label: 'Discover' },
+  { to: '/catalyst', label: 'Catalyst' },
 ]
 
 export default function Layout({ children, onLogout }: Props) {

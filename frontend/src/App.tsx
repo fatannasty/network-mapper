@@ -4,6 +4,7 @@ import Layout from './components/Layout'
 import LoginForm from './components/LoginForm'
 import DiscoveryForm from './components/DiscoveryForm'
 import TopologyViewer from './components/TopologyViewer'
+import CatalystForm from './components/CatalystForm'
 import { setToken } from './api'
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<TopologyViewer />} />
           <Route path="/discover" element={<DiscoveryForm />} />
+          <Route path="/catalyst" element={<CatalystForm />} />
           <Route path="/topology" element={<TopologyViewer />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

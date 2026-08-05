@@ -93,6 +93,7 @@ class DiscoverRequest(BaseModel):
     exclude_pcs: bool = True
     site: Optional[str] = None
     snmp_port: int = 161
+    verbose: bool = False
     snmpv3: Optional[SnmpV3Request] = None
 
 
@@ -223,7 +224,7 @@ def api_discover(req: DiscoverRequest, db: Session = Depends(get_db)):
     try:
         result = scanner.discover(req.subnet, communities=communities,
                                   exclude_pcs=req.exclude_pcs, snmpv3=snmpv3_dict,
-                                  snmp_port=req.snmp_port)
+                                  snmp_port=req.snmp_port, verbose=req.verbose)
     except ValueError as exc:
         repositories.fail_scan_job(db, scan_id, str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -235,7 +236,8 @@ def api_discover(req: DiscoverRequest, db: Session = Depends(get_db)):
 
     repositories.replace_links(db, scan_id, result["connections"])
     repositories.finish_scan_job(db, scan_id, result)
-    return DiscoverResponse(scan_id=scan_id, **result)
+
+    return {"scan_id": scan_id, **result}
 
 
 # ── Inventory ─────────────────────────────────────────────────────────────────
@@ -353,6 +355,43 @@ def inventory_sites(db: Session = Depends(get_db)):
 def inventory_create_site(req: SiteRequest, db: Session = Depends(get_db)):
     site = repositories.create_site(db, req.name, req.location)
     return site.to_dict()
+
+
+# ── Catalyst Center Import ─────────────────────────────────────────────────────
+
+class CatalystImportRequest(BaseModel):
+    base_url: str
+    username: str
+    password: str
+
+
+@app.post("/api/catalyst/import", dependencies=[Depends(operator)])
+def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
+    import catalyst
+
+    try:
+        devices, links = catalyst.import_devices(
+            req.base_url, req.username, req.password)
+    except catalyst.CatalystError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    scan_id = uuid.uuid4().hex[:12]
+    repositories.create_scan_job(db, scan_id, "catalyst-center", [], False)
+
+    for device in devices:
+        repositories.upsert_device(db, device, scan_id)
+
+    repositories.replace_links(db, scan_id, links)
+
+    repositories.finish_scan_job(db, scan_id, {
+        "subnet": "catalyst-center", "local_ip": "",
+        "scanned_hosts": len(devices), "alive_hosts": len(devices),
+        "device_count": len(devices), "snmp_identified": 0,
+        "devices": devices, "connections": links,
+    })
+
+    return {"scan_id": scan_id, "device_count": len(devices),
+            "links_found": len(links)}
 
 
 if __name__ == "__main__":

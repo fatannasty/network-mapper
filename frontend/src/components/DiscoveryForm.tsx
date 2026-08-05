@@ -13,6 +13,7 @@ export default function DiscoveryForm() {
   const [authPass, setAuthPass] = useState('')
   const [privPass, setPrivPass] = useState('')
   const [loading, setLoading] = useState(false)
+  const [verbose, setVerbose] = useState(false)
   const [result, setResult] = useState<ScanResult | null>(null)
   const [error, setError] = useState('')
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -47,7 +48,7 @@ export default function DiscoveryForm() {
       const v3 = snmpv3
         ? { username, auth_protocol: 'sha', auth_password: authPass, privacy_protocol: 'aes', privacy_password: privPass || authPass }
         : undefined
-      const data = await discover(subnet, communities, parseInt(snmpPort) || 161, v3)
+      const data = await discover(subnet, communities, parseInt(snmpPort) || 161, v3, verbose)
       setResult(data)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Discovery failed')
@@ -106,15 +107,26 @@ export default function DiscoveryForm() {
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={snmpv3}
-              onChange={(e) => setSnmpv3(e.target.checked)}
-              className="rounded"
-            />
-            Use SNMPv3
-          </label>
+          <div className="flex items-center gap-6">
+            <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={snmpv3}
+                onChange={(e) => setSnmpv3(e.target.checked)}
+                className="rounded"
+              />
+              Use SNMPv3
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={verbose}
+                onChange={(e) => setVerbose(e.target.checked)}
+                className="rounded"
+              />
+              Verbose logging
+            </label>
+          </div>
 
           {snmpv3 && (
             <div className="space-y-3 pl-2 border-l-2 border-gray-700">
@@ -244,6 +256,43 @@ export default function DiscoveryForm() {
                 <div className="bg-amber-900/30 border border-amber-800 rounded p-3 text-xs text-amber-300">
                   No devices responded to SNMP with the provided communities.
                   Try adding more community strings or check SNMP credentials.
+                </div>
+              )}
+
+              {verbose && (
+                <div>
+                  <span className="text-gray-500 text-xs block mb-1">SNMP Debug Log</span>
+                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                    {result.devices.map((d) => {
+                      const dbg = d.snmp_debug
+                      if (!dbg) return null
+                      return (
+                        <div key={d.ip} className="bg-gray-900 rounded px-2 py-1.5 text-xs font-mono">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-300">{d.ip}</span>
+                            <span className={dbg.port_open ? 'text-green-400' : 'text-red-400'}>
+                              port {dbg.port_open ? 'open' : 'closed'}
+                            </span>
+                            {dbg.community_used && (
+                              <span className="text-blue-400">{dbg.community_used}</span>
+                            )}
+                          </div>
+                          {dbg.hostname && (
+                            <div className="text-gray-500 mt-0.5">
+                              hostname: {dbg.hostname}
+                              {dbg.hostname_source && <span className="text-gray-600 ml-1">({dbg.hostname_source})</span>}
+                            </div>
+                          )}
+                          {dbg.error && (
+                            <div className="text-red-400 mt-0.5">{dbg.error}</div>
+                          )}
+                          {dbg.vendor && (
+                            <div className="text-gray-600 mt-0.5 truncate">{dbg.vendor}</div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
             </div>

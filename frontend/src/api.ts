@@ -37,6 +37,17 @@ export interface ScanResult {
   connections: Link[]
 }
 
+export interface SnmpDebug {
+  port_open: boolean
+  communities_tried: string[]
+  community_used: string
+  vendor: string
+  sys_name: string
+  error: string
+  hostname: string
+  hostname_source?: string
+}
+
 export interface Device {
   ip: string
   hostname: string
@@ -49,6 +60,7 @@ export interface Device {
   snmp_identified: boolean
   interfaces: Interface[]
   site?: string
+  snmp_debug?: SnmpDebug
 }
 
 export interface Interface {
@@ -113,13 +125,14 @@ export interface Credential {
   site: string
 }
 
-export async function discover(subnet: string, communities: string[], snmpPort?: number, snmpv3?: object) {
+export async function discover(subnet: string, communities: string[], snmpPort?: number, snmpv3?: object, verbose?: boolean) {
   const r = await api.post('/api/discover', {
     subnet,
     communities: communities.length > 0 ? communities : ['public'],
     exclude_pcs: false,
     snmp_port: snmpPort || 161,
     snmpv3,
+    verbose: verbose || false,
   })
   return r.data as ScanResult
 }
@@ -127,6 +140,11 @@ export async function discover(subnet: string, communities: string[], snmpPort?:
 export async function getCredentials() {
   const r = await api.get('/api/inventory/credentials')
   return r.data as { count: number; credentials: Credential[] }
+}
+
+export async function importFromCatalyst(baseUrl: string, username: string, password: string) {
+  const r = await api.post('/api/catalyst/import', { base_url: baseUrl, username, password })
+  return r.data as { scan_id: string; device_count: number; links_found: number }
 }
 
 export async function getTopology(scanId?: string) {

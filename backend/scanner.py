@@ -14,7 +14,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from classifier import NETWORK_DEVICE_TYPES, DEVICE_TYPE_ORDER, classify
-from snmp import SNMP_PORT, snmp_poll
+from snmp import SNMP_PORT, _to_str, snmp_poll
 from snmpv3 import (AUTH_MD5, AUTH_NONE, AUTH_SHA, PRIV_AES, PRIV_DES, PRIV_NONE,
                     snmpv3_get, walk_if_table)
 from topology import build_links
@@ -150,17 +150,31 @@ def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT,
     snmp_open = udp_port_open(ip, snmp_port)
     open_ports = sorted(tcp_ports + ([snmp_port] if snmp_open else []))
 
+    snmp_debug: dict = {"port_open": snmp_open, "communities_tried": communities if not snmpv3 else [],
+                       "community_used": "", "vendor": "", "sys_name": "", "error": ""}
     snmp_data = None
     if snmp_open:
         if snmpv3:
             snmp_data = snmpv3_poll(ip, snmpv3, snmp_port=snmp_port)
+            snmp_debug["communities_tried"] = ["(snmpv3)"]
         else:
             snmp_data = snmp_poll(ip, communities, port=snmp_port)
+        if snmp_data:
+            snmp_debug["community_used"] = snmp_data.get("community", "")
+            snmp_debug["vendor"] = _to_str(snmp_data.get("sysDescr", ""))[:80]
+            snmp_debug["sys_name"] = _to_str(snmp_data.get("sysName", ""))
+        else:
+            snmp_debug["error"] = "No response to any community"
+    else:
+        snmp_debug["error"] = "SNMP port not open"
 
     hostname = snmp_data.get("sysName", "") if snmp_data else ""
+    snmp_debug["hostname"] = hostname
     if not hostname:
         try:
             hostname = socket.gethostbyaddr(ip)[0]
+            snmp_debug["hostname"] = hostname
+            snmp_debug["hostname_source"] = "reverse dns"
         except (socket.herror, socket.gaierror, OSError):
             pass
     cls = classify(snmp_data, hostname=hostname)
@@ -180,6 +194,7 @@ def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT,
         "snmp_community": snmp_data.get("community", "") if snmp_data else "",
         "snmp_identified": bool(snmp_data),
         "interfaces": interfaces,
+        "snmp_debug": snmp_debug,
     }
     return device
 
@@ -254,8 +269,13 @@ def collect_topology(devices: list[dict], communities: list[str] | None = None,
 
 def discover(cidr: str, communities: list[str] | None = None, exclude_pcs: bool = True,
              progress_cb=None, snmp_port: int = SNMP_PORT,
-             snmpv3: dict | None = None) -> dict:
-    """Scan a subnet and return identified devices plus summary stats."""
+             snmpv3: dict | None = None, verbose: bool = False) -> dict:
+    """Scan a subnet and return identified devices plus summary stats.
+
+    When verbose=True, each device includes an 'snmp_debug' dict with
+    SNMP port status, communities tried, community used, vendor string,
+    and any errors.
+    """
     communities = communities or ["public"]
     hosts = hosts_from_cidr(cidr)
 
