@@ -289,37 +289,30 @@ def get_site_members(base_url: str, token: str, site_id: str,
                      timeout: float = 30.0) -> set[str]:
     """Return network-device IDs assigned to a site (membership API)."""
     base = _resolve_base(base_url)
-    urls = [
-        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500",
-        f"{base}/dna/intent/api/v1/site-member/{site_id}/member?memberType=networkdevice&limit=500",
-    ]
+    url = f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500"
 
     ids: set[str] = set()
-    for url in urls:
-        try:
-            data = _request(url, token, timeout=timeout)
-        except Exception:
-            continue
+    try:
+        data = _request(url, token, timeout=timeout)
+    except Exception:
+        return ids
 
-        resp = data.get("response", data)
-        # membership API: {"device": [{"response": [devices]}], "site": {...}}
-        groups = []
-        if isinstance(resp, dict):
-            groups = resp.get("device", [])
-        elif isinstance(data, dict) and "device" in data:
-            groups = data.get("device", [])
-        if isinstance(resp, list):
-            for d in resp:
-                did = str(d.get("instanceUuid") or d.get("id") or "")
-                if did:
-                    ids.add(did)
-        for grp in groups:
-            for d in grp.get("response", []):
-                did = str(d.get("instanceUuid") or d.get("id") or "")
-                if did:
-                    ids.add(did)
-        if ids:
-            break
+    resp = data.get("response", data)
+    groups = []
+    if isinstance(resp, dict):
+        groups = resp.get("device", [])
+    elif isinstance(data, dict) and "device" in data:
+        groups = data.get("device", [])
+    if isinstance(resp, list):
+        for d in resp:
+            did = str(d.get("instanceUuid") or d.get("id") or "")
+            if did:
+                ids.add(did)
+    for grp in groups:
+        for d in grp.get("response", []):
+            did = str(d.get("instanceUuid") or d.get("id") or "")
+            if did:
+                ids.add(did)
 
     return ids
 
@@ -519,6 +512,8 @@ def import_devices(base_url: str, username: str, password: str,
 
     # Site membership filter (preferred — works even when devices have no site fields)
     membership_applied = False
+    resolved_site_count = 0
+    membership_ids_count = 0
     site_filter_requested = bool(site_id or site_name)
     if site_filter_requested and raw_devices:
         # Resolve the site to UUIDs. site_id may be empty for state-only picks,
@@ -544,6 +539,9 @@ def import_devices(base_url: str, username: str, password: str,
         member_ids: set[str] = set()
         for sid in list(related_ids)[:30]:
             member_ids.update(get_site_members(base_url, token, sid, timeout=timeout))
+
+        resolved_site_count = len(related_ids)
+        membership_ids_count = len(member_ids)
 
         if member_ids:
             before = len(raw_devices)
@@ -725,6 +723,8 @@ def import_devices(base_url: str, username: str, password: str,
         "raw_devices_fetched": raw_device_count_before,
         "raw_topology": len(raw_topology),
         "neighbor_links_added": neighbor_links_added,
+        "resolved_site_count": resolved_site_count,
+        "membership_ids_count": membership_ids_count,
         "errors": errors,
     }
     return devices, links, debug
