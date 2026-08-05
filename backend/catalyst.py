@@ -290,4 +290,4 @@ def import_devices(base_url: str, username: str, password: str,
         "raw_devices": len(raw_devices),
         "raw_topology": len(raw_topology),
     }
-    return devices, links, debug    return devices, links
+    return devices, links, debug

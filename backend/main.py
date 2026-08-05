@@ -399,13 +399,15 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
 @app.post("/api/catalyst/test", dependencies=[Depends(operator)])
 def catalyst_test(req: CatalystImportRequest):
     import catalyst
+    import traceback
 
     try:
         result = catalyst.test_connection(req.base_url, req.username, req.password)
     except catalyst.CatalystError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}") from e
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"Error: {e}\n\nTraceback:\n{tb}")
 
     return result
 
