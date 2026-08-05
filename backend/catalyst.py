@@ -325,25 +325,26 @@ def import_devices(base_url: str, username: str, password: str,
         debug_sample = {
             "keys": sorted(d0.keys()),
             "managementIpAddress": d0.get("managementIpAddress"),
-            "ipAddress": d0.get("ipAddress"),
             "hostname": d0.get("hostname"),
             "type": d0.get("type"),
             "family": d0.get("family"),
-            "reachabilityStatus": d0.get("reachabilityStatus"),
             "platformId": d0.get("platformId"),
             "softwareType": d0.get("softwareType"),
             "siteName": d0.get("siteName"),
             "siteHierarchy": d0.get("siteHierarchy"),
             "siteId": d0.get("siteId"),
+            "location": d0.get("location"),
+            "locationName": d0.get("locationName"),
         }
-        # Collect available site names for reference
-        site_samples = set()
-        for d in raw_devices[:200]:
-            s = d.get("siteName") or d.get("siteHierarchy") or ""
+        # Collect available location/site names for reference
+        loc_samples = set()
+        for d in raw_devices[:500]:
+            s = (d.get("locationName") or d.get("location")
+                 or d.get("siteName") or d.get("siteHierarchy") or "")
             if s:
-                site_samples.add(s)
-        if site_samples:
-            debug_sample["available_sites_sample"] = sorted(site_samples)[:30]
+                loc_samples.add(s)
+        if loc_samples:
+            debug_sample["available_locations"] = sorted(loc_samples)[:50]
 
     # Apply site filter
     if site_name and raw_devices:
@@ -354,6 +355,8 @@ def import_devices(base_url: str, username: str, password: str,
                 term in (d.get("siteName", "") or "").lower()
                 or term in (d.get("siteHierarchy", "") or "").lower()
                 or term in (d.get("siteId", "") or "").lower()
+                or term in (d.get("locationName", "") or "").lower()
+                or term in (d.get("location", "") or "").lower()
                 for term in terms
             )
         ]
@@ -375,24 +378,33 @@ def import_devices(base_url: str, username: str, password: str,
 
         hostname = d.get("hostname", "") or d.get("dnsName", "")
         family = (d.get("family", "") or "").lower()
-        typ = d.get("type", "") or ""
-        device_type = ""
+        typ = (d.get("type", "") or "").lower()
+        platform = (d.get("platformId", "") or "").lower()
 
-        if "access point" in typ.lower() or "ap" in family.lower():
+        # Detect vendor
+        vendor = d.get("softwareType", "") or ""
+        if "meraki" in family or "meraki" in typ or "meraki" in platform:
+            vendor = "Meraki"
+        elif not vendor and "cisco" in family:
+            vendor = "Cisco"
+
+        # Detect device type from model prefix or family
+        device_type = ""
+        if "access point" in family or "ap" in family or typ.startswith("mr"):
             device_type = "access-point"
-        elif "switch" in typ.lower() or "switch" in family:
+        elif "switch" in family or typ.startswith("ms"):
             device_type = "switch"
-        elif "router" in typ.lower() or "router" in family:
-            device_type = "router"
-        elif "firewall" in typ.lower() or "firewall" in family:
+        elif "firewall" in family or "security" in family or typ.startswith("mx"):
             device_type = "firewall"
-        elif "wireless" in typ.lower() or "wireless" in family:
+        elif "router" in family:
+            device_type = "router"
+        elif "wireless" in family or typ.startswith("wc") or "wlc" in typ:
             device_type = "wireless-controller"
 
         devices.append({
             "ip": ip,
             "hostname": hostname,
-            "vendor": d.get("softwareType", "") or "Cisco",
+            "vendor": vendor,
             "model": d.get("platformId", ""),
             "device_type": device_type,
             "confidence": 5,
