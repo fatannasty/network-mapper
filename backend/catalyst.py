@@ -178,74 +178,97 @@ def get_device_interfaces(base_url: str, token: str, device_id: str,
     return data.get("response", [])
 
 
-def get_sites(base_url: str, token: str, timeout: float = 30.0) -> list[dict]:
+def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
     """Fetch site hierarchy and return state/city pairs.
 
-    Catalyst Center site hierarchy: Global > Area > Building > Floor
-    We map Area → state, Building → city.
+    Returns {sites, debug} where sites is the list of {state, city, site_id}
+    and debug includes raw info for troubleshooting.
     """
     base = _resolve_base(base_url)
-    url = f"{base}/dna/intent/api/v1/site"
-    data = _request(url, token, timeout=timeout)
-    sites = data.get("response", [])
 
-    # Build lookup: site id → {name, parentId, hierarchy}
+    # Try multiple API paths
+    urls = [
+        f"{base}/dna/intent/api/v1/site",
+        f"{base}/dna/intent/api/v1/site?type=area,building,floor",
+    ]
+
+    data = {}
+    for url in urls:
+        try:
+            data = _request(url, token, timeout=timeout)
+            break
+        except Exception:
+            continue
+
+    raw_sites = data.get("response", [])
+    if not raw_sites:
+        return {"sites": [], "debug": {"raw_count": 0, "sample": [], "note": "No sites returned"}}
+
+    # Show raw sample for debugging
+    sample_raw = []
+    for s in raw_sites[:3]:
+        sample_raw.append({
+            "name": s.get("name"),
+            "siteHierarchy": s.get("siteHierarchy"),
+            "id": s.get("id", "")[:12],
+            "parentId": s.get("parentId", "")[:12],
+            "type": s.get("siteType", s.get("groupType", s.get("type", "?"))),
+        })
+
+    # Build lookup
     by_id: dict[str, dict] = {}
-    for s in sites:
+    for s in raw_sites:
         sid = s.get("id", "")
-        hier = s.get("siteHierarchy", "") or s.get("name", "")
         by_id[sid] = {
             "id": sid,
             "name": s.get("name", ""),
             "parentId": s.get("parentId", ""),
-            "hierarchy": hier,
-            "type": s.get("siteType", "") or s.get("groupType", ""),
+            "hierarchy": s.get("siteHierarchy", "") or s.get("name", ""),
+            "type": (s.get("siteType") or s.get("groupType") or s.get("type") or "").lower(),
         }
 
     result: list[dict] = []
-    for s in sites:
-        sid = s.get("id", "")
-        info = by_id.get(sid, {})
-        parent_id = info.get("parentId", "")
-        parent = by_id.get(parent_id, {})
+    for s in raw_sites:
+        info = by_id.get(s.get("id", ""), {})
+        parent = by_id.get(info.get("parentId", ""), {})
+        typ = info.get("type", "")
 
-        # Building level: name = city, parent = area = state
-        if "building" in info.get("type", "").lower() or "floor" in info.get("type", "").lower():
-            state = parent.get("name", "") if parent else ""
-            city = info.get("name", "")
-
-        # Area level: name = state, no city
-        elif "area" in info.get("type", "").lower():
+        if "building" in typ or "floor" in typ:
+            result.append({
+                "state": parent.get("name", ""),
+                "city": info.get("name", ""),
+                "site_id": info.get("id", ""),
+            })
+        elif "area" in typ:
             state = info.get("name", "")
-            city = ""
-            # Collect buildings under this area
-            for child in sites:
-                cid = child.get("id", "")
-                cparent = by_id.get(child.get("parentId", ""), {})
-                if cparent.get("id") == sid:
-                    ctype = (child.get("siteType", "") or child.get("groupType", "")).lower()
-                    if "building" in ctype or "floor" in ctype:
-                        cname = child.get("name", "")
-                        if cname:
-                            result.append({"state": state, "city": cname, "site_id": cid})
-            continue
-        else:
-            continue
-
-        if city:
-            result.append({"state": state, "city": city, "site_id": sid})
+            for child in raw_sites:
+                cinfo = by_id.get(child.get("id", ""), {})
+                if cinfo.get("parentId") == info.get("id"):
+                    ct = cinfo.get("type", "")
+                    if "building" in ct or "floor" in ct:
+                        result.append({
+                            "state": state,
+                            "city": cinfo.get("name", ""),
+                            "site_id": cinfo.get("id", ""),
+                        })
 
     # Sort and deduplicate
     result.sort(key=lambda x: (x["state"], x["city"]))
-    deduped: list[dict] = []
-    seen = set()
+    deduped, seen = [], set()
     for r in result:
         key = (r["state"], r["city"])
-        if key not in seen:
+        if r["city"] and key not in seen:
             seen.add(key)
             deduped.append(r)
 
-    return deduped
+    return {
+        "sites": deduped,
+        "debug": {
+            "raw_count": len(raw_sites),
+            "parsed_locations": len(deduped),
+            "sample_raw": sample_raw,
+        },
+    }
 
 
 def import_devices(base_url: str, username: str, password: str,
@@ -272,8 +295,26 @@ def import_devices(base_url: str, username: str, password: str,
     try:
         raw_topology = get_physical_topology(base_url, token, timeout=timeout)
     except CatalystError as e:
-        errors.append(f"Topology fetch failed: {e}")
+        errors.append(f"Physical topology failed: {e}")
         raw_topology: list[dict] = []
+
+    # Also try layer-2 topology (includes AP-to-switch links)
+    l2_links: list[dict] = []
+    try:
+        base = _resolve_base(base_url)
+        url2 = f"{base}/dna/intent/api/v1/topology/l2-topology"
+        l2_data = _request(url2, token, timeout=timeout)
+        l2_resp = l2_data.get("response", [])
+        if isinstance(l2_resp, dict):
+            l2_links = l2_resp.get("links", l2_resp.get("networkElements", []))
+        elif isinstance(l2_resp, list):
+            l2_links = l2_resp
+        errors.append(f"Layer-2 topology: {len(l2_links)} links")
+    except Exception as e:
+        errors.append(f"Layer-2 topology failed: {e}")
+
+    # Merge topology sources
+    raw_topology = list(raw_topology) + list(l2_links)
 
     # Show sample site names for reference
     if raw_devices:
@@ -362,10 +403,17 @@ def import_devices(base_url: str, username: str, password: str,
     # Build links from physical topology
     links: list[dict] = []
     for link in raw_topology:
-        src = link.get("source", "")
-        tgt = link.get("target", "")
+        src = (link.get("source") or link.get("sourceDeviceId")
+               or link.get("src") or link.get("networkElementA") or "")
+        tgt = (link.get("target") or link.get("targetDeviceId")
+               or link.get("dest") or link.get("networkElementB") or "")
         if not src or not tgt:
             continue
+        # Try multiple field names for ports
+        src_port = (link.get("startPortName") or link.get("sourcePort")
+                     or link.get("interfaceA") or "")
+        tgt_port = (link.get("endPortName") or link.get("targetPort")
+                     or link.get("interfaceB") or "")
         src_dev = device_by_id.get(src, {})
         tgt_dev = device_by_id.get(tgt, {})
         src_ip = (src_dev.get("managementIpAddress") or src_dev.get("ipAddress")
@@ -378,8 +426,8 @@ def import_devices(base_url: str, username: str, password: str,
         links.append({
             "source": src_ip,
             "target": tgt_ip,
-            "source_interface": link.get("startPortName", ""),
-            "target_interface": link.get("endPortName", ""),
+            "source_interface": src_port,
+            "target_interface": tgt_port,
             "protocol": link.get("linkType", "unknown").lower(),
             "source_hostname": src_dev.get("hostname", ""),
             "target_hostname": tgt_dev.get("hostname", ""),
