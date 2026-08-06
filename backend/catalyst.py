@@ -522,7 +522,7 @@ def import_devices(base_url: str, username: str, password: str,
         if site_id:
             related_ids.add(site_id)
         try:
-            site_result = get_sites(base_url, token, timeout=timeout)
+            site_result = get_sites(base_url, token, timeout=30.0)
             if site_name:
                 terms = [t.strip().lower() for t in site_name.replace(">", "/").replace(",", "/").split("/") if t.strip()]
                 for s in site_result["sites"]:
@@ -537,8 +537,12 @@ def import_devices(base_url: str, username: str, password: str,
             errors.append(f"Site/child lookup skipped: {e}")
 
         member_ids: set[str] = set()
-        for sid in list(related_ids)[:30]:
-            member_ids.update(get_site_members(base_url, token, sid, timeout=timeout))
+        site_ids_to_query = list(related_ids)[:5]
+        skipped_sites = len(related_ids) - len(site_ids_to_query)
+        if skipped_sites > 0:
+            errors.append(f"Site filter resolved {len(related_ids)} sites; querying first 5")
+        for sid in site_ids_to_query:
+            member_ids.update(get_site_members(base_url, token, sid, timeout=15.0))
 
         resolved_site_count = len(related_ids)
         membership_ids_count = len(member_ids)
