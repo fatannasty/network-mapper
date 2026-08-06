@@ -109,6 +109,106 @@ def agent():
     mock.close()
 
 
+class ErrorAgent:
+    """UDP SNMP agent that answers every GET with an error PDU.
+
+    Real agents do this when the community is wrong (e.g. error-status=2
+    noSuchName with NULL varbinds) instead of staying silent.
+    """
+
+    def __init__(self, status: int = 2):
+        self.status = status
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind(("127.0.0.1", 0))
+        self.port = self.sock.getsockname()[1]
+        self.running = True
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+
+    def _serve(self):
+        self.sock.settimeout(0.2)
+        while self.running:
+            try:
+                data, addr = self.sock.recvfrom(65535)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            try:
+                msg = snmp._read_tlv(data, 0)
+                off = msg.value_start
+                off = snmp._skip_tlv(data, off)  # version
+                comm = snmp._read_tlv(data, off)
+                community = data[comm.value_start:comm.value_end].decode()
+                off = comm.value_end
+                pdu = snmp._read_tlv(data, off)
+                off = pdu.value_start
+                req_id_tlv = snmp._read_tlv(data, off)
+                req_id = int.from_bytes(data[req_id_tlv.value_start:req_id_tlv.value_end], "big")
+                response = _build_error_response(req_id, community, self.status)
+                self.sock.sendto(response, addr)
+            except (ValueError, OSError):
+                continue
+
+    def close(self):
+        self.running = False
+        self.sock.close()
+
+
+def _build_error_response(request_id: int, community: str, status: int = 2) -> bytes:
+    """SNMPv2c GetResponse with the given error-status and NULL varbinds."""
+    varbinds = b""
+    for oid in snmp.OIDS.values():
+        body = _encode_oid(oid) + b"\x05\x00"  # NULL value
+        varbinds += b"\x30" + _encode_len(len(body)) + body
+    vb_seq = b"\x30" + _encode_len(len(varbinds)) + varbinds
+    body = (snmp._encode_integer(request_id) + snmp._encode_integer(status)
+            + snmp._encode_integer(0) + vb_seq)
+    pdu = b"\xa2" + _encode_len(len(body)) + body  # GetResponse-PDU
+    msg = snmp._encode_integer(1) + _encode_str(community) + pdu
+    return b"\x30" + _encode_len(len(msg)) + msg
+
+
+@pytest.fixture
+def error_agent():
+    mock = ErrorAgent()
+    yield mock
+    mock.close()
+
+
+@pytest.fixture
+def empty_agent():
+    mock = ErrorAgent(status=0)  # noError, but NULL varbinds (noSuchObject style)
+    yield mock
+    mock.close()
+
+
+# ── Error-status handling (Sprint 5 regression) ──────────────────────────────
+
+def test_parse_response_checked_reports_error_status():
+    packet = _build_error_response(1, "bad", status=2)
+    result, status = snmp.parse_response_checked(packet)
+    assert status == 2
+    assert set(result) == set(snmp.OIDS.values())
+    assert all(v is None for v in result.values())
+
+
+def test_parse_response_compat_ignores_error_status():
+    packet = _build_error_response(1, "bad", status=2)
+    result = snmp.parse_response(packet)
+    assert set(result) == set(snmp.OIDS.values())
+
+
+def test_snmp_poll_rejects_error_response(error_agent):
+    result = snmp.snmp_poll("127.0.0.1", ["wrong"], timeout=0.4, port=error_agent.port)
+    assert result is None  # an error PDU must not count as identified
+
+
+def test_snmp_poll_rejects_valueless_response(empty_agent):
+    result = snmp.snmp_poll("127.0.0.1", ["bad"], timeout=0.4, port=empty_agent.port)
+    assert result is None  # no sysDescr/sysName/sysObjectID means not identified
+
+
 # ── Request building ─────────────────────────────────────────────────────────
 
 def test_build_get_request_encodes_v2c_header():

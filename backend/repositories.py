@@ -30,20 +30,23 @@ def upsert_device(db: Session, data: dict, scan_id: str) -> Device:
         db.add(device)
 
     device.mac = data.get("mac", device.mac or "")
-    device.hostname = data.get("hostname", device.hostname or "")
-    device.vendor = data.get("vendor", device.vendor or "")
-    device.model = data.get("model", device.model or "")
-    device.device_type = data.get("device_type", device.device_type or "")
-    device.confidence = data.get("confidence", device.confidence or 0)
+    # Identity fields are only ever overwritten with non-empty values so a
+    # rescan that cannot identify a device (e.g. wrong SNMP community) does
+    # not wipe out previously known hostname/vendor/model/type.
+    device.hostname = data.get("hostname") or device.hostname
+    device.vendor = data.get("vendor") or device.vendor
+    device.model = data.get("model") or device.model
+    device.device_type = data.get("device_type") or device.device_type
+    device.confidence = data.get("confidence") or device.confidence
     device.open_ports = data.get("open_ports", device.open_ports or [])
-    device.snmp_community = data.get("snmp_community", device.snmp_community or "")
+    device.snmp_community = data.get("snmp_community") or device.snmp_community
     device.site = data.get("site", device.site or "")
     device.last_scan_id = scan_id
     device.last_seen = now
     db.commit()
     db.refresh(device)
 
-    if "interfaces" in data:
+    if data.get("snmp_identified") and "interfaces" in data:
         _sync_interfaces(db, device, data.get("interfaces") or [])
 
     db.commit()

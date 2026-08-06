@@ -126,7 +126,7 @@ def test_interfaces_persisted_with_device():
     with SessionLocal() as db:
         device = repositories.upsert_device(db, {
             "ip": "10.0.0.5", "hostname": "sw5", "vendor": "Cisco", "device_type": "switch",
-            "interfaces": _INTERFACES,
+            "snmp_identified": True, "interfaces": _INTERFACES,
         }, scan_id="scan-if-a")
         assert len(device.interfaces) == 2
         by_index = {i.if_index: i for i in device.interfaces}
@@ -139,10 +139,11 @@ def test_interfaces_synced_on_rescan():
     with SessionLocal() as db:
         repositories.upsert_device(db, {
             "ip": "10.0.0.5", "hostname": "sw5", "vendor": "Cisco", "device_type": "switch",
-            "interfaces": _INTERFACES,
+            "snmp_identified": True, "interfaces": _INTERFACES,
         }, scan_id="scan-if-a")
         device = repositories.upsert_device(db, {
             "ip": "10.0.0.5", "hostname": "sw5", "vendor": "Cisco", "device_type": "switch",
+            "snmp_identified": True,
             "interfaces": [{"ifIndex": "1", "ifDescr": "eth0", "ifType": "ethernet"}],
         }, scan_id="scan-if-b")
         assert len(device.interfaces) == 1
@@ -150,11 +151,42 @@ def test_interfaces_synced_on_rescan():
         assert device.interfaces[0].if_alias == ""
 
 
+def test_interfaces_preserved_when_rescan_not_identified():
+    with SessionLocal() as db:
+        repositories.upsert_device(db, {
+            "ip": "10.0.0.5", "hostname": "sw5", "vendor": "Cisco", "device_type": "switch",
+            "snmp_identified": True, "interfaces": _INTERFACES,
+        }, scan_id="scan-if-a")
+        device = repositories.upsert_device(db, {
+            "ip": "10.0.0.5", "hostname": "", "vendor": "", "device_type": "",
+            "snmp_identified": False, "interfaces": [],
+        }, scan_id="scan-if-b")
+        assert len(device.interfaces) == 2  # not wiped by an unidentified rescan
+
+
+def test_upsert_preserves_identity_when_rescan_returns_blank():
+    with SessionLocal() as db:
+        repositories.upsert_device(db, {
+            "ip": "10.0.0.7", "hostname": "sw7", "vendor": "Cisco",
+            "model": "C9300L-24P-4G", "device_type": "switch", "confidence": 5,
+        }, scan_id="scan-a")
+        device = repositories.upsert_device(db, {
+            "ip": "10.0.0.7", "hostname": "", "vendor": "", "model": "",
+            "device_type": "", "confidence": 0,
+        }, scan_id="scan-b")
+        assert device.hostname == "sw7"
+        assert device.vendor == "Cisco"
+        assert device.model == "C9300L-24P-4G"
+        assert device.device_type == "switch"
+        assert device.confidence == 5
+        assert device.last_scan_id == "scan-b"
+
+
 def test_device_to_dict_includes_interfaces():
     with SessionLocal() as db:
         device = repositories.upsert_device(db, {
             "ip": "10.0.0.5", "hostname": "sw5", "vendor": "Cisco", "device_type": "switch",
-            "interfaces": _INTERFACES,
+            "snmp_identified": True, "interfaces": _INTERFACES,
         }, scan_id="scan-if-a")
         data = device.to_dict()
         assert len(data["interfaces"]) == 2

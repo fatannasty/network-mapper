@@ -173,8 +173,14 @@ def _parse_value(tlv: _TLV, buf: bytes):
     return None
 
 
-def parse_response(buf: bytes) -> dict:
-    """Decode an SNMP response into {oid_string: value}."""
+def parse_response_checked(buf: bytes) -> tuple[dict, int]:
+    """Decode an SNMP response into ({oid_string: value}, error_status).
+
+    error_status is the PDU error-status field (0 == noError). Agents that
+    reject a GET (e.g. an unknown community) respond with a non-zero
+    error-status and NULL varbinds instead of staying silent, so callers must
+    check it or they will mistake an error for a successful identification.
+    """
     msg = _read_tlv(buf, 0)
     offset = msg.value_start
     offset = _skip_tlv(buf, offset)   # version
@@ -182,7 +188,9 @@ def parse_response(buf: bytes) -> dict:
     pdu = _read_tlv(buf, offset)
     offset = pdu.value_start
     offset = _skip_tlv(buf, offset)   # request-id
-    offset = _skip_tlv(buf, offset)   # error-status
+    status_tlv = _read_tlv(buf, offset)
+    error_status = int(_parse_value(status_tlv, buf) or 0)
+    offset = status_tlv.value_end
     offset = _skip_tlv(buf, offset)   # error-index
     vb_seq = _read_tlv(buf, offset)
     offset = vb_seq.value_start
@@ -196,7 +204,12 @@ def parse_response(buf: bytes) -> dict:
         val_tlv = _read_tlv(buf, inner)
         result[oid] = _parse_value(val_tlv, buf)
         offset = bind.value_end
-    return result
+    return result, error_status
+
+
+def parse_response(buf: bytes) -> dict:
+    """Decode an SNMP response into {oid_string: value} (error-status ignored)."""
+    return parse_response_checked(buf)[0]
 
 
 def _skip_tlv(buf: bytes, offset: int) -> int:
@@ -215,7 +228,10 @@ def send_get_request(host: str, oid_list, community: str, timeout: float = DEFAU
     try:
         sock.sendto(packet, (host, port))
         data, _ = sock.recvfrom(65535)
-        return parse_response(data)
+        result, error_status = parse_response_checked(data)
+        if error_status:
+            raise ValueError(f"SNMP error-status {error_status}")
+        return result
     finally:
         sock.close()
 
@@ -236,7 +252,9 @@ def snmp_walk(host: str, subtree_oid: str, community: str,
             packet = build_getbulk_request(0, max_repetitions, [current_oid], community, request_id)
             sock.sendto(packet, (host, port))
             data, _ = sock.recvfrom(65535)
-            resp = parse_response(data)
+            resp, error_status = parse_response_checked(data)
+            if error_status:
+                return results
             if not resp:
                 return results
             for oid_key, val in resp.items():
@@ -266,10 +284,17 @@ def snmp_poll(host: str, community_list, timeout: float = DEFAULT_TIMEOUT, port:
         except (socket.timeout, OSError, ValueError):
             continue
         if result and len(result) > 0:
+            sys_name = _to_str(result.get(OIDS["sysName"], ""))
+            sys_descr = _to_str(result.get(OIDS["sysDescr"], ""))
+            sys_oid = _to_str(result.get(OIDS["sysObjectID"], ""))
+            # A well-formed but value-less response (error PDU / varbind
+            # exceptions) must not count as a successful identification.
+            if not (sys_name or sys_descr or sys_oid):
+                continue
             return {
-                "sysName": _to_str(result.get(OIDS["sysName"], "")),
-                "sysDescr": _to_str(result.get(OIDS["sysDescr"], "")),
-                "sysObjectID": _to_str(result.get(OIDS["sysObjectID"], "")),
+                "sysName": sys_name,
+                "sysDescr": sys_descr,
+                "sysObjectID": sys_oid,
                 "community": community,
             }
     return None
