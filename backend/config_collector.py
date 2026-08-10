@@ -60,35 +60,42 @@ def collect_config(
     used_command = (command or SWITCH_COMMANDS[0])
 
     try:
-        chan = client.get_transport().open_session()
-        chan.settimeout(timeout)
+        # Use interactive shell so we can send 'terminal length 0' before
+        # the config command and avoid Cisco --More-- pagination issues.
+        shell = client.invoke_shell()
+        shell.settimeout(timeout)
 
-        # Run the main config command
+        # Disable pagination on Cisco / similar switches
+        shell.send("terminal length 0\n")
+        time.sleep(0.5)
+
+        # Drain the banner + initial prompt
+        banner = _read_until_prompt(shell, timeout=8)
+
+        # Try commands in order
         if command:
             cmds_to_try = [command]
         else:
             cmds_to_try = list(SWITCH_COMMANDS)
 
         for cmd in cmds_to_try:
-            chan.exec_command(cmd)
-            config_text = _read_channel(chan, timeout)
-            if config_text and not config_text.lower().startswith("invalid") and len(config_text) > 50:
+            shell.send(cmd + "\n")
+            config_text = _read_until_prompt(shell, timeout=timeout, min_len=50)
+            if config_text.strip() and len(config_text.strip()) > 50:
                 used_command = cmd
                 break
             config_text = ""
 
         # Try to grab show version for context
-        try:
-            chan2 = client.get_transport().open_session()
-            chan2.settimeout(timeout)
+        if version_text or config_text:
             for cmd in BACKUP_COMMANDS:
-                chan2.exec_command(cmd)
-                v = _read_channel(chan2, timeout)
-                if v and len(v) > 20:
-                    version_text = v
+                shell.send(cmd + "\n")
+                v = _read_until_prompt(shell, timeout=10, min_len=20)
+                if v.strip():
+                    version_text = v[:2000]
                     break
-        except Exception:
-            pass
+
+        shell.close()
     finally:
         client.close()
 
@@ -102,18 +109,48 @@ def collect_config(
     }
 
 
-def _read_channel(chan: paramiko.Channel, timeout: float) -> str:
-    """Read all output from a channel, waiting for EOF or timeout."""
+def _read_until_prompt(shell: paramiko.Channel, timeout: float,
+                       min_len: int = 0) -> str:
+    """Read from an interactive shell until a switch prompt appears or timeout.
+
+    A prompt is detected when the accumulated output ends with common
+    switch/router prompt characters (``#``, ``>``, ``]``) followed by
+    trailing whitespace after a brief quiet period.
+    """
+    PROMPT_SUFFIXES = ("#", ">", "]#", ")>", ")#", ")> ")
     deadline = time.time() + timeout
     chunks: list[bytes] = []
+    quiet_start = 0.0
+
     while time.time() < deadline:
-        if chan.exit_status_ready():
+        if shell.recv_ready():
+            chunks.append(shell.recv(65536))
+            quiet_start = time.time()
+        elif quiet_start == 0:
+            quiet_start = time.time()
+        elif time.time() - quiet_start > 1.5 and chunks:
+            # Been quiet 1.5+ seconds — check for prompt
+            text = b"".join(chunks).decode("utf-8", errors="replace")
+            stripped = text.rstrip()
+            if stripped and any(stripped.endswith(s) for s in PROMPT_SUFFIXES):
+                break
+            if min_len and len(stripped) >= min_len:
+                break
+        time.sleep(0.05)
+
+    while shell.recv_ready():
+        chunks.append(shell.recv(65536))
+
+    raw = b"".join(chunks).decode("utf-8", errors="replace")
+    # Strip the command line (first line) and trailing prompt
+    lines = [l for l in raw.split("\n")]
+    if lines and any(cmd_word in lines[0].lower()
+                     for cmd_word in ("show", "display", "terminal")):
+        lines = lines[1:]
+    # Drop the trailing prompt line (last non-empty line if it ends with a prompt suffix)
+    for i in range(len(lines) - 1, -1, -1):
+        line = lines[i].rstrip()
+        if line and any(line.endswith(s) for s in PROMPT_SUFFIXES):
+            lines = lines[:i]
             break
-        if chan.recv_ready():
-            chunks.append(chan.recv(65536))
-        else:
-            time.sleep(0.1)
-    # Drain any remaining data
-    while chan.recv_ready():
-        chunks.append(chan.recv(65536))
-    return b"".join(chunks).decode("utf-8", errors="replace")
+    return "\n".join(lines)
