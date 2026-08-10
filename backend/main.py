@@ -298,6 +298,27 @@ def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get
     devices = db.query(Device).filter(Device.last_scan_id == job.id).all()
     links = repositories.list_links(db, scan_id=job.id)
 
+    nodes: list[dict] = []
+    seen: set[str] = set()
+    for d in devices:
+        nodes.append({
+            "id": d.ip,
+            "ip": d.ip,
+            "hostname": d.hostname,
+            "vendor": d.vendor,
+            "model": d.model,
+            "device_type": d.device_type,
+        })
+        seen.add(d.ip)
+    for link in links:
+        for ep in (link.endpoint_a, link.endpoint_b):
+            if ep not in seen:
+                nodes.append({"id": ep, "ip": ep, "hostname": "", "vendor": "",
+                              "model": "", "device_type": "unknown"})
+                seen.add(ep)
+
+    return {"scan_id": job.id, "nodes": nodes, "links": [l.to_dict() for l in links]}
+
 
 @app.get("/api/topology/path", dependencies=[Depends(authenticated)])
 def api_topology_path(source: str = Query(...), target: str = Query(...),
