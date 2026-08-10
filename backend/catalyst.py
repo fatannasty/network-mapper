@@ -319,8 +319,8 @@ def get_site_members(base_url: str, token: str, site_id: str,
 
     ids: set[str] = set()
     for url in (
-        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500",
-        f"{base}/dna/intent/api/v1/network-device?siteId={site_id}&limit=500",
+        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=5000",
+        f"{base}/dna/intent/api/v1/network-device?siteId={site_id}&limit=5000",
     ):
         try:
             data = _request(url, token, timeout=timeout)
@@ -337,9 +337,10 @@ def debug_site_membership(base_url: str, username: str, password: str,
     token = authenticate(base_url, username, password, timeout=timeout)
     base = _resolve_base(base_url)
     urls = [
-        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500",
-        f"{base}/dna/intent/api/v1/site-member/{site_id}/member?memberType=networkdevice&limit=500",
-        f"{base}/dna/intent/api/v1/network-device?siteId={site_id}&limit=500",
+        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=5000",
+        f"{base}/dna/intent/api/v1/site-member/{site_id}/member?memberType=networkdevice&limit=5000",
+        f"{base}/dna/intent/api/v1/network-device?siteId={site_id}&limit=5000",
+        f"{base}/dna/intent/api/v1/network-device?limit=5000",
     ]
 
     results = []
