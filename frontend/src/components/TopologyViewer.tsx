@@ -14,7 +14,7 @@ import { useSearchParams } from 'react-router-dom'
 
 import DeviceNode from './DeviceNode'
 import DeviceDetail from './DeviceDetail'
-import { getTopology, getDevices, type TopologyData, type Device, type TopoLink } from '../api'
+import { getTopology, getDevices, findPath, type TopologyData, type Device, type TopoLink, type PathResult } from '../api'
 
 const nodeTypes = { device: DeviceNode }
 
@@ -131,6 +131,9 @@ export default function TopologyViewer() {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
   const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all')
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('tree')
+  const [pathSource, setPathSource] = useState('')
+  const [pathTarget, setPathTarget] = useState('')
+  const [pathResult, setPathResult] = useState<PathResult | null>(null)
 
   const deviceByIp = useMemo(() => {
     const map = new Map<string, Device>()
@@ -156,6 +159,11 @@ export default function TopologyViewer() {
   }, [scanId])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  const pathEdgeIds = useMemo(() => {
+    if (!pathResult?.path) return new Set<string>()
+    return new Set(pathResult.path.map((p, i) => `${p.source}->${p.target}-${i}`))
+  }, [pathResult])
 
   const filteredLinks: TopoLink[] = useMemo(() => {
     const all = topology?.links || []
@@ -196,17 +204,22 @@ export default function TopologyViewer() {
       const label = ifaceLabel
         ? `${ifaceLabel}\n${l.protocol.toUpperCase()}`
         : l.protocol.toUpperCase()
+      const pathKey = `${l.source}->${l.target}-${i}`
+      const isPath = pathEdgeIds.has(pathKey)
 
       return {
         id: `e-${l.source}-${l.target}-${i}`,
         source: l.source,
         target: l.target,
         label,
-        labelStyle: { fill: '#9ca3af', fontSize: 9, fontWeight: 500 },
-        labelBgStyle: { fill: '#1f2937', fillOpacity: 0.85 },
+        labelStyle: { fill: isPath ? '#22c55e' : '#9ca3af', fontSize: 9, fontWeight: 500 },
+        labelBgStyle: { fill: isPath ? '#064e3b' : '#1f2937', fillOpacity: 0.85 },
         labelBgPadding: [6, 3] as [number, number],
         labelBgBorderRadius: 4,
-        style: { stroke: l.protocol === 'cdp' ? '#f59e0b' : '#3b82f6', strokeWidth: 2 },
+        style: {
+          stroke: isPath ? '#22c55e' : l.protocol === 'cdp' ? '#f59e0b' : '#3b82f6',
+          strokeWidth: isPath ? 3 : 2,
+        },
         animated: true,
         type: 'smoothstep',
       }
@@ -326,12 +339,76 @@ export default function TopologyViewer() {
           </select>
         )}
 
+        <span className="text-gray-600 text-xs mx-1">|</span>
+
+        <input
+          value={pathSource}
+          onChange={(e) => setPathSource(e.target.value)}
+          placeholder="Source IP"
+          className="w-32 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-300 text-xs focus:outline-none focus:border-blue-500"
+        />
+        <span className="text-gray-600 text-xs">→</span>
+        <input
+          value={pathTarget}
+          onChange={(e) => setPathTarget(e.target.value)}
+          placeholder="Target IP"
+          className="w-32 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-300 text-xs focus:outline-none focus:border-blue-500"
+        />
+        <button
+          onClick={async () => {
+            if (!pathSource || !pathTarget) return
+            setPathResult(null)
+            try {
+              const r = await findPath(pathSource, pathTarget)
+              setPathResult(r)
+            } catch (err) {
+              setPathResult({ source: pathSource, target: pathTarget, path: [], hops: 0, error: err instanceof Error ? err.message : String(err) })
+            }
+          }}
+          disabled={!pathSource || !pathTarget}
+          className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded text-xs transition-colors"
+        >
+          Find Path
+        </button>
+        {pathResult && (
+          <button
+            onClick={() => setPathResult(null)}
+            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-xs transition-colors"
+          >
+            Clear Path
+          </button>
+        )}
+
         {topology.links.length === 0 && (
           <span className="text-gray-600 text-xs">
             No auto-discovered links — run SNMP discovery on switches with LLDP/CDP enabled
           </span>
         )}
       </div>
+
+      {pathResult && (
+        <div className={`px-4 py-2 border-b text-xs ${
+          pathResult.error ? 'bg-red-900/30 border-red-800 text-red-300' : 'bg-green-900/30 border-green-800 text-green-300'
+        }`}>
+          {pathResult.error ? (
+            <span>{pathResult.error}</span>
+          ) : (
+            <span>
+              <strong>{pathResult.hops}</strong> hop{pathResult.hops !== 1 ? 's' : ''} from{' '}
+              <strong>{pathResult.source}</strong> to{' '}
+              <strong>{pathResult.target}</strong>
+              {pathResult.path.map((h, i) => (
+                <span key={i} className="ml-2 text-gray-400">
+                  {h.source_interface && h.target_interface
+                    ? `${h.source_interface} → ${h.target_interface}`
+                    : `hop ${i + 1}`}
+                  {i < pathResult.path.length - 1 ? ' →' : ''}
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 flex">
         <div className="flex-1">

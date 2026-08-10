@@ -319,6 +319,57 @@ def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get
     return {"scan_id": job.id, "nodes": nodes, "links": [l.to_dict() for l in links]}
 
 
+@app.get("/api/topology/path", dependencies=[Depends(authenticated)])
+def api_topology_path(source: str = Query(...), target: str = Query(...),
+                      db: Session = Depends(get_db)):
+    """Return the shortest path between two device IPs using the topology graph."""
+    jobs = repositories.list_scan_jobs(db, limit=1)
+    if not jobs:
+        raise HTTPException(status_code=404, detail="no topology data available")
+    job = jobs[0]
+
+    links = repositories.list_links(db, scan_id=job.id, limit=5000)
+    devices = {d.ip: d for d in db.query(Device).filter(
+        Device.last_scan_id == job.id).all()}
+
+    from path_tracer import build_path
+    raw = build_path([
+        {
+            "source": l.endpoint_a, "target": l.endpoint_b,
+            "source_interface": l.interface_a, "target_interface": l.interface_b,
+            "protocol": l.protocol,
+            "source_hostname": l.hostname_a, "target_hostname": l.hostname_b,
+        }
+        for l in links
+    ], source, target)
+
+    # Enrich each hop with device info
+    hops: list[dict] = []
+    seen_ips = [source]
+    for hop in raw.get("path", []):
+        hops.append(hop)
+        for ip in (hop["source"], hop["target"]):
+            if ip not in seen_ips:
+                seen_ips.append(ip)
+                d = devices.get(ip)
+                if d:
+                    hops.append({
+                        "node": ip,
+                        "hostname": d.hostname,
+                        "vendor": d.vendor,
+                        "model": d.model,
+                        "device_type": d.device_type,
+                    })
+
+    return {
+        "source": source,
+        "target": target,
+        "path": raw.get("path", []),
+        "hops": raw.get("hops", 0),
+        "error": raw.get("error"),
+    }
+
+
 @app.get("/api/inventory/credentials", dependencies=[Depends(authenticated)])
 def inventory_credentials(db: Session = Depends(get_db)):
     creds = repositories.list_credentials(db)

@@ -241,3 +241,28 @@ export async function getDeviceConfigs(deviceId: number) {
   const r = await api.get(`/api/inventory/devices/${deviceId}/configs`)
   return r.data as ConfigEntry[]
 }
+
+// ── Sprint 10: Layer 3 Path Analysis ─────────────────────────────────────────
+
+export interface PathHop {
+  source: string
+  target: string
+  source_hostname: string
+  target_hostname: string
+  source_interface: string
+  target_interface: string
+  protocol: string
+}
+
+export interface PathResult {
+  source: string
+  target: string
+  path: PathHop[]
+  hops: number
+  error?: string
+}
+
+export async function findPath(source: string, target: string) {
+  const r = await api.get('/api/topology/path', { params: { source, target } })
+  return r.data as PathResult
+}
