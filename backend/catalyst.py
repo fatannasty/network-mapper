@@ -214,25 +214,34 @@ def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
     """
     base = _resolve_base(base_url)
 
-    urls = [
-        f"{base}/dna/intent/api/v1/site?type=area,building,floor",
-        f"{base}/dna/intent/api/v1/site",
-    ]
-
+    # Query both the type-filtered and bare /site endpoints, paginating
+    # through all pages so we catch buildings, floors, and deep sub-sites.
     all_sites: list[dict] = []
     seen_ids = set()
-    for url in urls:
-        try:
-            data = _request(url, token, timeout=timeout)
-        except Exception:
-            continue
-        resp = data.get("response", [])
-        if isinstance(resp, list):
+    for url_suffix in (
+        "?type=area,building,floor&limit=500",
+        "?limit=500",
+    ):
+        offset = 1
+        while True:
+            try:
+                data = _request(f"{base}/dna/intent/api/v1/site{url_suffix}&offset={offset}",
+                                token, timeout=timeout)
+            except Exception:
+                break  # try next URL suffix
+            resp = data.get("response", [])
+            if not isinstance(resp, list) or not resp:
+                break
             for s in resp:
                 sid = str(s.get("id") or s.get("siteId") or "")
                 if sid and sid not in seen_ids:
                     seen_ids.add(sid)
                     all_sites.append(s)
+            if len(resp) < 500:
+                break
+            offset += 500
+        if all_sites:
+            break  # Found sites; don't try the bare /site fallback.
 
     if not all_sites:
         return {"sites": [], "debug": {"raw_count": 0, "note": "No sites in API response"}}
