@@ -309,17 +309,26 @@ def _extract_member_ids(data: dict) -> set[str]:
 
 def get_site_members(base_url: str, token: str, site_id: str,
                      timeout: float = 30.0) -> set[str]:
-    """Return network-device IDs assigned to a site (membership API)."""
+    """Return network-device IDs assigned to a site.
+
+    Tries both the membership API and the network-device API filtered by
+    siteId (which mirrors the Catalyst UI's per-location device view).
+    Results are unioned so we never under-import a site.
+    """
     base = _resolve_base(base_url)
-    url = f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500"
 
     ids: set[str] = set()
-    try:
-        data = _request(url, token, timeout=timeout)
-    except Exception:
-        return ids
+    for url in (
+        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500",
+        f"{base}/dna/intent/api/v1/network-device?siteId={site_id}&limit=500",
+    ):
+        try:
+            data = _request(url, token, timeout=timeout)
+        except Exception:
+            continue
+        ids.update(_extract_member_ids(data))
 
-    return _extract_member_ids(data)
+    return ids
 
 
 def debug_site_membership(base_url: str, username: str, password: str,
@@ -330,6 +339,7 @@ def debug_site_membership(base_url: str, username: str, password: str,
     urls = [
         f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500",
         f"{base}/dna/intent/api/v1/site-member/{site_id}/member?memberType=networkdevice&limit=500",
+        f"{base}/dna/intent/api/v1/network-device?siteId={site_id}&limit=500",
     ]
 
     results = []
