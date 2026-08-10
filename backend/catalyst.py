@@ -285,18 +285,9 @@ def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
     }
 
 
-def get_site_members(base_url: str, token: str, site_id: str,
-                     timeout: float = 30.0) -> set[str]:
-    """Return network-device IDs assigned to a site (membership API)."""
-    base = _resolve_base(base_url)
-    url = f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500"
-
+def _extract_member_ids(data: dict) -> set[str]:
+    """Pull device IDs out of a membership/site-member API response."""
     ids: set[str] = set()
-    try:
-        data = _request(url, token, timeout=timeout)
-    except Exception:
-        return ids
-
     resp = data.get("response", data)
     groups = []
     if isinstance(resp, dict):
@@ -313,8 +304,22 @@ def get_site_members(base_url: str, token: str, site_id: str,
             did = str(d.get("instanceUuid") or d.get("id") or "")
             if did:
                 ids.add(did)
-
     return ids
+
+
+def get_site_members(base_url: str, token: str, site_id: str,
+                     timeout: float = 30.0) -> set[str]:
+    """Return network-device IDs assigned to a site (membership API)."""
+    base = _resolve_base(base_url)
+    url = f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500"
+
+    ids: set[str] = set()
+    try:
+        data = _request(url, token, timeout=timeout)
+    except Exception:
+        return ids
+
+    return _extract_member_ids(data)
 
 
 def debug_site_membership(base_url: str, username: str, password: str,
@@ -329,12 +334,16 @@ def debug_site_membership(base_url: str, username: str, password: str,
 
     results = []
     for url in urls:
-        entry: dict = {"url": url, "error": None, "status": None, "raw": None}
+        entry: dict = {"url": url, "error": None, "status": None, "raw": None,
+                       "member_ids_count": 0, "member_id_sample": []}
         try:
             data = _request(url, token, timeout=timeout)
             entry["status"] = "ok"
             # Truncate deeply to keep the response readable
             entry["raw"] = _truncate_json(data, depth=3, max_items=20)
+            m = _extract_member_ids(data)
+            entry["member_ids_count"] = len(m)
+            entry["member_id_sample"] = sorted(m)[:5]
         except Exception as e:
             entry["status"] = "error"
             entry["error"] = str(e)
