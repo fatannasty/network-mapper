@@ -36,6 +36,14 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
 
+    # One-time: rename old generic catalyst-center scans with device counts
+    with engine.connect() as conn:
+        conn.exec_driver_sql(
+            "UPDATE scan_jobs SET subnet = 'Catalyst Import — ' || CAST(device_count AS TEXT) || ' devices' "
+            "WHERE subnet = 'catalyst-center'"
+        )
+        conn.commit()
+
 
 def get_db():
     """FastAPI dependency yielding a scoped session."""
