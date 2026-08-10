@@ -136,7 +136,7 @@ def replace_links(db: Session, scan_id: str, links: list[dict]) -> None:
     db.commit()
 
 
-def list_links(db: Session, scan_id: str | None = None, limit: int = 500) -> list[Link]:
+def list_links(db: Session, scan_id: str | None = None, limit: int = 5000) -> list[Link]:
     query = db.query(Link)
     if scan_id:
         query = query.filter(Link.scan_id == scan_id)

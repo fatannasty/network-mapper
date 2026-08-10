@@ -34,7 +34,9 @@ export default function DeviceInventory() {
         getTopology(),
       ])
       setDevices(devResp.devices || [])
-      setLinks(topoResp.links || [])
+
+      const lnks = topoResp?.links || []
+      setLinks(lnks)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load devices')
     } finally {
@@ -124,7 +126,9 @@ export default function DeviceInventory() {
             <option key={t} value={t}>{t}</option>
           ))}
         </select>
-        <span className="text-gray-600 text-sm">{sorted.length} devices</span>
+        <span className="text-gray-600 text-sm">
+          {sorted.length} devices &middot; {links.length} topology links
+        </span>
       </div>
 
       {/* Table */}
