@@ -328,7 +328,6 @@ def get_site_members(base_url: str, token: str, site_id: str,
     ids: set[str] = set()
     for url in (
         f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500",
-        f"{base}/dna/intent/api/v1/network-device?siteId={site_id}&limit=500",
     ):
         try:
             data = _request(url, token, timeout=timeout)
@@ -337,6 +336,52 @@ def get_site_members(base_url: str, token: str, site_id: str,
         ids.update(_extract_member_ids(data))
 
     return ids
+
+
+def device_location_stats(base_url: str, token: str, timeout: float = 30.0,
+                          max_pages: int = 10) -> dict:
+    """Fetch the device inventory and summarize how many devices carry site/location
+    fields, and what values those fields hold. Tells us whether a site's devices can
+    be identified by their own location data."""
+    base = _resolve_base(base_url)
+    url = f"{base}/dna/intent/api/v1/network-device"
+    with_loc: dict[str, int] = {"location": 0, "locationName": 0,
+                                "siteName": 0, "siteHierarchy": 0}
+    distinct_locations: set[str] = set()
+    total = 0
+    offset = 1
+    pages = 0
+    error = None
+    while pages < max_pages:
+        try:
+            data = _request(f"{url}?limit=500&offset={offset}", token, timeout=timeout)
+        except Exception as e:
+            error = str(e)
+            break
+        devices = data.get("response", [])
+        if not isinstance(devices, list) or not devices:
+            break
+        for d in devices:
+            if not isinstance(d, dict):
+                continue
+            total += 1
+            for f in ("location", "locationName", "siteName", "siteHierarchy"):
+                v = d.get(f)
+                if isinstance(v, str) and v.strip():
+                    with_loc[f] += 1
+                    if f == "locationName" and v.strip():
+                        distinct_locations.add(v.strip())
+        pages += 1
+        if len(devices) < 500:
+            break
+        offset += 500
+    return {
+        "total_devices": total,
+        "fields_populated": with_loc,
+        "distinct_locationName": sorted(distinct_locations)[:50],
+        "pages": pages,
+        "error": error,
+    }
 
 
 def count_devices_by_site(base_url: str, token: str, site_id: str,
@@ -412,8 +457,13 @@ def debug_site_membership(base_url: str, username: str, password: str,
     except Exception as e:
         by_site = {"count": 0, "error": str(e)}
 
+    try:
+        loc_stats = device_location_stats(base_url, token, timeout=timeout)
+    except Exception as e:
+        loc_stats = {"error": str(e)}
+
     return {"site_id": site_id, "endpoints": results, "parsed": parsed,
-            "network_devices_by_site": by_site}
+            "network_devices_by_site": by_site, "device_location_stats": loc_stats}
 
 
 def _truncate_json(obj, depth: int = 0, max_items: int = 20):
