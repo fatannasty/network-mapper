@@ -305,7 +305,21 @@ def get_device_configs(db: Session, device_id: int,
 
 def get_devices_by_type(db: Session, device_type: str = "switch",
                         limit: int = 500) -> list[Device]:
-    q = db.query(Device).filter(Device.device_type.ilike(f"%{device_type}%"))
+    from sqlalchemy import or_
+
+    q = db.query(Device).filter(
+        or_(
+            Device.device_type.ilike(f"%{device_type}%"),
+            Device.vendor.ilike("%cisco%"),
+            Device.vendor.ilike("%aruba%"),
+            Device.vendor.ilike("%meraki%"),
+            Device.vendor.ilike("%hpe%"),
+            Device.vendor.ilike("%h3c%"),
+            Device.vendor.ilike("%juniper%"),
+            Device.vendor.ilike("%arista%"),
+            Device.vendor.ilike("%dell%"),
+        )
+    )
     if limit:
         q = q.limit(limit)
     return q.all()
