@@ -13,6 +13,7 @@ const links = [
   { to: '/catalyst', label: 'Catalyst' },
   { to: '/configs', label: 'Configs' },
   { to: '/changes', label: 'Changes' },
+  { to: '/reports', label: 'Reports' },
 ]
 
 export default function Layout({ children, onLogout }: Props) {

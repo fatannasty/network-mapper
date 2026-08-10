@@ -294,11 +294,75 @@ def inventory_report(db: Session = Depends(get_db)):
 
     return {
         "total_devices": db.query(Device).count(),
+        "total_links": repositories.count_links(db),
+        "total_interfaces": repositories.count_interfaces(db),
         "by_device_type": repositories.device_counts(db, Device.device_type),
         "by_vendor": repositories.device_counts(db, Device.vendor),
         "by_site": repositories.device_counts(db, Device.site),
+        "link_protocols": repositories.link_counts_by_protocol(db),
+        "interface_status": repositories.interface_status_counts(db),
+        "config_coverage": repositories.config_coverage(db),
+        "stale_devices_90d": repositories.stale_devices(db, days=90),
+        "scan_history": repositories.scan_history(db, limit=100),
         "recent_scans": [j.to_dict() for j in repositories.list_scan_jobs(db, limit=5)],
     }
+
+
+@app.get("/api/inventory/report/export", dependencies=[Depends(authenticated)])
+def inventory_report_export(report: str = Query(...), db: Session = Depends(get_db)):
+    """Export a report as CSV. `report` is one of: devices, links, scans, configs."""
+    from io import StringIO
+    from models import Device, DeviceConfig
+    import csv
+
+    buf = StringIO()
+    writer = csv.writer(buf)
+    filename = "report"
+
+    if report == "devices":
+        filename = "devices"
+        writer.writerow(["ip", "hostname", "vendor", "model", "device_type",
+                         "site", "confidence", "first_seen", "last_seen"])
+        for d in db.query(Device).order_by(Device.ip).all():
+            writer.writerow([
+                d.ip, d.hostname, d.vendor, d.model, d.device_type,
+                d.site, d.confidence,
+                d.first_seen.isoformat() if d.first_seen else "",
+                d.last_seen.isoformat() if d.last_seen else "",
+            ])
+    elif report == "links":
+        filename = "links"
+        writer.writerow(["source", "target", "source_interface", "target_interface",
+                         "protocol", "source_hostname", "target_hostname", "scan_id"])
+        for l in repositories.list_links(db, limit=5000):
+            writer.writerow([l.endpoint_a, l.endpoint_b, l.interface_a, l.interface_b,
+                             l.protocol, l.hostname_a, l.hostname_b, l.scan_id])
+    elif report == "scans":
+        filename = "scans"
+        writer.writerow(["id", "subnet", "status", "device_count", "links",
+                         "started_at", "finished_at"])
+        for s in repositories.scan_history(db, limit=1000):
+            writer.writerow([s["id"], s["subnet"], s["status"], s["device_count"],
+                             s["links"], s["started_at"], s["finished_at"]])
+    elif report == "configs":
+        filename = "configs"
+        writer.writerow(["ip", "hostname", "config_type", "collected_at", "error"])
+        for c in db.query(DeviceConfig).order_by(DeviceConfig.collected_at.desc()).all():
+            writer.writerow([c.device.ip if c.device else "",
+                             c.device.hostname if c.device else "",
+                             c.config_type,
+                             c.collected_at.isoformat() if c.collected_at else "",
+                             c.error or ""])
+    else:
+        raise HTTPException(status_code=400,
+                            detail="report must be one of: devices, links, scans, configs")
+
+    from fastapi.responses import Response
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'},
+    )
 
 
 @app.get("/api/topology", dependencies=[Depends(authenticated)])

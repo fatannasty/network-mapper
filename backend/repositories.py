@@ -184,6 +184,76 @@ def list_scan_jobs(db: Session, limit: int = 20) -> list[ScanJob]:
     return db.query(ScanJob).order_by(ScanJob.started_at.desc()).limit(limit).all()
 
 
+def count_links(db: Session) -> int:
+    return db.query(func.count(Link.id)).scalar() or 0
+
+
+def count_interfaces(db: Session) -> int:
+    from models import Interface
+    return db.query(func.count(Interface.id)).scalar() or 0
+
+
+def link_counts_by_protocol(db: Session) -> dict:
+    rows = db.query(Link.protocol, func.count(Link.id)).group_by(Link.protocol).all()
+    return {p or "unknown": c for p, c in rows}
+
+
+def interface_status_counts(db: Session) -> dict:
+    from models import Interface
+    rows = (
+        db.query(Interface.if_oper_status, func.count(Interface.id))
+        .group_by(Interface.if_oper_status)
+        .all()
+    )
+    return {s or "unknown": c for s, c in rows}
+
+
+def config_coverage(db: Session) -> dict:
+    from models import Device, DeviceConfig
+
+    total = db.query(func.count(DeviceConfig.id)).scalar() or 0
+    distinct = (
+        db.query(func.count(func.distinct(DeviceConfig.device_id))).scalar() or 0
+    )
+    rows = (
+        db.query(Device.device_type, func.count(func.distinct(DeviceConfig.device_id)))
+        .join(Device, Device.id == DeviceConfig.device_id)
+        .group_by(Device.device_type)
+        .all()
+    )
+    return {
+        "total_configs": total,
+        "devices_with_config": distinct,
+        "by_device_type": {t or "unknown": c for t, c in rows},
+    }
+
+
+def scan_history(db: Session, limit: int = 100) -> list[dict]:
+    """Every scan with its recorded device count plus actual link count."""
+    jobs = db.query(ScanJob).order_by(ScanJob.started_at.desc()).limit(limit).all()
+    result = []
+    for job in jobs:
+        row = job.to_dict()
+        row["links"] = (
+            db.query(func.count(Link.id)).filter(Link.scan_id == job.id).scalar() or 0
+        )
+        result.append(row)
+    return result
+
+
+def stale_devices(db: Session, days: int = 90) -> int:
+    """Devices not seen in the last `days` days (likely decommissioned)."""
+    from datetime import timedelta
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    return (
+        db.query(func.count(Device.id))
+        .filter(Device.last_seen < cutoff)
+        .scalar()
+        or 0
+    )
+
+
 # ── Credentials / Sites ───────────────────────────────────────────────────────
 
 def create_credential(db: Session, name: str, credential_type: str = "snmp",

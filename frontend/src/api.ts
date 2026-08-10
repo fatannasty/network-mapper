@@ -304,3 +304,51 @@ export async function getChanges(scanA: string, scanB: string) {
   const r = await api.get('/api/topology/changes', { params: { scan_a: scanA, scan_b: scanB } })
   return r.data as ChangeResult
 }
+
+// ── Sprint 12: Reporting ─────────────────────────────────────────────────────
+
+export interface ConfigCoverage {
+  total_configs: number
+  devices_with_config: number
+  by_device_type: Record<string, number>
+}
+
+export interface ScanHistoryEntry {
+  id: string
+  subnet: string
+  status: string
+  device_count: number
+  links: number
+  started_at: string | null
+  finished_at: string | null
+}
+
+export interface Report {
+  total_devices: number
+  total_links: number
+  total_interfaces: number
+  by_device_type: Record<string, number>
+  by_vendor: Record<string, number>
+  by_site: Record<string, number>
+  link_protocols: Record<string, number>
+  interface_status: Record<string, number>
+  config_coverage: ConfigCoverage
+  stale_devices_90d: number
+  scan_history: ScanHistoryEntry[]
+  recent_scans: ScanHistoryEntry[]
+}
+
+export async function getReport() {
+  const r = await api.get('/api/inventory/report')
+  return r.data as Report
+}
+
+export async function exportReport(report: 'devices' | 'links' | 'scans' | 'configs') {
+  const r = await api.get('/api/inventory/report/export', { params: { report }, responseType: 'blob' })
+  const url = URL.createObjectURL(r.data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${report}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}

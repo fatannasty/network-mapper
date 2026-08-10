@@ -8,6 +8,7 @@ import CatalystForm from './components/CatalystForm'
 import ConfigCollect from './components/ConfigCollect'
 import DeviceInventory from './components/DeviceInventory'
 import ChangeDetection from './components/ChangeDetection'
+import Reports from './components/Reports'
 import { setToken } from './api'
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/configs" element={<ConfigCollect />} />
           <Route path="/inventory" element={<DeviceInventory />} />
           <Route path="/changes" element={<ChangeDetection />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

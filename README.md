@@ -273,6 +273,32 @@ GET /api/inventory/credentials
 GET /api/inventory/sites
 ```
 
+## Sprint 12 — Reporting ✅
+
+Full reporting on top of the inventory database: a Reports page aggregating
+devices, topology links, interfaces, config-collection coverage and scan
+history, with CSV export for each report.
+
+- **Extended `/api/inventory/report`**: `total_devices`, `total_links`,
+  `total_interfaces`, counts by device type / vendor / site, link protocol
+  breakdown (LLDP/CDP), interface operational-status counts, config coverage
+  (total configs, distinct devices, per-type), stale-device count (90 days),
+  and full scan history with per-scan link counts.
+- **CSV export** `GET /api/inventory/report/export?report=devices|links|scans|configs`
+  returns a downloadable `text/csv` attachment for each report.
+- **Reports page** (`frontend/src/components/Reports.tsx`): summary cards,
+  distribution tables with bars, interface-status strip, config coverage by
+  type, scan history table, and one-click CSV export buttons.
+- Repository helpers in `repositories.py`: `count_links`, `count_interfaces`,
+  `link_counts_by_protocol`, `interface_status_counts`, `config_coverage`,
+  `scan_history`, `stale_devices`.
+
+### API (new)
+
+```
+GET /api/inventory/report/export?report=devices|links|scans|configs   -> CSV download
+```
+
 ## Roadmap
 
 - **Sprint 1** Discovery + classification MVP ✅
@@ -285,8 +311,8 @@ GET /api/inventory/sites
 - **Sprint 8** sysObjectID database for advanced identification
 - **Sprint 9** Configuration collection
 - **Sprint 10** Layer 3 path analysis
-- **Sprint 11** Change detection
-- **Sprint 12** Reporting
+- **Sprint 11** Change detection ✅
+- **Sprint 12** Reporting ✅
 - **Sprint 13** Redis/Celery scale-out
 - **Sprint 14** Security hardening
 - **Sprint 15** Production release
