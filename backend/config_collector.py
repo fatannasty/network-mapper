@@ -70,7 +70,7 @@ def collect_config(
         time.sleep(0.5)
 
         # Drain the banner + initial prompt
-        banner = _read_until_prompt(shell, timeout=8)
+        banner = _read_until_prompt(shell, timeout=15)
 
         # Try commands in order
         if command:
@@ -100,7 +100,9 @@ def collect_config(
         client.close()
 
     if not config_text.strip():
-        raise ConfigCollectorError(f"No config output received from {ip}")
+        raise ConfigCollectorError(
+            f"No config output received from {ip} (banner: {banner[:200]!r}, "
+            f"used cmd: {used_command})")
 
     return {
         "config_text": config_text,
@@ -117,7 +119,7 @@ def _read_until_prompt(shell: paramiko.Channel, timeout: float,
     switch/router prompt characters (``#``, ``>``, ``]``) followed by
     trailing whitespace after a brief quiet period.
     """
-    PROMPT_SUFFIXES = ("#", ">", "]#", ")>", ")#", ")> ")
+    PROMPT_SUFFIXES = ("#", ">", "]#", ")>", ")#", ")> ", ":$ ", "$ ")
     deadline = time.time() + timeout
     chunks: list[bytes] = []
     quiet_start = 0.0
@@ -128,8 +130,8 @@ def _read_until_prompt(shell: paramiko.Channel, timeout: float,
             quiet_start = time.time()
         elif quiet_start == 0:
             quiet_start = time.time()
-        elif time.time() - quiet_start > 1.5 and chunks:
-            # Been quiet 1.5+ seconds — check for prompt
+        elif time.time() - quiet_start > 2.0 and chunks:
+            # Been quiet 2+ seconds — check for prompt
             text = b"".join(chunks).decode("utf-8", errors="replace")
             stripped = text.rstrip()
             if stripped and any(stripped.endswith(s) for s in PROMPT_SUFFIXES):
