@@ -57,8 +57,29 @@ function parseSiteTree(sites: SiteInfo[]): StateGroup[] {
   return result
 }
 
+const STORAGE_KEY = 'catalyst.savedUrls'
+
+function loadSavedUrls(): string[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed.filter((u): u is string => typeof u === 'string' && u.startsWith('http')) : []
+  } catch {
+    return []
+  }
+}
+
+function persistSavedUrls(urls: string[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(urls))
+  } catch {
+    // storage unavailable; ignore
+  }
+}
+
 export default function CatalystForm() {
-  const [baseUrl, setBaseUrl] = useState('https://')
+  const [savedUrls, setSavedUrls] = useState<string[]>(loadSavedUrls)
+  const [baseUrl, setBaseUrl] = useState(() => loadSavedUrls()[0] || 'https://')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -128,6 +149,20 @@ export default function CatalystForm() {
     }
   }
 
+  const handleSaveUrl = () => {
+    const url = baseUrl.trim()
+    if (!url) return
+    const next = savedUrls.includes(url) ? savedUrls : [...savedUrls, url]
+    setSavedUrls(next)
+    persistSavedUrls(next)
+  }
+
+  const handleRemoveUrl = (url: string) => {
+    const next = savedUrls.filter((u) => u !== url)
+    setSavedUrls(next)
+    persistSavedUrls(next)
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -152,12 +187,64 @@ export default function CatalystForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-gray-400 text-sm mb-1">Catalyst Center URL</label>
-            <input
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
-              placeholder="https://catalyst-center.example.com"
-            />
+            {savedUrls.length > 0 && (
+              <select
+                value=""
+                onChange={(e) => { if (e.target.value) setBaseUrl(e.target.value) }}
+                className="w-full px-3 py-2 mb-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+              >
+                <option value="">Saved URLs…</option>
+                {savedUrls.map((u) => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            )}
+            <div className="flex gap-2">
+              <input
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+                placeholder="https://catalyst-center.example.com"
+              />
+              <button
+                type="button"
+                onClick={handleSaveUrl}
+                disabled={!baseUrl.trim()}
+                className="px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm disabled:opacity-50"
+                title="Save this URL for next time"
+              >
+                Save
+              </button>
+            </div>
+            {savedUrls.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {savedUrls.map((u) => (
+                  <span
+                    key={u}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                      u === baseUrl ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      className="hover:text-white"
+                      onClick={() => setBaseUrl(u)}
+                      title="Use this URL"
+                    >
+                      {u}
+                    </button>
+                    <button
+                      type="button"
+                      className="text-gray-400 hover:text-red-400"
+                      onClick={() => handleRemoveUrl(u)}
+                      title="Remove saved URL"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
