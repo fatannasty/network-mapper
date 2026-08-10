@@ -329,11 +329,9 @@ def api_topology_path(source: str = Query(...), target: str = Query(...),
     job = jobs[0]
 
     links = repositories.list_links(db, scan_id=job.id, limit=5000)
-    devices = {d.ip: d for d in db.query(Device).filter(
-        Device.last_scan_id == job.id).all()}
 
     from path_tracer import build_path
-    raw = build_path([
+    result = build_path([
         {
             "source": l.endpoint_a, "target": l.endpoint_b,
             "source_interface": l.interface_a, "target_interface": l.interface_b,
@@ -343,30 +341,12 @@ def api_topology_path(source: str = Query(...), target: str = Query(...),
         for l in links
     ], source, target)
 
-    # Enrich each hop with device info
-    hops: list[dict] = []
-    seen_ips = [source]
-    for hop in raw.get("path", []):
-        hops.append(hop)
-        for ip in (hop["source"], hop["target"]):
-            if ip not in seen_ips:
-                seen_ips.append(ip)
-                d = devices.get(ip)
-                if d:
-                    hops.append({
-                        "node": ip,
-                        "hostname": d.hostname,
-                        "vendor": d.vendor,
-                        "model": d.model,
-                        "device_type": d.device_type,
-                    })
-
     return {
         "source": source,
         "target": target,
-        "path": raw.get("path", []),
-        "hops": raw.get("hops", 0),
-        "error": raw.get("error"),
+        "path": result.get("path", []),
+        "hops": result.get("hops", 0),
+        "error": result.get("error"),
     }
 
 
