@@ -246,10 +246,11 @@ def api_discover(req: DiscoverRequest, db: Session = Depends(get_db)):
 def inventory_devices(device_type: Optional[str] = Query(None),
                       vendor: Optional[str] = Query(None),
                       site: Optional[str] = Query(None),
-                      limit: int = Query(200, ge=1, le=1000),
+                      search: Optional[str] = Query(None),
+                      limit: int = Query(200, ge=1, le=5000),
                       db: Session = Depends(get_db)):
     devices = repositories.list_devices(db, device_type=device_type, vendor=vendor,
-                                        site=site, limit=limit)
+                                        site=site, search=search, limit=limit)
     return {"count": len(devices), "devices": [d.to_dict() for d in devices]}
 
 

@@ -8,6 +8,7 @@ interface Props {
 
 const links = [
   { to: '/topology', label: 'Topology' },
+  { to: '/inventory', label: 'Inventory' },
   { to: '/discover', label: 'Discover' },
   { to: '/catalyst', label: 'Catalyst' },
   { to: '/configs', label: 'Configs' },

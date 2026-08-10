@@ -82,7 +82,9 @@ def _sync_interfaces(db: Session, device: Device, interfaces: list[dict]) -> Non
 
 
 def list_devices(db: Session, device_type: str | None = None, vendor: str | None = None,
-                 site: str | None = None, limit: int = 200) -> list[Device]:
+                 site: str | None = None, search: str | None = None,
+                 limit: int = 200) -> list[Device]:
+    from sqlalchemy import or_
     query = db.query(Device)
     if device_type:
         query = query.filter(Device.device_type == device_type)
@@ -90,6 +92,14 @@ def list_devices(db: Session, device_type: str | None = None, vendor: str | None
         query = query.filter(Device.vendor.ilike(f"%{vendor}%"))
     if site:
         query = query.filter(Device.site == site)
+    if search:
+        pat = f"%{search}%"
+        query = query.filter(or_(
+            Device.hostname.ilike(pat),
+            Device.ip.ilike(pat),
+            Device.vendor.ilike(pat),
+            Device.model.ilike(pat),
+        ))
     return query.order_by(Device.last_seen.desc()).limit(limit).all()
 
 
