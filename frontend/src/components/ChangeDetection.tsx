@@ -38,7 +38,7 @@ export default function ChangeDetection() {
 
         <div className="flex items-end gap-3 mb-6">
           <div className="flex-1">
-            <label className="block text-gray-400 text-xs mb-1">Scan A (before)</label>
+            <label className="block text-gray-400 text-xs mb-1">Baseline (before)</label>
             <select
               value={scanA}
               onChange={(e) => setScanA(e.target.value)}
@@ -54,7 +54,7 @@ export default function ChangeDetection() {
           </div>
           <span className="text-gray-500 pb-2">vs</span>
           <div className="flex-1">
-            <label className="block text-gray-400 text-xs mb-1">Scan B (after)</label>
+            <label className="block text-gray-400 text-xs mb-1">Current (after)</label>
             <select
               value={scanB}
               onChange={(e) => setScanB(e.target.value)}
@@ -88,17 +88,21 @@ export default function ChangeDetection() {
             {/* Summary */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-gray-800 border border-gray-700 rounded p-4">
-                <span className="text-gray-500 text-xs block mb-1">Scan A</span>
+                <span className="text-gray-500 text-xs block mb-1">Baseline</span>
                 <p className="text-white text-sm">{result.scan_a.subnet}</p>
                 <p className="text-gray-400 text-xs">
                   {result.devices.count_a} devices &middot; {result.links.count_a} links
+                  <br />
+                  <span className="text-gray-600">{result.scan_a.started_at?.slice(0, 16)}</span>
                 </p>
               </div>
               <div className="bg-gray-800 border border-gray-700 rounded p-4">
-                <span className="text-gray-500 text-xs block mb-1">Scan B</span>
+                <span className="text-gray-500 text-xs block mb-1">Current</span>
                 <p className="text-white text-sm">{result.scan_b.subnet}</p>
                 <p className="text-gray-400 text-xs">
                   {result.devices.count_b} devices &middot; {result.links.count_b} links
+                  <br />
+                  <span className="text-gray-600">{result.scan_b.started_at?.slice(0, 16)}</span>
                 </p>
               </div>
             </div>
