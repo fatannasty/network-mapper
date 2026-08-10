@@ -788,6 +788,14 @@ def import_devices(base_url: str, username: str, password: str,
         typ = (d.get("type", "") or "").lower()
         platform = (d.get("platformId", "") or "")
 
+        # Readable site for reporting. Prefer the deepest part of the
+        # siteHierarchy (e.g. ".../United States/California/Sacramento"),
+        # falling back to locationName/location/siteName.
+        hierarchy = (d.get("siteHierarchy", "") or "").strip("/")
+        site = hierarchy.split("/")[-1] if hierarchy else ""
+        site = (site or d.get("locationName") or d.get("location")
+                or d.get("siteName") or "")
+
         # Classify using shared rules (same device_type labels as SNMP scanner)
         cls = classify_from_platform(
             platform_id=platform, family=family, device_type=typ)
@@ -806,6 +814,7 @@ def import_devices(base_url: str, username: str, password: str,
             "vendor": vendor,
             "model": d.get("platformId", ""),
             "device_type": device_type,
+            "site": site,
             "confidence": 5,
             "open_ports": [161],
             "snmp_community": "",

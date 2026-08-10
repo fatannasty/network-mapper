@@ -125,3 +125,23 @@ def test_site_filter_matches_by_device_site_id_uuid():
         devices, links, debug = catalyst.import_devices(
             "https://cc", "u", "p", site_name="Florida > Miami", site_id="site-x")
     assert debug["raw_devices"] == 1
+
+
+def test_full_import_no_site_filter_returns_everything():
+    # No site_name/site_id/device_filter -> every device is imported, and each
+    # carries a readable site derived from its siteHierarchy for reporting.
+    devs = [
+        _dev("1-aaa", site_hier="Global/United States/Florida/Miami/Building1"),
+        _dev("2-bbb", site_hier="Global/United States/California/Sacramento"),
+        _dev("3-ccc"),
+    ]
+    with _patch_import(None, devs, [], set()):
+        devices, links, debug = catalyst.import_devices("https://cc", "u", "p")
+    assert len(devices) == 3
+    assert debug["raw_devices"] == 3
+    by_ip = {d["ip"]: d for d in devices}
+    assert by_ip["10.0.0.1"]["site"] == "Building1"
+    assert by_ip["10.0.0.1"]["device_type"] == "switch"
+    # device without a siteHierarchy falls back to locationName/location/siteName
+    assert by_ip["10.0.0.2"]["site"] == "Sacramento"
+    assert by_ip["10.0.0.3"]["site"] == ""

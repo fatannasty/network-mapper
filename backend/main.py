@@ -526,7 +526,7 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}") from e
 
     scan_id = uuid.uuid4().hex[:12]
-    site_label = req.site_name or req.device_filter or "all"
+    site_label = req.site_name or req.device_filter or "Full Environment"
     scan_subnet = f"CatC: {site_label}"[:64]
     repositories.create_scan_job(db, scan_id, scan_subnet, [], False)
 

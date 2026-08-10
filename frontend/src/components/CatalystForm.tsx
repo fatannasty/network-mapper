@@ -180,6 +180,25 @@ export default function CatalystForm() {
     }
   }
 
+  const handleFullImport = async () => {
+    if (!window.confirm(
+      'Import the FULL Catalyst Center environment (all sites)?\n\n' +
+      'This replaces nothing — devices are upserted by IP — but it can take a while and ' +
+      'will pull every network device, not just switches.',
+    )) return
+    setLoading(true)
+    setResult(null)
+    setError('')
+    try {
+      const data = await importFromCatalyst(baseUrl, username, password)
+      setResult(data)
+    } catch (err: unknown) {
+      setError(errDetail(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="h-full overflow-auto p-6 flex justify-center">
       <div className="w-full max-w-lg">
@@ -399,6 +418,19 @@ export default function CatalystForm() {
               {loading ? 'Importing...' : 'Import'}
             </button>
           </div>
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleFullImport}
+            className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded text-sm font-medium transition-colors"
+          >
+            Import Full Environment (all sites)
+          </button>
+          <p className="text-gray-600 text-[11px] -mt-2">
+            Pulls every network device from Catalyst Center regardless of site filter.
+            Use this to populate the full inventory and reports.
+          </p>
 
           {testResult && (
             <div className={`rounded p-3 text-xs ${testResult.startsWith('Connected') ? 'bg-green-900/50 border border-green-800 text-green-300' : 'bg-red-900/50 border border-red-800 text-red-300'}`}>
