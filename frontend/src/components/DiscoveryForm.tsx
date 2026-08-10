@@ -14,6 +14,7 @@ export default function DiscoveryForm() {
   const [privPass, setPrivPass] = useState('')
   const [loading, setLoading] = useState(false)
   const [verbose, setVerbose] = useState(false)
+  const [excludePcs, setExcludePcs] = useState(true)
   const [result, setResult] = useState<ScanResult | null>(null)
   const [error, setError] = useState('')
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -48,7 +49,7 @@ export default function DiscoveryForm() {
       const v3 = snmpv3
         ? { username, auth_protocol: 'sha', auth_password: authPass, privacy_protocol: 'aes', privacy_password: privPass || authPass }
         : undefined
-      const data = await discover(subnet, communities, parseInt(snmpPort) || 161, v3, verbose)
+      const data = await discover(subnet, communities, parseInt(snmpPort) || 161, v3, verbose, excludePcs)
       setResult(data)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Discovery failed')
@@ -125,6 +126,15 @@ export default function DiscoveryForm() {
                 className="rounded"
               />
               Verbose logging
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={excludePcs}
+                onChange={(e) => setExcludePcs(e.target.checked)}
+                className="rounded"
+              />
+              Exclude PCs/printers
             </label>
           </div>
 

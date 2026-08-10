@@ -125,11 +125,11 @@ export interface Credential {
   site: string
 }
 
-export async function discover(subnet: string, communities: string[], snmpPort?: number, snmpv3?: object, verbose?: boolean) {
+export async function discover(subnet: string, communities: string[], snmpPort?: number, snmpv3?: object, verbose?: boolean, excludePcs?: boolean) {
   const r = await api.post('/api/discover', {
     subnet,
     communities: communities.length > 0 ? communities : ['public'],
-    exclude_pcs: false,
+    exclude_pcs: excludePcs ?? true,
     snmp_port: snmpPort || 161,
     snmpv3,
     verbose: verbose || false,

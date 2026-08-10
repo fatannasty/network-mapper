@@ -19,7 +19,7 @@ from snmpv3 import (AUTH_MD5, AUTH_NONE, AUTH_SHA, PRIV_AES, PRIV_DES, PRIV_NONE
                     snmpv3_get, walk_if_table)
 from topology import build_links
 
-TCP_PORTS = [22, 23, 80, 443, 3389, 8080, 8443]
+TCP_PORTS = [22, 23, 80, 443, 3389, 8080, 8443, 9100]
 PORT_SCAN_TIMEOUT = 0.8
 PING_TIMEOUT_MS = 1000
 SNMP_PROBE_TIMEOUT = 0.6
@@ -178,6 +178,10 @@ def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT,
         except (socket.herror, socket.gaierror, OSError):
             pass
     cls = classify(snmp_data, hostname=hostname)
+
+    # Detect printers (HP JetDirect on port 9100) and mark for exclusion.
+    if 9100 in tcp_ports and not cls.device_type:
+        cls.device_type = "printer"
 
     interfaces: list[dict] = []
     if snmp_data and snmpv3:
