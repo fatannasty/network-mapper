@@ -1,11 +1,152 @@
 """Classifier tests: the Sprint 1 success criteria are accurate identification
 of Cisco, Aruba, Fortinet, and VeloCloud devices."""
 
-from classifier import classify, NETWORK_DEVICE_TYPES
+from classifier import classify, classify_from_platform, NETWORK_DEVICE_TYPES
 
 
 def _snmp(descr="", oid="", name=""):
     return {"sysDescr": descr, "sysObjectID": oid, "sysName": name}
+
+
+# ── Sprint 8: sysObjectID database ────────────────────────────────────────────
+
+def test_sysobj_db_exact_match_c9300():
+    cls = classify(_snmp(oid=".1.3.6.1.4.1.9.1.2494"))
+    assert cls.vendor == "Cisco"
+    assert cls.model == "Catalyst 9300-48UXM"
+    assert cls.device_type == "switch"
+    assert cls.confidence == 5
+
+
+def test_sysobj_db_exact_match_meraki_mr():
+    cls = classify(_snmp(oid=".1.3.6.1.4.1.29671.1.1"))
+    assert cls.vendor == "Cisco Meraki"
+    assert cls.model == "Meraki MR AP"
+    assert cls.device_type == "accesspoint"
+    assert cls.confidence == 5
+
+
+def test_sysobj_db_exact_match_fortigate():
+    cls = classify(_snmp(oid=".1.3.6.1.4.1.12356.101.1.3002"))
+    assert cls.vendor == "Fortinet"
+    assert cls.model == "FortiGate-100F"
+    assert cls.device_type == "firewall"
+    assert cls.confidence == 5
+
+
+def test_sysobj_db_exact_match_velocloud():
+    cls = classify(_snmp(oid=".1.3.6.1.4.1.43772.1"))
+    assert cls.vendor == "VMware VeloCloud"
+    assert cls.model == "VeloCloud Edge"
+    assert cls.device_type == "velocloud-edge"
+    assert cls.confidence == 5
+
+
+def test_sysobj_db_exact_match_palo_alto():
+    cls = classify(_snmp(oid=".1.3.6.1.4.1.25461.2.3.11"))
+    assert cls.vendor == "Palo Alto Networks"
+    assert cls.model == "PA-3220"
+    assert cls.device_type == "firewall"
+    assert cls.confidence == 5
+
+
+def test_unknown_sysobj_falls_back_to_descr():
+    cls = classify(_snmp(oid=".1.3.6.1.4.1.9.1.99999",
+                         descr="Cisco IOS Software, C9300L"))
+    assert cls.device_type == "switch"
+    assert cls.confidence == 4  # sysDescr + Cisco OID
+
+
+# ── Sprint 8: platform-based classification (Catalyst imports) ────────────────
+
+def test_platform_c9300_switch():
+    cls = classify_from_platform(platform_id="C9300-48UXM")
+    assert cls.device_type == "switch"
+    assert cls.confidence == 4
+
+
+def test_platform_c9200_switch():
+    cls = classify_from_platform(platform_id="C9200L-24P-4X")
+    assert cls.device_type == "switch"
+    assert cls.confidence == 4
+
+
+def test_platform_c9500_core():
+    cls = classify_from_platform(platform_id="C9500-48Y4C")
+    assert cls.device_type == "core-switch"
+    assert cls.confidence == 4
+
+
+def test_platform_nexus_core():
+    cls = classify_from_platform(platform_id="N9K-C93180YC-FX")
+    assert cls.device_type == "core-switch"
+    assert cls.confidence == 4
+
+
+def test_platform_isr_router():
+    cls = classify_from_platform(platform_id="ISR4331/K9")
+    assert cls.device_type == "router"
+    assert cls.confidence == 4
+
+
+def test_platform_asr_router():
+    cls = classify_from_platform(platform_id="ASR1002-X")
+    assert cls.device_type == "router"
+    assert cls.confidence == 4
+
+
+def test_platform_asa_firewall():
+    cls = classify_from_platform(platform_id="ASA5506-X")
+    assert cls.device_type == "firewall"
+    assert cls.confidence == 4
+
+
+def test_platform_meraki_mr_ap():
+    cls = classify_from_platform(platform_id="MR53", family="Meraki Access Point")
+    assert cls.device_type == "accesspoint"
+    assert cls.confidence == 4
+
+
+def test_platform_meraki_ms_switch():
+    cls = classify_from_platform(platform_id="MS350-48LP", family="Meraki Switch")
+    assert cls.device_type == "switch"
+    assert cls.confidence == 4
+
+
+def test_platform_meraki_mx_firewall():
+    cls = classify_from_platform(platform_id="MX105", family="Meraki Security Appliance")
+    assert cls.device_type == "firewall"
+    assert cls.confidence == 4
+
+
+def test_platform_family_switch():
+    cls = classify_from_platform(platform_id="ABC-123", family="Switches and Hubs")
+    assert cls.device_type == "switch"
+    assert cls.confidence == 3
+
+
+def test_platform_family_router():
+    cls = classify_from_platform(family="Routers")
+    assert cls.device_type == "router"
+    assert cls.confidence == 3
+
+
+def test_platform_family_ap():
+    cls = classify_from_platform(family="Access Points")
+    assert cls.device_type == "accesspoint"
+    assert cls.confidence == 3
+
+
+def test_platform_velocloud():
+    cls = classify_from_platform(platform_id="VC", family="VeloCloud Edge")
+    assert cls.device_type == "velocloud-edge"
+    assert cls.confidence == 4
+
+
+def test_platform_unknown():
+    cls = classify_from_platform(platform_id="UNKNOWN-123")
+    assert cls.device_type == ""
+    assert cls.confidence == 0
 
 
 # ── Cisco ────────────────────────────────────────────────────────────────────

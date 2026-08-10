@@ -600,6 +600,9 @@ def import_devices(base_url: str, username: str, password: str,
     for d in raw_devices:
         device_by_id[str(d.get("id", d.get("instanceId", d.get("instanceUuid", ""))))] = d
 
+    # Lazy import classifier to avoid circular dependency at module level
+    from classifier import classify_from_platform
+
     devices: list[dict] = []
     skipped_no_ip = 0
     for d in raw_devices:
@@ -612,27 +615,19 @@ def import_devices(base_url: str, username: str, password: str,
         hostname = d.get("hostname", "") or d.get("dnsName", "")
         family = (d.get("family", "") or "").lower()
         typ = (d.get("type", "") or "").lower()
-        platform = (d.get("platformId", "") or "").lower()
+        platform = (d.get("platformId", "") or "")
 
-        # Detect vendor
+        # Classify using shared rules (same device_type labels as SNMP scanner)
+        cls = classify_from_platform(
+            platform_id=platform, family=family, device_type=typ)
+        device_type = cls.device_type
+
+        # Vendor from softwareType or platformId
         vendor = d.get("softwareType", "") or ""
-        if "meraki" in family or "meraki" in typ or "meraki" in platform:
-            vendor = "Meraki"
-        elif not vendor and "cisco" in family:
+        if vendor in ("", "IOS-XE", "IOS", "IOS XE"):
             vendor = "Cisco"
-
-        # Detect device type from model prefix or family
-        device_type = ""
-        if "access point" in family or "ap" in family or typ.startswith("mr"):
-            device_type = "access-point"
-        elif "switch" in family or typ.startswith("ms"):
-            device_type = "switch"
-        elif "firewall" in family or "security" in family or typ.startswith("mx"):
-            device_type = "firewall"
-        elif "router" in family:
-            device_type = "router"
-        elif "wireless" in family or typ.startswith("wc") or "wlc" in typ:
-            device_type = "wireless-controller"
+        elif "meraki" in family or "meraki" in typ or "meraki" in platform.lower():
+            vendor = "Cisco Meraki"
 
         devices.append({
             "ip": ip,

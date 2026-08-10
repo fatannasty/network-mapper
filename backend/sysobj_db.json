@@ -1,0 +1,404 @@
+[
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2494",
+    "vendor": "Cisco",
+    "model": "Catalyst 9300-48UXM",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2495",
+    "vendor": "Cisco",
+    "model": "Catalyst 9300-24UX",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2384",
+    "vendor": "Cisco",
+    "model": "Catalyst 9200-24P",
+    "device_type": "access-switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2385",
+    "vendor": "Cisco",
+    "model": "Catalyst 9200-48P",
+    "device_type": "access-switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2697",
+    "vendor": "Cisco",
+    "model": "Catalyst 9500-16X",
+    "device_type": "core-switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2830",
+    "vendor": "Cisco",
+    "model": "Catalyst 9400",
+    "device_type": "core-switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.1226",
+    "vendor": "Cisco",
+    "model": "Catalyst 2960-24TT",
+    "device_type": "access-switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.716",
+    "vendor": "Cisco",
+    "model": "Catalyst 2960-48TT",
+    "device_type": "access-switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.1738",
+    "vendor": "Cisco",
+    "model": "Catalyst 3850-24T",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.1741",
+    "vendor": "Cisco",
+    "model": "Catalyst 3850-48T",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2373",
+    "vendor": "Cisco",
+    "model": "Catalyst 3650-24PS",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.1221",
+    "vendor": "Cisco",
+    "model": "Catalyst 3750-24TS",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2095",
+    "vendor": "Cisco",
+    "model": "ISR 4321",
+    "device_type": "router"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2096",
+    "vendor": "Cisco",
+    "model": "ISR 4331",
+    "device_type": "router"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2442",
+    "vendor": "Cisco",
+    "model": "ISR 4431",
+    "device_type": "router"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2759",
+    "vendor": "Cisco",
+    "model": "ISR 4461",
+    "device_type": "router"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.1169",
+    "vendor": "Cisco",
+    "model": "ASR 1002",
+    "device_type": "router"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.1206",
+    "vendor": "Cisco",
+    "model": "ASA 5505",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.1408",
+    "vendor": "Cisco",
+    "model": "ASA 5520",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.1961",
+    "vendor": "Cisco",
+    "model": "ASA 5506-X",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.824",
+    "vendor": "Cisco",
+    "model": "Aironet 1130",
+    "device_type": "accesspoint"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.1779",
+    "vendor": "Cisco",
+    "model": "Aironet 2600",
+    "device_type": "accesspoint"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2567",
+    "vendor": "Cisco",
+    "model": "Aironet 2800",
+    "device_type": "accesspoint"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2499",
+    "vendor": "Cisco",
+    "model": "Aironet 3800",
+    "device_type": "accesspoint"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.1387",
+    "vendor": "Cisco",
+    "model": "Nexus 5020",
+    "device_type": "core-switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2211",
+    "vendor": "Cisco",
+    "model": "Nexus 7000",
+    "device_type": "core-switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.9.1.2525",
+    "vendor": "Cisco",
+    "model": "Nexus 9000",
+    "device_type": "core-switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.29671.1.1",
+    "vendor": "Cisco Meraki",
+    "model": "Meraki MR AP",
+    "device_type": "accesspoint"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.29671.1.2",
+    "vendor": "Cisco Meraki",
+    "model": "Meraki MS Switch",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.29671.1.3",
+    "vendor": "Cisco Meraki",
+    "model": "Meraki MX Firewall",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.14823.2.3.1.1",
+    "vendor": "Aruba Networks",
+    "model": "AP-105",
+    "device_type": "accesspoint"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.14823.2.3.1.12",
+    "vendor": "Aruba Networks",
+    "model": "AP-205",
+    "device_type": "accesspoint"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.14823.2.3.1.21",
+    "vendor": "Aruba Networks",
+    "model": "AP-305",
+    "device_type": "accesspoint"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.14823.2.3.1.5",
+    "vendor": "Aruba Networks",
+    "model": "AP-135",
+    "device_type": "accesspoint"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.14823.2.3.1.10",
+    "vendor": "Aruba Networks",
+    "model": "AP-225",
+    "device_type": "accesspoint"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.14823.2.3.3.1",
+    "vendor": "Aruba Networks",
+    "model": "Aruba 2920",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.14823.2.3.4.1",
+    "vendor": "Aruba Networks",
+    "model": "Aruba 2930F",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.14823.2.3.5.1",
+    "vendor": "Aruba Networks",
+    "model": "Aruba 3810M",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.12356.101.1.1001",
+    "vendor": "Fortinet",
+    "model": "FortiGate-60D",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.12356.101.1.1002",
+    "vendor": "Fortinet",
+    "model": "FortiGate-100D",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.12356.101.1.2001",
+    "vendor": "Fortinet",
+    "model": "FortiGate-60E",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.12356.101.1.2002",
+    "vendor": "Fortinet",
+    "model": "FortiGate-100E",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.12356.101.1.3001",
+    "vendor": "Fortinet",
+    "model": "FortiGate-60F",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.12356.101.1.3002",
+    "vendor": "Fortinet",
+    "model": "FortiGate-100F",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.12356.101.1.4002",
+    "vendor": "Fortinet",
+    "model": "FortiGate-200F",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.2636.1.1.1.2.29",
+    "vendor": "Juniper Networks",
+    "model": "MX240",
+    "device_type": "router"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.2636.1.1.1.2.30",
+    "vendor": "Juniper Networks",
+    "model": "MX480",
+    "device_type": "router"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.2636.1.1.1.2.31",
+    "vendor": "Juniper Networks",
+    "model": "MX960",
+    "device_type": "router"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.2636.1.1.1.2.5",
+    "vendor": "Juniper Networks",
+    "model": "EX4200-24T",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.2636.1.1.1.2.7",
+    "vendor": "Juniper Networks",
+    "model": "EX2200-24T",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.2636.1.1.1.2.9",
+    "vendor": "Juniper Networks",
+    "model": "EX3200-24T",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.2636.1.1.1.2.25",
+    "vendor": "Juniper Networks",
+    "model": "SRX240",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.2636.1.1.1.2.35",
+    "vendor": "Juniper Networks",
+    "model": "SRX300",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.25461.2.3.1",
+    "vendor": "Palo Alto Networks",
+    "model": "PA-220",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.25461.2.3.4",
+    "vendor": "Palo Alto Networks",
+    "model": "PA-820",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.25461.2.3.5",
+    "vendor": "Palo Alto Networks",
+    "model": "PA-850",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.25461.2.3.11",
+    "vendor": "Palo Alto Networks",
+    "model": "PA-3220",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.25461.2.3.16",
+    "vendor": "Palo Alto Networks",
+    "model": "PA-5250",
+    "device_type": "firewall"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.30065.1.3011.7050",
+    "vendor": "Arista Networks",
+    "model": "7050SX-72Q",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.30065.1.3011.7280",
+    "vendor": "Arista Networks",
+    "model": "7280SE",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.30065.1.3011.7010",
+    "vendor": "Arista Networks",
+    "model": "7010T",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.43772.1",
+    "vendor": "VMware VeloCloud",
+    "model": "VeloCloud Edge",
+    "device_type": "velocloud-edge"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.14988.1",
+    "vendor": "MikroTik",
+    "model": "MikroTik RouterOS",
+    "device_type": "router"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.11.2.3.7.1",
+    "vendor": "Hewlett Packard Enterprise",
+    "model": "HP 2530-24G",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.11.2.3.7.5",
+    "vendor": "Hewlett Packard Enterprise",
+    "model": "HP 2920-24G",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.674.10895.3004",
+    "vendor": "Dell EMC",
+    "model": "Dell S3048-ON",
+    "device_type": "switch"
+  },
+  {
+    "oid": ".1.3.6.1.4.1.674.10895.3041",
+    "vendor": "Dell EMC",
+    "model": "Dell S4048-ON",
+    "device_type": "switch"
+  }
+]
