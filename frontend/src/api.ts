@@ -226,11 +226,13 @@ export async function collectConfigs(
   sitePattern?: string,
   sshUsername?: string,
   sshPassword?: string,
+  sshPort?: number,
 ) {
   const r = await api.post('/api/inventory/collect-config', {
     site_pattern: sitePattern || '',
     ssh_username: sshUsername || '',
     ssh_password: sshPassword || '',
+    ssh_port: sshPort || 22,
   })
   return r.data as CollectResult
 }

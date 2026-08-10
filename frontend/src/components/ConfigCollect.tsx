@@ -5,6 +5,7 @@ export default function ConfigCollect() {
   const [sitePattern, setSitePattern] = useState('')
   const [sshUsername, setSshUsername] = useState('')
   const [sshPassword, setSshPassword] = useState('')
+  const [sshPort, setSshPort] = useState(22)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<CollectResult | null>(null)
   const [error, setError] = useState('')
@@ -16,7 +17,7 @@ export default function ConfigCollect() {
     setError('')
     try {
       const data = await collectConfigs(
-        sitePattern || undefined, sshUsername, sshPassword)
+        sitePattern || undefined, sshUsername, sshPassword, sshPort)
       setResult(data)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
@@ -45,7 +46,7 @@ export default function ConfigCollect() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-gray-400 text-sm mb-1">SSH Username</label>
               <input
@@ -60,6 +61,15 @@ export default function ConfigCollect() {
                 type="password"
                 value={sshPassword}
                 onChange={(e) => setSshPassword(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-400 text-sm mb-1">SSH Port</label>
+              <input
+                type="number"
+                value={sshPort}
+                onChange={(e) => setSshPort(Number(e.target.value))}
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
               />
             </div>

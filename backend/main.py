@@ -460,6 +460,7 @@ class ConfigCollectRequest(BaseModel):
     limit: int = 50
     ssh_username: str = ""
     ssh_password: str = ""
+    ssh_port: int = 22
 
 
 @app.post("/api/inventory/collect-config", dependencies=[Depends(operator)])
@@ -483,6 +484,7 @@ def inventory_collect_config(req: ConfigCollectRequest,
                 ip=d.ip,
                 username=req.ssh_username,
                 password=req.ssh_password,
+                port=req.ssh_port,
             )
             saved = repositories.save_device_config(
                 db, d.id, cfg["config_text"], config_type="running")
