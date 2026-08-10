@@ -374,7 +374,7 @@ def _truncate_json(obj, depth: int = 0, max_items: int = 20):
 
 
 def get_device_neighbors(base_url: str, token: str, device_id: str,
-                         timeout: float = 30.0) -> list[dict]:
+                         timeout: float = 30.0, max_interfaces: int = 500) -> list[dict]:
     """Fetch CDP/LLDP neighbors for a device via per-interface lookup.
 
     Returns a list of neighbor dicts with keys:
@@ -386,14 +386,14 @@ def get_device_neighbors(base_url: str, token: str, device_id: str,
     # 1. Get the device's interfaces
     try:
         data = _request(f"{base}/dna/intent/api/v1/interface?deviceId={device_id}&limit=500",
-                        token, timeout=timeout)
+                        timeout=timeout, token=token)
     except CatalystError:
         return neighbors
     interfaces = data.get("response", [])
     if not isinstance(interfaces, list):
         return neighbors
 
-    for iface in interfaces:
+    for iface in interfaces[:max_interfaces]:
         if_uuid = iface.get("id") or iface.get("interfaceId") or iface.get("instanceUuid")
         if not if_uuid:
             continue
@@ -692,7 +692,11 @@ def import_devices(base_url: str, username: str, password: str,
 
     # Enrich with per-device CDP/LLDP neighbor links (helps SD-WAN edges and
     # devices missing from the physical/site topology). Hostname-based lookup.
+    # Cap the work so large imports don't stall on hundreds of API calls.
     neighbor_links_added = 0
+    max_enrich_devices = 30
+    max_enrich_interfaces = 16
+    enrich_skipped = 0
     if devices:
         ip_by_hostname: dict[str, str] = {}
         for dev in devices:
@@ -700,12 +704,13 @@ def import_devices(base_url: str, username: str, password: str,
                 ip_by_hostname[dev["hostname"].lower()] = dev["ip"]
 
         existing = {(l["source"], l["target"]) for l in links}
-        for dev in devices:
+        for dev in devices[:max_enrich_devices]:
             dev_id = dev.get("_id", "")
             if not dev_id:
                 continue
             try:
-                nb = get_device_neighbors(base_url, token, dev_id, timeout=timeout)
+                nb = get_device_neighbors(base_url, token, dev_id, timeout=timeout,
+                                          max_interfaces=max_enrich_interfaces)
             except Exception:
                 continue
             for n in nb:
@@ -727,6 +732,8 @@ def import_devices(base_url: str, username: str, password: str,
                     "target_hostname": n.get("neighbor_device", ""),
                 })
                 neighbor_links_added += 1
+        if len(devices) > max_enrich_devices:
+            enrich_skipped = len(devices) - max_enrich_devices
 
     debug = {
         "debug_sample": debug_sample,
@@ -735,6 +742,7 @@ def import_devices(base_url: str, username: str, password: str,
         "raw_devices_fetched": raw_device_count_before,
         "raw_topology": len(raw_topology),
         "neighbor_links_added": neighbor_links_added,
+        "neighbor_enrich_skipped": enrich_skipped,
         "resolved_site_count": resolved_site_count,
         "membership_ids_count": membership_ids_count,
         "errors": errors,
