@@ -271,3 +271,36 @@ export async function getInventoryLinks() {
   const r = await api.get('/api/inventory/links')
   return r.data.links as TopoLink[]
 }
+
+// ── Sprint 11: Change Detection ──────────────────────────────────────────────
+
+export interface ScanInfo {
+  id: string
+  subnet: string
+  device_count: number
+  started_at: string | null
+}
+
+export interface ChangeResult {
+  scan_a: ScanInfo
+  scan_b: ScanInfo
+  devices: {
+    added: string[]
+    removed: string[]
+    changed: { ip: string; changes: Record<string, { from: string; to: string }> }[]
+    count_a: number
+    count_b: number
+  }
+  links: {
+    added: { source: string; target: string }[]
+    removed: { source: string; target: string }[]
+    count_a: number
+    count_b: number
+  }
+  error?: string
+}
+
+export async function getChanges(scanA: string, scanB: string) {
+  const r = await api.get('/api/topology/changes', { params: { scan_a: scanA, scan_b: scanB } })
+  return r.data as ChangeResult
+}

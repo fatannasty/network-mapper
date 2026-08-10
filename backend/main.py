@@ -357,6 +357,17 @@ def inventory_links(db: Session = Depends(get_db)):
     return {"links": [l.to_dict() for l in repositories.list_links(db, limit=5000)]}
 
 
+@app.get("/api/topology/changes", dependencies=[Depends(authenticated)])
+def api_topology_changes(scan_a: str = Query(...), scan_b: str = Query(...),
+                         db: Session = Depends(get_db)):
+    """Compare two scan jobs — return added/removed devices and links."""
+    from change_detector import compare_scans
+    result = compare_scans(db, scan_a, scan_b)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
 @app.get("/api/inventory/credentials", dependencies=[Depends(authenticated)])
 def inventory_credentials(db: Session = Depends(get_db)):
     creds = repositories.list_credentials(db)

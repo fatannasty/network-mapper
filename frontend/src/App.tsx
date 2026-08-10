@@ -7,6 +7,7 @@ import TopologyViewer from './components/TopologyViewer'
 import CatalystForm from './components/CatalystForm'
 import ConfigCollect from './components/ConfigCollect'
 import DeviceInventory from './components/DeviceInventory'
+import ChangeDetection from './components/ChangeDetection'
 import { setToken } from './api'
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/topology" element={<TopologyViewer />} />
           <Route path="/configs" element={<ConfigCollect />} />
           <Route path="/inventory" element={<DeviceInventory />} />
+          <Route path="/changes" element={<ChangeDetection />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
