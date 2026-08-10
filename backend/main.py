@@ -432,7 +432,9 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}") from e
 
     scan_id = uuid.uuid4().hex[:12]
-    repositories.create_scan_job(db, scan_id, "catalyst-center", [], False)
+    site_label = req.site_name or req.device_filter or "all"
+    scan_subnet = f"CatC: {site_label}"[:64]
+    repositories.create_scan_job(db, scan_id, scan_subnet, [], False)
 
     for device in devices:
         repositories.upsert_device(db, device, scan_id)
