@@ -296,14 +296,22 @@ def _extract_member_ids(data: dict) -> set[str]:
         groups = data.get("device", [])
     if isinstance(resp, list):
         for d in resp:
-            did = str(d.get("instanceUuid") or d.get("id") or "")
-            if did:
-                ids.add(did)
+            if isinstance(d, dict):
+                did = str(d.get("instanceUuid") or d.get("id") or "")
+                if did:
+                    ids.add(did)
+    if isinstance(groups, dict):
+        groups = groups.values()
+    if not isinstance(groups, list):
+        groups = list(groups)
     for grp in groups:
+        if not isinstance(grp, dict):
+            continue
         for d in grp.get("response", []):
-            did = str(d.get("instanceUuid") or d.get("id") or "")
-            if did:
-                ids.add(did)
+            if isinstance(d, dict):
+                did = str(d.get("instanceUuid") or d.get("id") or "")
+                if did:
+                    ids.add(did)
     return ids
 
 
@@ -319,8 +327,8 @@ def get_site_members(base_url: str, token: str, site_id: str,
 
     ids: set[str] = set()
     for url in (
-        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=5000",
-        f"{base}/dna/intent/api/v1/network-device?siteId={site_id}&limit=5000",
+        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500",
+        f"{base}/dna/intent/api/v1/network-device?siteId={site_id}&limit=500",
     ):
         try:
             data = _request(url, token, timeout=timeout)
@@ -331,16 +339,47 @@ def get_site_members(base_url: str, token: str, site_id: str,
     return ids
 
 
+def count_devices_by_site(base_url: str, token: str, site_id: str,
+                          timeout: float = 30.0, max_pages: int = 10) -> dict:
+    """Paginate /network-device?siteId= and return the total unique device count."""
+    base = _resolve_base(base_url)
+    url = f"{base}/dna/intent/api/v1/network-device"
+    ids: set[str] = set()
+    offset = 1
+    total_fetched = 0
+    pages = 0
+    while pages < max_pages:
+        try:
+            data = _request(f"{url}?siteId={site_id}&limit=500&offset={offset}",
+                            token, timeout=timeout)
+        except Exception as e:
+            return {"count": len(ids), "total_fetched": total_fetched,
+                    "pages": pages, "error": str(e)}
+        devices = data.get("response", [])
+        if not isinstance(devices, list) or not devices:
+            break
+        total_fetched += len(devices)
+        for d in devices:
+            if isinstance(d, dict):
+                did = str(d.get("instanceUuid") or d.get("id") or "")
+                if did:
+                    ids.add(did)
+        pages += 1
+        if len(devices) < 500:
+            break
+        offset += 500
+    return {"count": len(ids), "total_fetched": total_fetched, "pages": pages,
+            "error": None}
+
+
 def debug_site_membership(base_url: str, username: str, password: str,
                           site_id: str, timeout: float = 30.0) -> dict:
     """Dump raw responses from the membership APIs for a site (debugging)."""
     token = authenticate(base_url, username, password, timeout=timeout)
     base = _resolve_base(base_url)
     urls = [
-        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=5000",
-        f"{base}/dna/intent/api/v1/site-member/{site_id}/member?memberType=networkdevice&limit=5000",
-        f"{base}/dna/intent/api/v1/network-device?siteId={site_id}&limit=5000",
-        f"{base}/dna/intent/api/v1/network-device?limit=5000",
+        f"{base}/dna/intent/api/v1/membership/{site_id}?limit=500",
+        f"{base}/dna/intent/api/v1/site-member/{site_id}/member?memberType=networkdevice&limit=500",
     ]
 
     results = []
@@ -368,7 +407,13 @@ def debug_site_membership(base_url: str, username: str, password: str,
     except Exception as e:
         parsed = {"ids": [], "error": str(e)}
 
-    return {"site_id": site_id, "endpoints": results, "parsed": parsed}
+    try:
+        by_site = count_devices_by_site(base_url, token, site_id, timeout=timeout)
+    except Exception as e:
+        by_site = {"count": 0, "error": str(e)}
+
+    return {"site_id": site_id, "endpoints": results, "parsed": parsed,
+            "network_devices_by_site": by_site}
 
 
 def _truncate_json(obj, depth: int = 0, max_items: int = 20):
