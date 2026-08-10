@@ -72,7 +72,7 @@ def collect_config(
         for cmd in cmds_to_try:
             chan.exec_command(cmd)
             config_text = _read_channel(chan, timeout)
-            if config_text and "invalid" not in config_text.lower().startswith("invalid") and len(config_text) > 50:
+            if config_text and not config_text.lower().startswith("invalid") and len(config_text) > 50:
                 used_command = cmd
                 break
             config_text = ""
