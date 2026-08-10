@@ -52,13 +52,21 @@ async def lifespan(_app: FastAPI):
 
 
 def _rename_old_scans():
-    """Rename generic 'catalyst-center' scan labels to include device counts."""
+    """Rename generic 'catalyst-center' scan labels to include device counts and dates."""
     from database import engine
     with engine.connect() as conn:
-        conn.exec_driver_sql(
-            "UPDATE scan_jobs SET subnet = 'Catalyst — ' || CAST(device_count AS TEXT) || ' devices' "
-            "WHERE subnet = 'catalyst-center'"
-        )
+        # Rename catalyst-center scans with descriptive labels
+        rows = conn.exec_driver_sql(
+            "SELECT id, device_count, started_at FROM scan_jobs WHERE subnet = 'catalyst-center'"
+        ).fetchall()
+        for row in rows:
+            scan_id, count, ts = row
+            date_str = str(ts)[:10] if ts else "unknown date"
+            label = f"Catalyst Import ({count} devices, {date_str})"
+            conn.exec_driver_sql(
+                "UPDATE scan_jobs SET subnet = ? WHERE id = ?",
+                [label, scan_id],
+            )
         conn.commit()
 
 
@@ -301,14 +309,24 @@ def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get
         job = db.get(ScanJob, scan_id)
         if job is None:
             raise HTTPException(status_code=404, detail="scan not found")
+        # For specific scans, fetch links first, then include ALL devices
+        # that appear as link endpoints — even those whose last_scan_id
+        # was later overwritten by a newer import.
+        links = repositories.list_links(db, scan_id=job.id)
+        link_ips = set()
+        for l in links:
+            link_ips.add(l.endpoint_a)
+            link_ips.add(l.endpoint_b)
+        devices = db.query(Device).filter(
+            (Device.last_scan_id == job.id) | (Device.ip.in_(link_ips))
+        ).all()
     else:
         jobs = repositories.list_scan_jobs(db, limit=1)
         if not jobs:
             return {"scan_id": None, "nodes": [], "links": []}
         job = jobs[0]
-
-    devices = db.query(Device).filter(Device.last_scan_id == job.id).all()
-    links = repositories.list_links(db, scan_id=job.id)
+        devices = db.query(Device).filter(Device.last_scan_id == job.id).all()
+        links = repositories.list_links(db, scan_id=job.id)
 
     nodes: list[dict] = []
     seen: set[str] = set()
