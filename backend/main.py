@@ -47,7 +47,19 @@ ROLES = ("admin", "operator", "viewer")
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    _rename_old_scans()
     yield
+
+
+def _rename_old_scans():
+    """Rename generic 'catalyst-center' scan labels to include device counts."""
+    from database import engine
+    with engine.connect() as conn:
+        conn.exec_driver_sql(
+            "UPDATE scan_jobs SET subnet = 'Catalyst — ' || CAST(device_count AS TEXT) || ' devices' "
+            "WHERE subnet = 'catalyst-center'"
+        )
+        conn.commit()
 
 
 app = FastAPI(
