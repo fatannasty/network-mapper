@@ -452,6 +452,82 @@ def catalyst_test(req: CatalystImportRequest):
     return result
 
 
+# ── Sprint 9: Configuration Collection ────────────────────────────────────────
+
+class ConfigCollectRequest(BaseModel):
+    device_type: str = "switch"
+    site_pattern: str = ""  # matches device hostname or site field
+    limit: int = 50
+    ssh_username: str = ""
+    ssh_password: str = ""
+
+
+@app.post("/api/inventory/collect-config", dependencies=[Depends(operator)])
+def inventory_collect_config(req: ConfigCollectRequest,
+                              db: Session = Depends(get_db)):
+    import config_collector
+
+    devices = repositories.get_devices_by_type(
+        db, device_type=req.device_type, limit=req.limit)
+
+    if req.site_pattern:
+        pat = req.site_pattern.lower()
+        devices = [d for d in devices
+                   if pat in (d.hostname or "").lower()
+                   or pat in (d.site or "").lower()]
+
+    results: list[dict] = []
+    for d in devices:
+        try:
+            cfg = config_collector.collect_config(
+                ip=d.ip,
+                username=req.ssh_username,
+                password=req.ssh_password,
+            )
+            saved = repositories.save_device_config(
+                db, d.id, cfg["config_text"], config_type="running")
+            results.append({
+                "device_id": d.id,
+                "ip": d.ip,
+                "hostname": d.hostname,
+                "status": "ok",
+                "config_id": saved.id,
+            })
+        except config_collector.ConfigCollectorError as e:
+            repositories.save_device_config(
+                db, d.id, "", config_type="running", error=str(e))
+            results.append({
+                "device_id": d.id,
+                "ip": d.ip,
+                "hostname": d.hostname,
+                "status": "error",
+                "error": str(e),
+            })
+        except Exception as e:
+            results.append({
+                "device_id": d.id,
+                "ip": d.ip,
+                "hostname": d.hostname,
+                "status": "error",
+                "error": str(e),
+            })
+
+    success = sum(1 for r in results if r["status"] == "ok")
+    return {
+        "total": len(results),
+        "success": success,
+        "failed": len(results) - success,
+        "results": results,
+    }
+
+
+@app.get("/api/inventory/devices/{device_id}/configs",
+         dependencies=[Depends(authenticated)])
+def inventory_device_configs(device_id: int, db: Session = Depends(get_db)):
+    configs = repositories.get_device_configs(db, device_id)
+    return [c.to_dict() for c in configs]
+
+
 if __name__ == "__main__":
     import uvicorn
 

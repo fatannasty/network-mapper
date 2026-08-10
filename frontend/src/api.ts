@@ -194,3 +194,48 @@ export async function getScans(limit = 20) {
   const r = await api.get('/api/inventory/scans', { params: { limit } })
   return r.data
 }
+
+// ── Sprint 9: Configuration Collection ───────────────────────────────────────
+
+export interface ConfigEntry {
+  id: number
+  device_id: number
+  ip: string
+  hostname: string
+  config_type: string
+  collected_at: string
+  error: string | null
+  config_text: string
+}
+
+export interface CollectResult {
+  total: number
+  success: number
+  failed: number
+  results: {
+    device_id: number
+    ip: string
+    hostname: string
+    status: string
+    config_id?: number
+    error?: string
+  }[]
+}
+
+export async function collectConfigs(
+  sitePattern?: string,
+  sshUsername?: string,
+  sshPassword?: string,
+) {
+  const r = await api.post('/api/inventory/collect-config', {
+    site_pattern: sitePattern || '',
+    ssh_username: sshUsername || '',
+    ssh_password: sshPassword || '',
+  })
+  return r.data as CollectResult
+}
+
+export async function getDeviceConfigs(deviceId: number) {
+  const r = await api.get(`/api/inventory/devices/${deviceId}/configs`)
+  return r.data as ConfigEntry[]
+}

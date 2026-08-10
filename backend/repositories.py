@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from models import Credential, Device, Interface, Link, ScanJob, Site, User
+from models import Credential, Device, DeviceConfig, Interface, Link, ScanJob, Site, User
 from security import create_token, hash_password, verify_password
 
 
@@ -274,3 +274,38 @@ def create_site(db: Session, name: str, location: str = "") -> Site:
 
 def list_sites(db: Session) -> list[Site]:
     return db.query(Site).order_by(Site.name).all()
+
+
+# ── Device Configs (Sprint 9) ─────────────────────────────────────────────────
+
+def save_device_config(db: Session, device_id: int, config_text: str,
+                        config_type: str = "running", error: str = "") -> DeviceConfig:
+    cfg = DeviceConfig(
+        device_id=device_id,
+        config_text=config_text,
+        config_type=config_type,
+        error=error,
+    )
+    db.add(cfg)
+    db.commit()
+    db.refresh(cfg)
+    return cfg
+
+
+def get_device_configs(db: Session, device_id: int,
+                       limit: int = 20) -> list[DeviceConfig]:
+    return (
+        db.query(DeviceConfig)
+        .filter(DeviceConfig.device_id == device_id)
+        .order_by(DeviceConfig.collected_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+def get_devices_by_type(db: Session, device_type: str = "switch",
+                        limit: int = 500) -> list[Device]:
+    q = db.query(Device).filter(Device.device_type.ilike(f"%{device_type}%"))
+    if limit:
+        q = q.limit(limit)
+    return q.all()

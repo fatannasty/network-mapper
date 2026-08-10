@@ -5,6 +5,7 @@ import LoginForm from './components/LoginForm'
 import DiscoveryForm from './components/DiscoveryForm'
 import TopologyViewer from './components/TopologyViewer'
 import CatalystForm from './components/CatalystForm'
+import ConfigCollect from './components/ConfigCollect'
 import { setToken } from './api'
 
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/discover" element={<DiscoveryForm />} />
           <Route path="/catalyst" element={<CatalystForm />} />
           <Route path="/topology" element={<TopologyViewer />} />
+          <Route path="/configs" element={<ConfigCollect />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

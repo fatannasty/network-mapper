@@ -248,6 +248,34 @@ class Link(Base):
         }
 
 
+class DeviceConfig(Base):
+    """Stored device configuration backup (Sprint 9)."""
+
+    __tablename__ = "device_configs"
+
+    id = Column(Integer, primary_key=True)
+    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"),
+                       nullable=False, index=True)
+    config_text = Column(Text, nullable=False)
+    config_type = Column(String(32), default="running")  # running | startup | version
+    collected_at = Column(DateTime, default=_utcnow, index=True)
+    error = Column(Text, nullable=True)
+
+    device = relationship("Device", backref="configs")
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "device_id": self.device_id,
+            "ip": self.device.ip if self.device else "",
+            "hostname": self.device.hostname if self.device else "",
+            "config_type": self.config_type,
+            "collected_at": self.collected_at.isoformat() if self.collected_at else None,
+            "error": self.error,
+            "config_text": self.config_text,
+        }
+
+
 class User(Base):
     """App user with an RBAC role: admin | operator | viewer."""
 
