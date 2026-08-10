@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getDevices, getTopology, type Device, type TopoLink } from '../api'
+import { getDevices, getInventoryLinks, type Device, type TopoLink } from '../api'
 
 type SortField = 'hostname' | 'ip' | 'device_type' | 'vendor'
 type SortDir = 'asc' | 'desc'
@@ -29,14 +29,12 @@ export default function DeviceInventory() {
       if (typeFilter) params.device_type = typeFilter
       if (search) params.search = search
 
-      const [devResp, topoResp] = await Promise.all([
+      const [devResp, lnks] = await Promise.all([
         getDevices(params),
-        getTopology(),
+        getInventoryLinks(),
       ])
       setDevices(devResp.devices || [])
-
-      const lnks = topoResp?.links || []
-      setLinks(lnks)
+      setLinks(lnks || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load devices')
     } finally {

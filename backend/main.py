@@ -351,6 +351,12 @@ def api_topology_path(source: str = Query(...), target: str = Query(...),
     }
 
 
+@app.get("/api/inventory/links", dependencies=[Depends(authenticated)])
+def inventory_links(db: Session = Depends(get_db)):
+    """Return all topology links across every scan for inventory display."""
+    return {"links": [l.to_dict() for l in repositories.list_links(db, limit=5000)]}
+
+
 @app.get("/api/inventory/credentials", dependencies=[Depends(authenticated)])
 def inventory_credentials(db: Session = Depends(get_db)):
     creds = repositories.list_credentials(db)

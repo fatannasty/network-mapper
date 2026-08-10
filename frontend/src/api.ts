@@ -266,3 +266,8 @@ export async function findPath(source: string, target: string) {
   const r = await api.get('/api/topology/path', { params: { source, target } })
   return r.data as PathResult
 }
+
+export async function getInventoryLinks() {
+  const r = await api.get('/api/inventory/links')
+  return r.data.links as TopoLink[]
+}
