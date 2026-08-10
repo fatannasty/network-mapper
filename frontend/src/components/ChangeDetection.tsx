@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getScans, getChanges, type ChangeResult, type ScanInfo } from '../api'
 
 export default function ChangeDetection() {
@@ -8,6 +9,7 @@ export default function ChangeDetection() {
   const [result, setResult] = useState<ChangeResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
 
   useEffect(() => {
     getScans(100).then((r) => setScans(r.scans || [])).catch(() => {})
@@ -95,6 +97,12 @@ export default function ChangeDetection() {
                   <br />
                   <span className="text-gray-600">{result.scan_a.started_at?.slice(0, 16)}</span>
                 </p>
+                <button
+                  onClick={() => navigate(`/topology?scan_id=${result.scan_a.id}`)}
+                  className="mt-2 px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-xs transition-colors"
+                >
+                  View Topology
+                </button>
               </div>
               <div className="bg-gray-800 border border-gray-700 rounded p-4">
                 <span className="text-gray-500 text-xs block mb-1">Current</span>
@@ -104,6 +112,12 @@ export default function ChangeDetection() {
                   <br />
                   <span className="text-gray-600">{result.scan_b.started_at?.slice(0, 16)}</span>
                 </p>
+                <button
+                  onClick={() => navigate(`/topology?scan_id=${result.scan_b.id}`)}
+                  className="mt-2 px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-xs transition-colors"
+                >
+                  View Topology
+                </button>
               </div>
             </div>
 
