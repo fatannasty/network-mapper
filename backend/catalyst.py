@@ -510,7 +510,11 @@ def import_devices(base_url: str, username: str, password: str,
         if loc_samples:
             debug_sample["available_locations"] = sorted(loc_samples)[:50]
 
-    # Site membership filter (preferred — works even when devices have no site fields)
+    # Site filter: union of membership API matches + device site-field matches.
+    # The membership endpoint only returns directly-assigned devices, while
+    # Catalyst inventory records carry siteHierarchy/siteId/locationName for
+    # devices that live under the site's hierarchy. Match either so we never
+    # under-import a site.
     membership_applied = False
     resolved_site_count = 0
     membership_ids_count = 0
@@ -547,21 +551,30 @@ def import_devices(base_url: str, username: str, password: str,
         resolved_site_count = len(related_ids)
         membership_ids_count = len(member_ids)
 
-        if member_ids:
-            before = len(raw_devices)
-            raw_devices = [
-                d for d in raw_devices
-                if str(d.get("id") or d.get("instanceUuid") or "") in member_ids
-            ]
-            errors.append(
-                f"Site filter ({len(related_ids)} site(s), {len(member_ids)} members): "
-                f"matched {len(raw_devices)} of {before} devices")
-            membership_applied = True
-        else:
-            errors.append(f"Site filter resolved to {len(related_ids)} site(s) but membership "
-                          f"returned no devices; no devices will be imported")
-            if not site_name:
-                raw_devices = []
+        before = len(raw_devices)
+        terms = [t.strip().lower() for t in site_name.replace(">", "/").replace(",", "/").split("/") if t.strip()] if site_name else []
+        leaf_term = terms[-1] if terms else ""
+        uuids = [str(x) for x in related_ids]
+        kept: list[dict] = []
+        for d in raw_devices:
+            did = str(d.get("id") or d.get("instanceUuid") or "")
+            d_site_id = str(d.get("siteId") or "")
+            d_site_hier = str(d.get("siteHierarchy") or "")
+            loc_name = (d.get("locationName") or d.get("location") or "") or ""
+            site_name_field = (d.get("siteName") or "") or ""
+            hay = (d_site_hier + "/" + site_name_field + "/" + loc_name).lower()
+            matches = did in member_ids
+            matches = matches or (d_site_id and d_site_id in uuids)
+            matches = matches or (d_site_hier and any(u in d_site_hier for u in uuids))
+            matches = matches or (terms and all(t in hay for t in terms))
+            matches = matches or (leaf_term and (leaf_term in loc_name.lower() or leaf_term == site_name_field.lower()))
+            if matches:
+                kept.append(d)
+        raw_devices = kept
+        errors.append(
+            f"Site filter ({len(related_ids)} site(s), {len(member_ids)} members): "
+            f"matched {len(raw_devices)} of {before} devices")
+        membership_applied = True
 
     # Apply site name filter (fallback for environments where membership is unavailable)
     if site_name and raw_devices and not membership_applied:

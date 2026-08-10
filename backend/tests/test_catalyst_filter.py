@@ -79,3 +79,49 @@ def test_site_filter_without_membership_never_leaks_all():
             "https://cc", "u", "p", site_name="Florida > Miami", site_id="site-x")
     assert len(devices) == 0
     assert debug["raw_devices"] == 0
+
+
+def test_site_filter_matches_devices_by_site_hierarchy_when_membership_empty():
+    # Membership returns nothing, but one device carries the readable
+    # siteHierarchy path -> still matched via site fields.
+    devs = [
+        _dev("aaa", site_hier="Global/United States/Florida/Miami/Building1"),
+        _dev("bbb"),
+        _dev("ccc", site_hier="Global/United States/California/San Jose/Building2"),
+    ]
+    sites = [{"name": "Miami", "hierarchy": "Global/United States/Florida/Miami",
+              "hierarchy_ids": "a/b/c", "site_id": "site-x"}]
+    with _patch_import(None, devs, sites, set()):
+        devices, links, debug = catalyst.import_devices(
+            "https://cc", "u", "p", site_name="Florida > Miami", site_id="site-x")
+    assert debug["raw_devices"] == 1
+    assert devices[0]["hostname"] == ""
+
+
+def test_site_filter_unions_membership_and_site_fields():
+    # "aaa" is a membership member; "bbb" is not but has matching siteHierarchy.
+    devs = [
+        _dev("aaa"),
+        _dev("bbb", site_hier="Global/United States/Florida/Miami/Floor1"),
+        _dev("ccc"),
+    ]
+    sites = [{"name": "Miami", "hierarchy": "Global/United States/Florida/Miami",
+              "hierarchy_ids": "a/b/c", "site_id": "site-x"}]
+    with _patch_import(None, devs, sites, {"aaa"}):
+        devices, links, debug = catalyst.import_devices(
+            "https://cc", "u", "p", site_name="Florida > Miami", site_id="site-x")
+    assert debug["raw_devices"] == 2
+    assert debug["membership_ids_count"] == 1
+
+
+def test_site_filter_matches_by_device_site_id_uuid():
+    devs = [
+        _dev("aaa", site_id="site-x"),
+        _dev("bbb"),
+    ]
+    sites = [{"name": "Miami", "hierarchy": "Global/United States/Florida/Miami",
+              "hierarchy_ids": "a/b/c", "site_id": "site-x"}]
+    with _patch_import(None, devs, sites, set()):
+        devices, links, debug = catalyst.import_devices(
+            "https://cc", "u", "p", site_name="Florida > Miami", site_id="site-x")
+    assert debug["raw_devices"] == 1
