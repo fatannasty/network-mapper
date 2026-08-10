@@ -215,22 +215,30 @@ def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
     base = _resolve_base(base_url)
 
     urls = [
-        f"{base}/dna/intent/api/v1/site",
         f"{base}/dna/intent/api/v1/site?type=area,building,floor",
+        f"{base}/dna/intent/api/v1/site",
     ]
 
-    data = {}
+    all_sites: list[dict] = []
+    seen_ids = set()
     for url in urls:
         try:
             data = _request(url, token, timeout=timeout)
-            break
         except Exception:
             continue
+        resp = data.get("response", [])
+        if isinstance(resp, list):
+            for s in resp:
+                sid = str(s.get("id") or s.get("siteId") or "")
+                if sid and sid not in seen_ids:
+                    seen_ids.add(sid)
+                    all_sites.append(s)
 
-    raw_sites = data.get("response", [])
-    if not raw_sites:
-        # Return empty — sites are not configured
+    if not all_sites:
         return {"sites": [], "debug": {"raw_count": 0, "note": "No sites in API response"}}
+
+    # Use the merged list as raw_sites
+    raw_sites = all_sites
 
     # Collect all site names and hierarchies regardless of type
     sites: list[dict] = []
@@ -634,6 +642,8 @@ def import_devices(base_url: str, username: str, password: str,
     membership_applied = False
     resolved_site_count = 0
     membership_ids_count = 0
+    resolved_sites_detail: dict[str, str] = {}
+    site_list_total = 0
     site_filter_requested = bool(site_id or site_name)
     if site_filter_requested and raw_devices:
         # Resolve the site to UUIDs. site_id may be empty for state-only picks,
@@ -662,6 +672,12 @@ def import_devices(base_url: str, username: str, password: str,
                     if child not in related_ids:
                         related_ids.add(child)
                         queue.append(child)
+            site_list_total = len(site_result["sites"])
+            # Build a lookup so debug shows which sites were actually resolved
+            resolved_sites_detail = {
+                rid: next((s.get("hierarchy", "") for s in site_result["sites"] if s["site_id"] == rid), "?")
+                for rid in related_ids
+            }
         except Exception as e:
             errors.append(f"Site/child lookup skipped: {e}")
 
@@ -870,6 +886,8 @@ def import_devices(base_url: str, username: str, password: str,
         "neighbor_enrich_skipped": enrich_skipped,
         "resolved_site_count": resolved_site_count,
         "membership_ids_count": membership_ids_count,
+        "resolved_sites_detail": resolved_sites_detail,
+        "site_list_total": site_list_total,
         "errors": errors,
     }
     return devices, links, debug
