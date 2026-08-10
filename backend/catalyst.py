@@ -256,6 +256,7 @@ def get_sites(base_url: str, token: str, timeout: float = 30.0) -> dict:
                 "hierarchy": hier,
                 "hierarchy_ids": s.get("siteHierarchy", "") or s.get("groupNameHierarchy", ""),
                 "site_id": site_id,
+                "parentId": str(s.get("parentId", "") or ""),
             })
 
     sites.sort(key=lambda x: x["hierarchy"] or x["name"])
@@ -645,21 +646,30 @@ def import_devices(base_url: str, username: str, password: str,
             if site_name:
                 terms = [t.strip().lower() for t in site_name.replace(">", "/").replace(",", "/").split("/") if t.strip()]
                 for s in site_result["sites"]:
-                    hay = ((s.get("hierarchy") or "") + "/" + (s.get("name") or "")).lower()
-                    if all(t in hay for t in terms):
+                    if all(t in ((s.get("hierarchy") or "") + "/" + (s.get("name") or "")).lower() for t in terms):
                         related_ids.add(s["site_id"])
+            # Build parent→children map from parentId and expand recursively
+            # so buildings, floors, and any depth of sub-sites are resolved.
+            parent_to_children: dict[str, list[str]] = {}
             for s in site_result["sites"]:
-                for rid in list(related_ids):
-                    if s["site_id"] != rid and rid in (s.get("hierarchy_ids") or ""):
-                        related_ids.add(s["site_id"])
+                pid = s.get("parentId", "") or ""
+                if pid:
+                    parent_to_children.setdefault(pid, []).append(s["site_id"])
+            queue = list(related_ids)
+            while queue:
+                pid = queue.pop()
+                for child in parent_to_children.get(pid, []):
+                    if child not in related_ids:
+                        related_ids.add(child)
+                        queue.append(child)
         except Exception as e:
             errors.append(f"Site/child lookup skipped: {e}")
 
         member_ids: set[str] = set()
-        site_ids_to_query = list(related_ids)[:5]
+        site_ids_to_query = list(related_ids)[:50]
         skipped_sites = len(related_ids) - len(site_ids_to_query)
         if skipped_sites > 0:
-            errors.append(f"Site filter resolved {len(related_ids)} sites; querying first 5")
+            errors.append(f"Site filter resolved {len(related_ids)} sites; querying first 50 (skipped {skipped_sites})")
         for sid in site_ids_to_query:
             member_ids.update(get_site_members(base_url, token, sid, timeout=15.0))
 
