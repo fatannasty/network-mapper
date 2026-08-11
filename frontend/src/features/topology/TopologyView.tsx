@@ -17,12 +17,13 @@ import PageState from '../../components/ui/PageState'
 import Button from '../../components/ui/Button'
 
 export default function TopologyView() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const scanId = searchParams.get('scan_id') || undefined
 
   const {
     topology,
     deviceByIp,
+    scans,
     loading,
     error,
     protocolFilter,
@@ -43,6 +44,14 @@ export default function TopologyView() {
   } = useTopology(scanId)
 
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
+
+  const handleScanChange = (id: string) => {
+    setSearchParams(id ? { scan_id: id } : {}, { replace: true })
+    setSelectedDevice(null)
+    setPathSource('')
+    setPathTarget('')
+    setPathResult(null)
+  }
 
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!topology) return { initialNodes: [], initialEdges: [] }
@@ -141,21 +150,13 @@ export default function TopologyView() {
     )
   }
 
-  if (!topology || topology.nodes.length === 0) {
-    return (
-      <PageState
-        type="empty"
-        title="No topology data"
-        message="Run a discovery scan to populate the topology graph."
-        className="h-full"
-      />
-    )
-  }
-
   return (
     <div className="h-full flex flex-col">
       <TopologyToolbar
         topology={topology}
+        scans={scans}
+        scanId={scanId}
+        onScanChange={handleScanChange}
         linkCounts={linkCounts}
         protocolFilter={protocolFilter}
         onProtocolFilterChange={setProtocolFilter}
@@ -167,7 +168,11 @@ export default function TopologyView() {
         onPathTargetChange={setPathTarget}
         pathResult={pathResult}
         onRunPath={runPath}
-        onClearPath={() => setPathResult(null)}
+        onClearPath={() => {
+          setPathSource('')
+          setPathTarget('')
+          setPathResult(null)
+        }}
       />
 
       {pathResult && (
@@ -194,21 +199,34 @@ export default function TopologyView() {
         </div>
       )}
 
-      <div className="flex-1 flex">
-        <TopologyCanvas
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={(_e, node) => setSelectedDevice(node.id)}
-        />
+      <div className="flex-1 flex min-h-0">
+        {!topology || topology.nodes.length === 0 ? (
+          <div className="flex-1">
+            <PageState
+              type="empty"
+              title="No topology data"
+              message="Run a discovery scan or pick a scan from the selector to populate the topology graph."
+              className="h-full"
+            />
+          </div>
+        ) : (
+          <>
+            <TopologyCanvas
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeClick={(_e, node) => setSelectedDevice(node.id)}
+            />
 
-        {selectedDeviceData && (
-          <DeviceDetail
-            device={selectedDeviceData.device}
-            connectedLinks={selectedDeviceData.connectedLinks}
-            onClose={() => setSelectedDevice(null)}
-          />
+            {selectedDeviceData && (
+              <DeviceDetail
+                device={selectedDeviceData.device}
+                connectedLinks={selectedDeviceData.connectedLinks}
+                onClose={() => setSelectedDevice(null)}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

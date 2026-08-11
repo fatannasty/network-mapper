@@ -1,8 +1,12 @@
-import type { TopologyData, PathResult } from '../../../api'
+import type { TopologyData, PathResult, ScanInfo } from '../../../api'
 import type { ProtocolFilter, LayoutMode } from '../hooks/useTopology'
+import Select from '../../../components/ui/Select'
 
 interface Props {
-  topology: TopologyData
+  topology: TopologyData | null
+  scans: ScanInfo[]
+  scanId?: string
+  onScanChange: (id: string) => void
   linkCounts: { lldp: number; cdp: number }
   protocolFilter: ProtocolFilter
   onProtocolFilterChange: (v: ProtocolFilter) => void
@@ -17,8 +21,17 @@ interface Props {
   onClearPath: () => void
 }
 
+function formatScanLabel(s: ScanInfo): string {
+  const date = s.started_at ? s.started_at.slice(0, 16).replace('T', ' ') : ''
+  const label = s.subnet || s.id.slice(0, 8)
+  return `${label} — ${s.device_count} devices${date ? ` — ${date}` : ''}`
+}
+
 export default function TopologyToolbar({
   topology,
+  scans,
+  scanId,
+  onScanChange,
   linkCounts,
   protocolFilter,
   onProtocolFilterChange,
@@ -35,15 +48,15 @@ export default function TopologyToolbar({
   return (
     <div className="flex items-center gap-3 px-4 py-2 bg-surface-1 border-b border-border shrink-0 text-sm">
       <span className="text-muted">
-        {topology.nodes.length} devices
-        {topology.links.length > 0 && (
+        {topology?.nodes.length ?? 0} devices
+        {(topology?.links.length ?? 0) > 0 && (
           <span className="ml-2">
-            &middot; {topology.links.length} links
+            &middot; {topology?.links.length} links
             {linkCounts.lldp > 0 && <span className="text-blue-400 ml-1">{linkCounts.lldp} LLDP</span>}
             {linkCounts.cdp > 0 && <span className="text-amber-400 ml-1">{linkCounts.cdp} CDP</span>}
           </span>
         )}
-        {topology.scan_meta && (
+        {topology?.scan_meta && (
           <span className="ml-3 text-[11px] text-muted/70">
             &middot; Scan: <span className="text-text-secondary">{topology.scan_meta.subnet}</span>
             {topology.scan_meta.scan_kind && (
@@ -54,6 +67,20 @@ export default function TopologyToolbar({
       </span>
 
       <div className="flex-1" />
+
+      <Select
+        value={scanId || ''}
+        onChange={(e) => onScanChange(e.target.value)}
+        className="max-w-72 text-xs"
+        aria-label="Select scan"
+      >
+        <option value="">Latest scan</option>
+        {scans.map((s) => (
+          <option key={s.id} value={s.id}>
+            {formatScanLabel(s)}
+          </option>
+        ))}
+      </Select>
 
       <div className="flex items-center gap-1 bg-surface-2 rounded p-0.5">
         <button
@@ -74,7 +101,7 @@ export default function TopologyToolbar({
         </button>
       </div>
 
-      {topology.links.length > 0 && (
+      {(topology?.links.length ?? 0) > 0 && (
         <select
           value={protocolFilter}
           onChange={(e) => onProtocolFilterChange(e.target.value as ProtocolFilter)}
@@ -117,7 +144,7 @@ export default function TopologyToolbar({
         </button>
       )}
 
-      {topology.links.length === 0 && (
+      {(topology?.links.length ?? 0) === 0 && (
         <span className="text-muted text-xs">
           No auto-discovered links &mdash; run SNMP discovery on switches with LLDP/CDP enabled
         </span>

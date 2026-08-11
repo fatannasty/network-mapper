@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { TopologyData, Device, PathResult } from '../../../api'
-import { getTopology, getDevices, findPath } from '../../../api'
+import type { TopologyData, Device, PathResult, ScanInfo } from '../../../api'
+import { getTopology, getDevices, findPath, getScans } from '../../../api'
 
 export type ProtocolFilter = 'all' | 'lldp' | 'cdp'
 export type LayoutMode = 'tree' | 'free'
@@ -8,6 +8,7 @@ export type LayoutMode = 'tree' | 'free'
 export function useTopology(scanId?: string) {
   const [topology, setTopology] = useState<TopologyData | null>(null)
   const [devices, setDevices] = useState<Device[]>([])
+  const [scans, setScans] = useState<ScanInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all')
@@ -40,6 +41,10 @@ export function useTopology(scanId?: string) {
   }, [scanId])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  useEffect(() => {
+    getScans(100).then((r) => setScans(r.scans || [])).catch(() => {})
+  }, [])
 
   const filteredLinks = useMemo(() => {
     const all = topology?.links || []
@@ -81,6 +86,8 @@ export function useTopology(scanId?: string) {
     topology,
     devices,
     deviceByIp,
+    scans,
+    scanId,
     loading,
     error,
     protocolFilter,
