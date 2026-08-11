@@ -201,6 +201,26 @@ export async function debugSiteMembership(baseUrl: string, username: string, pas
   return r.data as { site_id: string; endpoints: { url: string; status: string; error?: string; raw: unknown }[]; parsed: { ids: string[] } }
 }
 
+export async function testVeloCloud(baseUrl: string, username: string, password: string) {
+  const r = await api.post('/api/velocloud/test', { base_url: baseUrl, username, password })
+  return r.data as { connected: boolean; edge_count: number; sample: Record<string, unknown> | null }
+}
+
+export async function importFromVeloCloud(baseUrl: string, username: string, password: string) {
+  const r = await api.post('/api/velocloud/import', { base_url: baseUrl, username, password })
+  return r.data as { scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> }
+}
+
+export async function testMeraki(baseUrl: string, apiKey: string) {
+  const r = await api.post('/api/meraki/test', { base_url: baseUrl, api_key: apiKey })
+  return r.data as { connected: boolean; organizations: number; device_count: number }
+}
+
+export async function importFromMeraki(baseUrl: string, apiKey: string) {
+  const r = await api.post('/api/meraki/import', { base_url: baseUrl, api_key: apiKey })
+  return r.data as { scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> }
+}
+
 export async function getTopology(scanId?: string, focus?: string) {
   const params: Record<string, string> = {}
   if (scanId) params.scan_id = scanId

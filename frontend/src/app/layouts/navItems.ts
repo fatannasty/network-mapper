@@ -8,6 +8,8 @@ export const navItems: NavItem[] = [
   { to: '/dashboard',  label: 'Dashboard',  icon: 'M3 13h4v8H3v-8zm7-10h4v18h-4V3zm7 6h4v12h-4V9z' },
   { to: '/discover',  label: 'Discover',   icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
   { to: '/catalyst',  label: 'Catalyst',   icon: 'M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16M9 11h6' },
+  { to: '/meraki',    label: 'Meraki',     icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z' },
+  { to: '/velocloud', label: 'VeloCloud',  icon: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646zM9.5 12.5l3-3 3 3M12 9v6' },
   { to: '/topology',  label: 'Topology',   icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
   { to: '/inventory', label: 'Inventory',  icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
   { to: '/configs',   label: 'Configs',    icon: 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4' },

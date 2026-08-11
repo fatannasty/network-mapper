@@ -2,6 +2,7 @@
 
 Endpoints:
     GET  /health                          - service health (public)
+    GET  /metrics                         - Prometheus metrics (public)
     POST /api/auth/login                  - obtain a bearer token (public)
     GET  /api/auth/me                     - current token payload (authenticated)
     POST /api/auth/users                  - create user (admin)
@@ -12,11 +13,26 @@ Endpoints:
     GET  /api/inventory/devices/{id}      - single device (authenticated)
     GET  /api/inventory/scans             - recent scan history (authenticated)
     GET  /api/inventory/report            - inventory summary (authenticated)
-    GET  /api/inventory/credentials       - stored credentials (names only, authenticated)
+    GET  /api/inventory/report/export     - CSV export (authenticated)
+    GET  /api/inventory/credentials       - stored credentials (authenticated)
     POST /api/inventory/credentials       - create credential (admin)
     DELETE /api/inventory/credentials/{id}- delete credential (admin)
     GET  /api/inventory/sites             - known sites (authenticated)
     POST /api/inventory/sites             - create site (admin)
+    GET  /api/inventory/links             - all topology links (authenticated)
+    GET  /api/inventory/devices/{id}/configs - device configs (authenticated)
+    POST /api/inventory/collect-config    - collect configs via SSH (operator+)
+    GET  /api/topology                    - topology graph (authenticated)
+    GET  /api/topology/path               - shortest path (authenticated)
+    GET  /api/topology/changes            - scan diff (authenticated)
+    POST /api/catalyst/import             - Catalyst Center import (operator+)
+    POST /api/catalyst/test               - Catalyst connectivity test (operator+)
+    POST /api/catalyst/sites              - list Catalyst sites (operator+)
+    POST /api/catalyst/collect-config     - collect configs via Catalyst API (operator+)
+    POST /api/velocloud/import            - VeloCloud Orchestra import (operator+)
+    POST /api/velocloud/test              - VeloCloud connectivity test (operator+)
+    POST /api/meraki/import               - Meraki Dashboard import (operator+)
+    POST /api/meraki/test                 - Meraki Dashboard connectivity test (operator+)
 
 Roles:
     admin    - everything
@@ -981,6 +997,114 @@ def catalyst_test(req: CatalystImportRequest):
         raise HTTPException(status_code=500, detail=f"Error: {e}\n\nTraceback:\n{tb}")
 
     return result
+
+
+# ── VeloCloud Orchestra Import ──────────────────────────────────────────────────
+
+class VeloCloudImportRequest(BaseModel):
+    base_url: str
+    username: str
+    password: str
+
+
+@app.post("/api/velocloud/test", dependencies=[Depends(operator)])
+def velocloud_test(req: VeloCloudImportRequest):
+    import velocloud
+
+    try:
+        result = velocloud.test_connection(req.base_url, req.username, req.password)
+    except velocloud.VeloCloudError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+    return result
+
+
+@app.post("/api/velocloud/import", dependencies=[Depends(operator)])
+def velocloud_import(req: VeloCloudImportRequest, db: Session = Depends(get_db)):
+    import velocloud
+
+    try:
+        devices, links, debug = velocloud.import_edges(
+            req.base_url, req.username, req.password)
+    except velocloud.VeloCloudError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+
+    scan_id = uuid.uuid4().hex[:12]
+    scan_subnet = "VeloCloud: Orchestra"
+    job = repositories.create_scan_job(db, scan_id, scan_subnet, [], False)
+    job.scan_kind = "velocloud"
+    db.commit()
+
+    for device in devices:
+        repositories.upsert_device(db, device, scan_id)
+
+    repositories.replace_links(db, scan_id, links)
+
+    repositories.finish_scan_job(db, scan_id, {
+        "subnet": "velocloud", "local_ip": "",
+        "scanned_hosts": len(devices), "alive_hosts": len(devices),
+        "device_count": len(devices), "snmp_identified": 0,
+        "devices": devices, "connections": links,
+    })
+
+    return {"scan_id": scan_id, "device_count": len(devices),
+            "links_found": len(links), "debug": debug}
+
+
+# ── Meraki Dashboard Import ────────────────────────────────────────────────────
+
+class MerakiImportRequest(BaseModel):
+    base_url: str = "https://api.meraki.com"
+    api_key: str
+
+
+@app.post("/api/meraki/test", dependencies=[Depends(operator)])
+def meraki_test(req: MerakiImportRequest):
+    import meraki
+
+    try:
+        result = meraki.test_connection(req.base_url, req.api_key)
+    except meraki.MerakiError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+    return result
+
+
+@app.post("/api/meraki/import", dependencies=[Depends(operator)])
+def meraki_import(req: MerakiImportRequest, db: Session = Depends(get_db)):
+    import meraki
+
+    try:
+        devices, links, debug = meraki.import_devices(req.base_url, req.api_key)
+    except meraki.MerakiError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
+
+    scan_id = uuid.uuid4().hex[:12]
+    scan_subnet = "Meraki: Dashboard"
+    job = repositories.create_scan_job(db, scan_id, scan_subnet, [], False)
+    job.scan_kind = "meraki"
+    db.commit()
+
+    for device in devices:
+        repositories.upsert_device(db, device, scan_id)
+
+    repositories.replace_links(db, scan_id, links)
+
+    repositories.finish_scan_job(db, scan_id, {
+        "subnet": "meraki-dashboard", "local_ip": "",
+        "scanned_hosts": len(devices), "alive_hosts": len(devices),
+        "device_count": len(devices), "snmp_identified": 0,
+        "devices": devices, "connections": links,
+    })
+
+    return {"scan_id": scan_id, "device_count": len(devices),
+            "links_found": len(links), "debug": debug}
 
 
 # ── Sprint 9: Configuration Collection ────────────────────────────────────────

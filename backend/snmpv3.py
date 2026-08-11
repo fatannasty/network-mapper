@@ -191,7 +191,8 @@ def _aes_privacy_encrypt(localized_priv_key: bytes, engine_boots: int, engine_ti
     key = localized_priv_key[:16]
     iv = engine_boots.to_bytes(4, "big") + engine_time.to_bytes(4, "big") + salt
     cipher = Cipher(algorithms.AES(key), CFB(iv))
-    return cipher.encryptor().update(plaintext) + cipher.encryptor().finalize()
+    enc = cipher.encryptor()
+    return enc.update(plaintext) + enc.finalize()
 
 
 def _aes_privacy_decrypt(localized_priv_key: bytes, engine_boots: int, engine_time: int,
@@ -199,7 +200,8 @@ def _aes_privacy_decrypt(localized_priv_key: bytes, engine_boots: int, engine_ti
     key = localized_priv_key[:16]
     iv = engine_boots.to_bytes(4, "big") + engine_time.to_bytes(4, "big") + salt
     cipher = Cipher(algorithms.AES(key), CFB(iv))
-    return cipher.decryptor().update(ciphertext) + cipher.decryptor().finalize()
+    dec = cipher.decryptor()
+    return dec.update(ciphertext) + dec.finalize()
 
 
 def _encrypt_scoped_pdu(privacy_protocol: str, localized_priv_key: bytes,

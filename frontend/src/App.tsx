@@ -5,6 +5,8 @@ import LoginForm from './components/LoginForm'
 import DiscoveryForm from './components/DiscoveryForm'
 import TopologyViewer from './components/TopologyViewer'
 import CatalystForm from './components/CatalystForm'
+import MerakiForm from './components/MerakiForm'
+import VeloCloudForm from './components/VeloCloudForm'
 import ConfigCollect from './components/ConfigCollect'
 import DeviceInventory from './components/DeviceInventory'
 import ChangeDetection from './components/ChangeDetection'
@@ -35,6 +37,8 @@ export default function App() {
           <Route path="/dashboard" element={<OperationsDashboard />} />
           <Route path="/discover" element={<DiscoveryForm />} />
           <Route path="/catalyst" element={<CatalystForm />} />
+          <Route path="/meraki" element={<MerakiForm />} />
+          <Route path="/velocloud" element={<VeloCloudForm />} />
           <Route path="/topology" element={<TopologyViewer />} />
           <Route path="/configs" element={<ConfigCollect />} />
           <Route path="/inventory" element={<DeviceInventory />} />
