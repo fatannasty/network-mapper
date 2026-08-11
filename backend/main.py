@@ -43,6 +43,17 @@ AUTH_PROTOCOLS = ("md5", "sha", "none")
 PRIVACY_PROTOCOLS = ("aes", "des", "none")
 ROLES = ("admin", "operator", "viewer")
 
+# Experimental VeloCloud LAN-inference links. These connect an SD-WAN edge to
+# every LAN device in an inferred broadcast domain, are unverified, and bleed
+# across sites (a Montreal edge showing up in the Miami topology). Excluded
+# from topology graphs so foreign Veloclouds never pollute a site view.
+NON_TOPOLOGY_PROTOCOLS = ("velocloud-lan",)
+
+
+def _keep_topology_link(link) -> bool:
+    """True if a Link belongs in topology graphs (not experimental inference)."""
+    return link.protocol not in NON_TOPOLOGY_PROTOCOLS
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -303,6 +314,7 @@ def inventory_report(db: Session = Depends(get_db)):
         "interface_status": repositories.interface_status_counts(db),
         "config_coverage": repositories.config_coverage(db),
         "stale_devices_90d": repositories.stale_devices(db, days=90),
+        "dod_gates": repositories.dod_gates(db),
         "scan_history": repositories.scan_history(db, limit=100),
         "recent_scans": [j.to_dict() for j in repositories.list_scan_jobs(db, limit=5)],
     }
@@ -376,7 +388,7 @@ def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get
         # For specific scans, fetch links first, then include ALL devices
         # that appear as link endpoints — even those whose last_scan_id
         # was later overwritten by a newer import.
-        links = repositories.list_links(db, scan_id=job.id)
+        links = [l for l in repositories.list_links(db, scan_id=job.id) if _keep_topology_link(l)]
         link_ips = set()
         for l in links:
             link_ips.add(l.endpoint_a)
@@ -384,13 +396,75 @@ def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get
         devices = db.query(Device).filter(
             (Device.last_scan_id == job.id) | (Device.ip.in_(link_ips))
         ).all()
+
+        # Also include links between any of these devices regardless of
+        # which scan created them, so site imports show their connections
+        # even when the links were discovered by an earlier SNMP walk.
+        from models import Link as LinkModel
+        device_ips = {d.ip for d in devices}
+        if device_ips:
+            touched = db.query(LinkModel).filter(
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                (LinkModel.endpoint_a.in_(device_ips)) | (LinkModel.endpoint_b.in_(device_ips)),
+            ).all()
+            neighbor_ips = set()
+            for l in touched:
+                neighbor_ips.add(l.endpoint_a); neighbor_ips.add(l.endpoint_b)
+            known = set(device_ips)
+            for ip in neighbor_ips:
+                if ip not in known:
+                    d = db.query(Device).filter(Device.ip == ip).first()
+                    if d:
+                        devices.append(d)
+                        known.add(ip)
+            extra_links = db.query(LinkModel).filter(
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                LinkModel.endpoint_a.in_(known) & LinkModel.endpoint_b.in_(known),
+            ).all()
+            link_keys = {(l.endpoint_a, l.endpoint_b, l.interface_a, l.interface_b) for l in links}
+            for l in extra_links:
+                key = (l.endpoint_a, l.endpoint_b, l.interface_a, l.interface_b)
+                if key not in link_keys:
+                    links.append(l)
     else:
         jobs = repositories.list_scan_jobs(db, limit=1)
         if not jobs:
             return {"scan_id": None, "nodes": [], "links": []}
         job = jobs[0]
         devices = db.query(Device).filter(Device.last_scan_id == job.id).all()
-        links = repositories.list_links(db, scan_id=job.id)
+        links = [l for l in repositories.list_links(db, scan_id=job.id) if _keep_topology_link(l)]
+
+        # Same cross-scan link inclusion as the scan_id branch so the default
+        # latest-scan view also shows connections discovered by older scans.
+        from models import Link as LinkModel
+        device_ips = {d.ip for d in devices}
+        if device_ips:
+            # 1. Find all links touching the scan's devices, collect neighbors
+            touched = db.query(LinkModel).filter(
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                (LinkModel.endpoint_a.in_(device_ips)) | (LinkModel.endpoint_b.in_(device_ips)),
+            ).all()
+            neighbor_ips = set()
+            for l in touched:
+                neighbor_ips.add(l.endpoint_a); neighbor_ips.add(l.endpoint_b)
+            # 2. Include neighbors as devices
+            known = set(device_ips)
+            for ip in neighbor_ips:
+                if ip not in known:
+                    d = db.query(Device).filter(Device.ip == ip).first()
+                    if d:
+                        devices.append(d)
+                        known.add(ip)
+            # 3. All links among the expanded device set
+            extra_links = db.query(LinkModel).filter(
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                LinkModel.endpoint_a.in_(known) & LinkModel.endpoint_b.in_(known),
+            ).all()
+            link_keys = {(l.endpoint_a, l.endpoint_b, l.interface_a, l.interface_b) for l in links}
+            for l in extra_links:
+                key = (l.endpoint_a, l.endpoint_b, l.interface_a, l.interface_b)
+                if key not in link_keys:
+                    links.append(l)
 
     nodes: list[dict] = []
     seen: set[str] = set()
@@ -423,7 +497,8 @@ def api_topology_path(source: str = Query(...), target: str = Query(...),
         raise HTTPException(status_code=404, detail="no topology data available")
     job = jobs[0]
 
-    links = repositories.list_links(db, scan_id=job.id, limit=5000)
+    links = [l for l in repositories.list_links(db, scan_id=job.id, limit=5000)
+             if _keep_topology_link(l)]
 
     from path_tracer import build_path
     result = build_path([
@@ -500,6 +575,184 @@ def inventory_create_site(req: SiteRequest, db: Session = Depends(get_db)):
     return site.to_dict()
 
 
+# ── Site Mappings (Sprint 13) ────────────────────────────────────────────────
+
+class SiteMappingRequest(BaseModel):
+    prefix: str
+    site: str
+
+
+@app.get("/api/inventory/site-mappings", dependencies=[Depends(authenticated)])
+def inventory_site_mappings(db: Session = Depends(get_db)):
+    mappings = repositories.list_site_mappings(db)
+    return {"count": len(mappings), "mappings": [m.to_dict() for m in mappings]}
+
+
+@app.post("/api/inventory/site-mappings", dependencies=[Depends(admin)])
+def inventory_create_site_mapping(req: SiteMappingRequest, db: Session = Depends(get_db)):
+    try:
+        mapping = repositories.create_site_mapping(db, req.prefix.strip(), req.site.strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return mapping.to_dict()
+
+
+@app.delete("/api/inventory/site-mappings/{mapping_id}", dependencies=[Depends(admin)])
+def inventory_delete_site_mapping(mapping_id: int, db: Session = Depends(get_db)):
+    if not repositories.delete_site_mapping(db, mapping_id):
+        raise HTTPException(status_code=404, detail="mapping not found")
+    return {"deleted": True}
+
+
+@app.post("/api/inventory/site-mappings/seed", dependencies=[Depends(admin)])
+def inventory_seed_site_mappings(db: Session = Depends(get_db)):
+    """Auto-discover prefix→site rules from devices that already carry a site."""
+    return repositories.seed_site_mappings_from_hostnames(db)
+
+
+@app.post("/api/inventory/site-mappings/apply", dependencies=[Depends(operator)])
+def inventory_apply_site_mappings(limit: int = 0, db: Session = Depends(get_db)):
+    """Backfill device.site for blank-site devices using the mapping table."""
+    return repositories.apply_site_mappings(db, limit=limit)
+
+
+# ── Data-quality backfill jobs (Sprint 13) ───────────────────────────────────
+
+class BackfillRequest(BaseModel):
+    communities: Optional[list[str]] = None
+    max_workers: int = 25
+    timeout: float = 8.0
+    limit: int = 0           # cap the device set (0 = all eligible)
+    device_type: str = ""     # restrict to a device type (e.g. "switch")
+
+
+def _vault_or_request_communities(db: Session, req: BackfillRequest) -> list[str]:
+    """Vault SNMP communities, overridden by explicit request values."""
+    if req.communities:
+        return [c for c in req.communities if c]
+    return repositories.vault_communities(db)
+
+
+def _target_devices(db: Session, req: BackfillRequest,
+                    device_types: tuple[str, ...]) -> list[dict]:
+    """Network devices matching the requested scope (thread-safe plain dicts)."""
+    from models import Device
+    from sqlalchemy import or_
+
+    q = db.query(Device).filter(Device.device_type.in_(device_types))
+    if req.device_type:
+        q = q.filter(Device.device_type == req.device_type)
+    q = q.order_by(Device.ip)
+    if req.limit:
+        q = q.limit(req.limit)
+    return [{
+        "ip": d.ip, "hostname": d.hostname, "device_type": d.device_type,
+        "id": d.id,
+    } for d in q.all()]
+
+
+@app.post("/api/backfill/classify-blanks", dependencies=[Depends(operator)])
+def backfill_classify_blanks(limit: int = 0, db: Session = Depends(get_db)):
+    """Classify blank-type devices via hostname/port heuristics (Q18)."""
+    return repositories.classify_blank_devices(db, limit=limit)
+
+
+@app.post("/api/backfill/interfaces", dependencies=[Depends(operator)])
+def backfill_interfaces(req: BackfillRequest, db: Session = Depends(get_db)):
+    """Walk IF-MIB on network devices (switch/router/core-switch) via SNMP."""
+    import backfill
+
+    devices = _target_devices(
+        db, req, ("switch", "router", "core-switch", "firewall"))
+    communities = _vault_or_request_communities(db, req)
+    summary = backfill.backfill_interfaces(
+        devices, communities,
+        max_workers=req.max_workers, timeout=req.timeout)
+
+    # Persist walked interfaces onto the matching devices.
+    from models import Device, Interface
+
+    saved_devices = 0
+    saved_interfaces = 0
+    for r in summary["results"]:
+        device = db.get(Device, r.get("device_id"))
+        if device is None or r["error"]:
+            continue
+        interfaces = r.get("interfaces") or []
+        if not interfaces:
+            continue
+        repositories._sync_interfaces(db, device, interfaces)
+        saved_devices += 1
+        saved_interfaces += len(interfaces)
+    db.commit()
+
+    return {**summary,
+            "persisted_devices": saved_devices,
+            "persisted_interfaces": saved_interfaces}
+
+
+@app.post("/api/backfill/links", dependencies=[Depends(operator)])
+def backfill_links(req: BackfillRequest, db: Session = Depends(get_db)):
+    """Walk LLDP/CDP on core/routers to validate (and later replace) Catalyst links."""
+    import backfill
+    from models import Link, ScanJob
+    import uuid as _uuid
+
+    devices = _target_devices(db, req, ("core-switch", "router"))
+    if not devices:
+        devices = _target_devices(db, req, ("switch", "router", "core-switch"))
+    communities = _vault_or_request_communities(db, req)
+    summary = backfill.backfill_link_validation(
+        devices, communities,
+        max_workers=req.max_workers, timeout=req.timeout)
+
+    # Persist validated neighbor links under their own scan so link-protocol
+    # reports and topology show SNMP-validated connectivity alongside the
+    # Catalyst-derived links.
+    scan_id = _uuid.uuid4().hex[:12]
+    scan = ScanJob(id=scan_id, subnet="CatC: SNMP Link Validation",
+                   communities=communities, exclude_pcs=True)
+    scan.scan_kind = "validation"
+    db.add(scan)
+
+    ip_by_hostname: dict[str, str] = {}
+    for d in devices:
+        if d.get("hostname"):
+            ip_by_hostname[(d["hostname"] or "").lower()] = d["ip"]
+
+    links: list[dict] = []
+    seen: set[tuple] = set()
+    for r in summary["results"]:
+        if r["error"] and r["neighbor_count"] == 0:
+            continue
+        for n in r.get("neighbors", []):
+            remote_name = n.get("remote_sysname") or n.get("remote_device_id") or ""
+            remote = n.get("remote_ip") or ip_by_hostname.get(remote_name.lower(), "")
+            target_id = remote or remote_name
+            if not target_id or target_id == r["ip"]:
+                continue
+            a, b = sorted((r["ip"], target_id))
+            key = (a, b)
+            if key in seen:
+                continue
+            seen.add(key)
+            links.append(Link(
+                scan_id=scan_id,
+                endpoint_a=a, endpoint_b=b,
+                interface_a=n.get("local_port", ""),
+                interface_b=n.get("remote_port_id") or n.get("remote_port_desc") or n.get("remote_port", ""),
+                protocol=n.get("protocol", "lldp"),
+            ))
+    db.add_all(links)
+    db.commit()
+
+    return {"scan_id": scan_id, "validation_links": len(links), **summary}
+
+
+def _neighbors_for_ip(raw: list[dict]) -> list[dict]:
+    return raw or []
+
+
 # ── Catalyst Center Import ─────────────────────────────────────────────────────
 
 class CatalystImportRequest(BaseModel):
@@ -528,7 +781,14 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
     scan_id = uuid.uuid4().hex[:12]
     site_label = req.site_name or req.device_filter or "Full Environment"
     scan_subnet = f"CatC: {site_label}"[:64]
-    repositories.create_scan_job(db, scan_id, scan_subnet, [], False)
+    job = repositories.create_scan_job(db, scan_id, scan_subnet, [], False)
+    if req.site_name:
+        job.scan_kind = f"site:{site_label}"
+    elif req.device_filter:
+        job.scan_kind = f"filter:{site_label}"
+    else:
+        job.scan_kind = "full_env"
+    db.commit()
 
     for device in devices:
         repositories.upsert_device(db, device, scan_id)
@@ -606,6 +866,7 @@ class ConfigCollectRequest(BaseModel):
     ssh_username: str = ""
     ssh_password: str = ""
     ssh_port: int = 22
+    use_vault: bool = True  # fall back to vault SSH credentials when empty
 
 
 @app.post("/api/inventory/collect-config", dependencies=[Depends(operator)])
@@ -622,41 +883,114 @@ def inventory_collect_config(req: ConfigCollectRequest,
                    if pat in (d.hostname or "").lower()
                    or pat in (d.site or "").lower()]
 
+    # Vault fallback: when no SSH creds are supplied, try each stored SSH
+    # credential until authentication succeeds.
+    vault_creds = repositories.vault_ssh_credentials(db) if req.use_vault else []
+
+    def creds_for(device):
+        if req.ssh_username:
+            return [(req.ssh_username, req.ssh_password, req.ssh_port)]
+        return [(c.username, c.password, 22) for c in vault_creds]
+
     results: list[dict] = []
     for d in devices:
-        try:
-            cfg = config_collector.collect_config(
-                ip=d.ip,
-                username=req.ssh_username,
-                password=req.ssh_password,
-                port=req.ssh_port,
-            )
-            saved = repositories.save_device_config(
-                db, d.id, cfg["config_text"], config_type="running")
-            results.append({
-                "device_id": d.id,
-                "ip": d.ip,
-                "hostname": d.hostname,
-                "status": "ok",
-                "config_id": saved.id,
-            })
-        except config_collector.ConfigCollectorError as e:
+        attempts = creds_for(d)
+        outcome = None
+        for username, password, port in attempts:
+            if not username:
+                continue
+            try:
+                cfg = config_collector.collect_config(
+                    ip=d.ip, username=username, password=password, port=port)
+                saved = repositories.save_device_config(
+                    db, d.id, cfg["config_text"], config_type="running")
+                outcome = {
+                    "device_id": d.id, "ip": d.ip, "hostname": d.hostname,
+                    "status": "ok", "config_id": saved.id, "user": username,
+                }
+                break
+            except config_collector.ConfigCollectorError as e:
+                outcome = {
+                    "device_id": d.id, "ip": d.ip, "hostname": d.hostname,
+                    "status": "error", "error": str(e), "user": username,
+                }
+        if outcome is None:
+            outcome = {
+                "device_id": d.id, "ip": d.ip, "hostname": d.hostname,
+                "status": "error", "error": "no SSH credentials available",
+            }
+        if outcome["status"] == "error":
             repositories.save_device_config(
-                db, d.id, "", config_type="running", error=str(e))
+                db, d.id, "", config_type="running", error=outcome["error"])
+        results.append(outcome)
+
+    success = sum(1 for r in results if r["status"] == "ok")
+    return {
+        "total": len(results),
+        "success": success,
+        "failed": len(results) - success,
+        "results": results,
+    }
+
+
+class CatalystConfigCollectRequest(BaseModel):
+    base_url: str
+    username: str
+    password: str
+    device_type: str = "switch"
+    site_pattern: str = ""
+    limit: int = 50
+
+
+@app.post("/api/catalyst/collect-config", dependencies=[Depends(operator)])
+def catalyst_collect_config(req: CatalystConfigCollectRequest,
+                             db: Session = Depends(get_db)):
+    """Collect running configs via the Catalyst config API (no per-device SSH)."""
+    import catalyst
+
+    devices = repositories.get_devices_by_type(
+        db, device_type=req.device_type, limit=req.limit)
+    if req.site_pattern:
+        pat = req.site_pattern.lower()
+        devices = [d for d in devices
+                   if pat in (d.hostname or "").lower() or pat in (d.site or "").lower()]
+
+    try:
+        token = catalyst.authenticate(req.base_url, req.username, req.password)
+    except catalyst.CatalystError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    results: list[dict] = []
+    for d in devices:
+        device_id = d.catalyst_id or ""
+        if not device_id:
             results.append({
-                "device_id": d.id,
-                "ip": d.ip,
-                "hostname": d.hostname,
-                "status": "error",
-                "error": str(e),
+                "device_id": d.id, "ip": d.ip, "hostname": d.hostname,
+                "status": "skipped", "error": "no catalyst_id on record",
             })
-        except Exception as e:
+            continue
+        try:
+            cfg_text = catalyst.get_device_running_config(
+                req.base_url, token, device_id)
+            if cfg_text:
+                saved = repositories.save_device_config(
+                    db, d.id, cfg_text, config_type="running")
+                results.append({
+                    "device_id": d.id, "ip": d.ip, "hostname": d.hostname,
+                    "status": "ok", "config_id": saved.id,
+                })
+            else:
+                err = "Catalyst returned empty running config"
+                repositories.save_device_config(db, d.id, "", error=err)
+                results.append({
+                    "device_id": d.id, "ip": d.ip, "hostname": d.hostname,
+                    "status": "error", "error": err,
+                })
+        except catalyst.CatalystError as e:
+            repositories.save_device_config(db, d.id, "", error=str(e))
             results.append({
-                "device_id": d.id,
-                "ip": d.ip,
-                "hostname": d.hostname,
-                "status": "error",
-                "error": str(e),
+                "device_id": d.id, "ip": d.ip, "hostname": d.hostname,
+                "status": "error", "error": str(e),
             })
 
     success = sum(1 for r in results if r["status"] == "ok")

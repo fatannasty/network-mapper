@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import Layout from './components/Layout'
+import AppShell from './app/layouts/AppShell'
 import LoginForm from './components/LoginForm'
 import DiscoveryForm from './components/DiscoveryForm'
 import TopologyViewer from './components/TopologyViewer'
@@ -9,6 +9,7 @@ import ConfigCollect from './components/ConfigCollect'
 import DeviceInventory from './components/DeviceInventory'
 import ChangeDetection from './components/ChangeDetection'
 import Reports from './components/Reports'
+import DataQuality from './components/DataQuality'
 import { setToken } from './api'
 
 export default function App() {
@@ -28,7 +29,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Layout onLogout={() => { setToken(null); setLoggedIn(false) }}>
+      <AppShell onLogout={() => { setToken(null); setLoggedIn(false) }}>
         <Routes>
           <Route path="/" element={<TopologyViewer />} />
           <Route path="/discover" element={<DiscoveryForm />} />
@@ -38,9 +39,10 @@ export default function App() {
           <Route path="/inventory" element={<DeviceInventory />} />
           <Route path="/changes" element={<ChangeDetection />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/quality" element={<DataQuality />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </Layout>
+      </AppShell>
     </BrowserRouter>
   )
 }

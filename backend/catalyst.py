@@ -95,8 +95,17 @@ def authenticate(base_url: str, username: str, password: str,
     )
 
 
+# Internal DNS resolution overrides — some Catalyst Center appliances are
+# reachable by IP but not by hostname from certain environments.
+HOSTS_OVERRIDE: dict[str, str] = {
+    "catcchi.amtrak.ad.nrpc": "10.34.36.46",
+}
+
+
 def _resolve_base(base_url: str) -> str:
-    """Strip extra path segments from the base URL."""
+    """Strip extra path segments and apply hostname overrides."""
+    for host, ip in HOSTS_OVERRIDE.items():
+        base_url = base_url.replace(host, ip)
     base = base_url.rstrip("/")
     for suffix in ("/dna", "/api", "/dna/intent/api", "/dna/system/api", "/dna/intent/api/v1"):
         if base.endswith(suffix):
@@ -514,6 +523,41 @@ def _truncate_json(obj, depth: int = 0, max_items: int = 20):
     return obj
 
 
+def get_device_running_config(base_url: str, token: str, device_id: str,
+                              timeout: float = 60.0) -> str:
+    """Fetch a device's running configuration via the Catalyst config API.
+
+    Catalyst Center serves the running config at /network-device/{id}/config
+    (config operation 'RUNNING'). Returns the raw config text, or raises
+    CatalystError if the endpoint rejects the request.
+    """
+    base = _resolve_base(base_url)
+    url = f"{base}/dna/intent/api/v1/network-device/{device_id}/config"
+    try:
+        data = _request(url, token, timeout=timeout)
+    except CatalystError:
+        # Fall back to the config/COLLECT URL used on some versions.
+        url2 = f"{base}/dna/intent/api/v1/network-device/config/COLLECT"
+        body = json.dumps({"uuidList": [device_id]}).encode()
+        data = _request(url2, token, method="POST", data=body, timeout=timeout)
+
+    # Response is a list of {runningConfig, ...} dicts
+    resp = data.get("response", data)
+    if isinstance(resp, dict):
+        resp = resp.get("response", resp)
+    if isinstance(resp, list):
+        for item in resp:
+            if isinstance(item, dict):
+                cfg = item.get("runningConfig") or item.get("running-config") \
+                    or item.get("config") or ""
+                if isinstance(cfg, str) and cfg.strip():
+                    return cfg
+        return ""
+    if isinstance(resp, str):
+        return resp
+    return ""
+
+
 def get_device_neighbors(base_url: str, token: str, device_id: str,
                          timeout: float = 30.0, max_interfaces: int = 500) -> list[dict]:
     """Fetch CDP/LLDP neighbors for a device via per-interface lookup.
@@ -569,6 +613,26 @@ def get_device_neighbors(base_url: str, token: str, device_id: str,
             })
 
     return neighbors
+
+
+def get_poe_interfaces(base_url: str, token: str, device_id: str,
+                       timeout: float = 60.0) -> list[dict]:
+    """Fetch POE interface data for a device from the Catalyst data API.
+
+    Returns interface dicts that carry `name` (the switch port), `pdDeviceName`
+    (the powered device — e.g. an access point), `pdConnectedSwitch`,
+    `pdDeviceModel`, `networkDeviceId`/`networkDeviceIpAddress`.
+    """
+    base = _resolve_base(base_url)
+    try:
+        data = _request(
+            f"{base}/dna/data/api/v1/interfaces"
+            f"?networkDeviceId={device_id}&view=poE&limit=500",
+            token, timeout=timeout)
+    except CatalystError:
+        return []
+    resp = data.get("response", [])
+    return resp if isinstance(resp, list) else []
 
 
 def import_devices(base_url: str, username: str, password: str,
@@ -852,43 +916,63 @@ def import_devices(base_url: str, username: str, password: str,
             "target": tgt_ip,
             "source_interface": src_port,
             "target_interface": tgt_port,
-            "protocol": link.get("linkType", "unknown").lower(),
+            "protocol": "catalyst" if (link.get("linkType", "unknown") or "unknown").lower() in ("", "unknown", "l2", "l3")
+                         else (link.get("linkType", "catalyst") or "catalyst").lower(),
             "source_hostname": src_dev.get("hostname", ""),
             "target_hostname": tgt_dev.get("hostname", ""),
         })
 
     # Enrich with per-device CDP/LLDP neighbor links (helps SD-WAN edges and
     # devices missing from the physical/site topology). Hostname-based lookup.
-    # Cap the work so large imports don't stall on hundreds of API calls.
+    # Access points are prioritized: Catalyst's physical/site topology omits
+    # wireless uplinks, so walking each AP's own wired interfaces is the only
+    # way to recover its connection to the switch. APs have few wired uplinks
+    # so this is cheap. Non-AP devices stay capped to bound API-call volume.
     neighbor_links_added = 0
+    ap_links_added = 0
+    poe_devices_walked = 0
+    poe_links_added = 0
+    poe_skipped = 0
+    max_poe_devices = 200
     max_enrich_devices = 30
-    max_enrich_interfaces = 16
+    max_enrich_interfaces = 32
+    max_ap_enrich_devices = 400
+    max_ap_interfaces = 24
+    ap_neighbors_queried = 0
     enrich_skipped = 0
+    ap_enrich_skipped = 0
     if devices:
         ip_by_hostname: dict[str, str] = {}
+        type_by_ip: dict[str, str] = {}
         for dev in devices:
             if dev.get("hostname"):
                 ip_by_hostname[dev["hostname"].lower()] = dev["ip"]
+            type_by_ip[dev["ip"]] = dev.get("device_type", "")
 
         existing = {(l["source"], l["target"]) for l in links}
-        for dev in devices[:max_enrich_devices]:
+
+        def _enrich(dev: dict, max_ifaces: int) -> None:
+            """Walk one device's per-interface CDP/LLDP neighbors and add links."""
+            nonlocal neighbor_links_added, ap_links_added
             dev_id = dev.get("_id", "")
             if not dev_id:
-                continue
+                return
             try:
                 nb = get_device_neighbors(base_url, token, dev_id, timeout=timeout,
-                                          max_interfaces=max_enrich_interfaces)
+                                          max_interfaces=max_ifaces)
             except Exception:
-                continue
+                return
             for n in nb:
                 nhost = (n.get("neighbor_device") or "").lower()
-                tgt_ip = ip_by_hostname.get(nhost, "")
+                tgt_ip = ip_by_hostname.get(nhost) or n.get("neighbor_ip") or ""
                 if not tgt_ip or tgt_ip == dev["ip"]:
                     continue
                 pair = (dev["ip"], tgt_ip)
                 if pair in existing:
                     continue
                 existing.add(pair)
+                is_ap = (dev.get("device_type") == "accesspoint"
+                         or type_by_ip.get(tgt_ip) == "accesspoint")
                 links.append({
                     "source": dev["ip"],
                     "target": tgt_ip,
@@ -899,8 +983,62 @@ def import_devices(base_url: str, username: str, password: str,
                     "target_hostname": n.get("neighbor_device", ""),
                 })
                 neighbor_links_added += 1
-        if len(devices) > max_enrich_devices:
-            enrich_skipped = len(devices) - max_enrich_devices
+                if is_ap:
+                    ap_links_added += 1
+
+        aps = [d for d in devices if d.get("device_type") == "accesspoint"]
+        others = [d for d in devices if d.get("device_type") != "accesspoint"]
+
+        for dev in aps[:max_ap_enrich_devices]:
+            ap_neighbors_queried += 1
+            _enrich(dev, max_ap_interfaces)
+        if len(aps) > max_ap_enrich_devices:
+            ap_enrich_skipped = len(aps) - max_ap_enrich_devices
+
+        for dev in others[:max_enrich_devices]:
+            _enrich(dev, max_enrich_interfaces)
+        if len(others) > max_enrich_devices:
+            enrich_skipped = len(others) - max_enrich_devices
+
+        # Access points: Catalyst's physical/site topology and per-interface
+        # neighbor APIs don't model the wired switch port a CAPWAP AP is
+        # plugged into, but the POE interface inventory does (pdDeviceName).
+        # Walk each switch's POE data to recover switch→AP uplinks.
+        poe_candidates = [d for d in others
+                          if d.get("device_type") in ("switch", "core-switch", "access-switch")]
+        for dev in poe_candidates[:max_poe_devices]:
+            dev_id = dev.get("_id", "")
+            if not dev_id:
+                continue
+            ifaces = get_poe_interfaces(base_url, token, dev_id, timeout=timeout)
+            if not ifaces:
+                continue
+            poe_devices_walked += 1
+            for iface in ifaces:
+                pd_name = (iface.get("pdDeviceName") or "").strip()
+                if not pd_name:
+                    continue
+                tgt_ip = ip_by_hostname.get(pd_name.lower().rstrip("."), "")
+                if not tgt_ip or tgt_ip == dev["ip"]:
+                    continue
+                pair = (dev["ip"], tgt_ip)
+                if pair in existing:
+                    continue
+                existing.add(pair)
+                links.append({
+                    "source": dev["ip"],
+                    "target": tgt_ip,
+                    "source_interface": iface.get("name", ""),
+                    "target_interface": "",
+                    "protocol": "poe",
+                    "source_hostname": dev.get("hostname", ""),
+                    "target_hostname": pd_name,
+                })
+                neighbor_links_added += 1
+                poe_links_added += 1
+                ap_links_added += 1
+        if len(poe_candidates) > max_poe_devices:
+            poe_skipped = len(poe_candidates) - max_poe_devices
 
     debug = {
         "debug_sample": debug_sample,
@@ -909,7 +1047,13 @@ def import_devices(base_url: str, username: str, password: str,
         "raw_devices_fetched": raw_device_count_before,
         "raw_topology": len(raw_topology),
         "neighbor_links_added": neighbor_links_added,
+        "ap_links_added": ap_links_added,
+        "ap_neighbors_queried": ap_neighbors_queried,
+        "poe_devices_walked": poe_devices_walked,
+        "poe_links_added": poe_links_added,
+        "poe_skipped": poe_skipped,
         "neighbor_enrich_skipped": enrich_skipped,
+        "ap_enrich_skipped": ap_enrich_skipped,
         "resolved_site_count": resolved_site_count,
         "membership_ids_count": membership_ids_count,
         "resolved_sites_detail": resolved_sites_detail,

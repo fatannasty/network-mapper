@@ -35,6 +35,7 @@ def _patch_import(mock_auth, mock_devices, mock_sites, mock_members):
         get_site_members=lambda *a, **k: mock_members,
         get_physical_topology=lambda *a, **k: [],
         get_device_neighbors=lambda *a, **k: [],
+        get_poe_interfaces=lambda *a, **k: [],
     )
 
 
@@ -145,3 +146,93 @@ def test_full_import_no_site_filter_returns_everything():
     # device without a siteHierarchy falls back to locationName/location/siteName
     assert by_ip["10.0.0.2"]["site"] == "Sacramento"
     assert by_ip["10.0.0.3"]["site"] == ""
+
+
+def test_ap_neighbors_walked_beyond_non_ap_cap():
+    """Access points are always walked for CDP/LLDP neighbors, even past the
+    non-AP device cap, so switch↔AP uplinks show up in site topology."""
+    devs = [_dev("1-x", hostname="MIA-SW01")] + [
+        _dev(f"{i}-x", hostname=f"DEV{i:02d}") for i in range(2, 32)
+    ]
+    devs.append({
+        "id": "ap-1", "instanceUuid": "ap-1",
+        "managementIpAddress": "10.0.0.99",
+        "hostname": "MIA-AP01",
+        "platformId": "AIR-AP2802I-B-K9",
+        "type": "Wireless Access Point",
+        "family": "Wireless Access Points",
+        "siteName": "", "siteHierarchy": "", "siteId": "",
+        "location": "", "locationName": "",
+    })
+
+    def fake_neighbors(base_url, token, device_id, **kwargs):
+        if device_id == "ap-1":
+            return [{"neighbor_device": "MIA-SW01", "neighbor_port": "GigabitEthernet1/0/24",
+                     "local_port": "GigabitEthernet0", "neighbor_ip": ""}]
+        return []
+
+    with patch.multiple(
+        "catalyst",
+        authenticate=_fake_auth,
+        get_devices=lambda *a, **k: devs,
+        get_sites=lambda *a, **k: {"sites": []},
+        get_site_members=lambda *a, **k: set(),
+        get_physical_topology=lambda *a, **k: [],
+        get_device_neighbors=fake_neighbors,
+        get_poe_interfaces=lambda *a, **k: [],
+    ):
+        devices, links, debug = catalyst.import_devices("https://cc", "u", "p")
+
+    assert any(d["device_type"] == "accesspoint" for d in devices)
+    assert debug["ap_neighbors_queried"] == 1
+    assert debug["ap_links_added"] == 1
+    assert any(
+        {l["source"], l["target"]} == {"10.0.0.99", "10.0.0.1"}
+        and l["protocol"] == "cdp-lldp"
+        for l in links
+    )
+
+
+def test_poe_data_links_access_points_to_their_switch():
+    """POE interface inventory maps a powered AP to the switch port it is
+    wired into, producing switch→AP links Catalyst's topology doesn't report."""
+    sw = _dev("1-x", hostname="MIA-SW01")
+    ap = {
+        "id": "ap-1", "instanceUuid": "ap-1",
+        "managementIpAddress": "10.0.0.99",
+        "hostname": "MIA-AP01",
+        "platformId": "AIR-AP2802I-B-K9",
+        "type": "Wireless Access Point",
+        "family": "Wireless Access Points",
+        "siteName": "", "siteHierarchy": "", "siteId": "",
+        "location": "", "locationName": "",
+    }
+    devs = [sw, ap]
+
+    def fake_poe(base_url, token, device_id, **kwargs):
+        if device_id == "1-x":
+            return [{"name": "GigabitEthernet1/0/24", "pdDeviceName": "MIA-AP01",
+                     "pdDeviceModel": "AIR-AP2802I-B-K9",
+                     "poeOperStatus": "Delivering Power"}]
+        return []
+
+    with patch.multiple(
+        "catalyst",
+        authenticate=_fake_auth,
+        get_devices=lambda *a, **k: devs,
+        get_sites=lambda *a, **k: {"sites": []},
+        get_site_members=lambda *a, **k: set(),
+        get_physical_topology=lambda *a, **k: [],
+        get_device_neighbors=lambda *a, **k: [],
+        get_poe_interfaces=fake_poe,
+    ):
+        devices, links, debug = catalyst.import_devices("https://cc", "u", "p")
+
+    assert debug["poe_devices_walked"] == 1
+    assert debug["poe_links_added"] == 1
+    assert any(
+        l["source"] == "10.0.0.1" and l["target"] == "10.0.0.99"
+        and l["protocol"] == "poe"
+        and l["source_interface"] == "GigabitEthernet1/0/24"
+        for l in links
+    )

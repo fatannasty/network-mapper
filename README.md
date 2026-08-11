@@ -299,6 +299,63 @@ history, with CSV export for each report.
 GET /api/inventory/report/export?report=devices|links|scans|configs   -> CSV download
 ```
 
+## Sprint 13 — Data Quality ✅
+
+Sprint 13 makes the inventory trustworthy enough to act on: site attribution,
+interface and link coverage from real network devices, switch configs, and a
+set of Definition-of-Done gates that must be met before a site is called done.
+All work is behind the Data Quality page (`/quality`) and the full-env data is
+unchanged — nothing destructive runs automatically.
+
+- **Site attribution**: new `site_mappings` table (hostname-prefix → site).
+  `POST /api/inventory/site-mappings/seed` discovers prefixes from devices that
+  already carry a site; `POST /api/inventory/site-mappings/apply` backfills blank
+  `device.site` values by prefix. Mappings are curated and editable in the UI.
+  `backend/site_decoder.py` decodes Amtrak hostname location codes
+  (`AMTR<CODE><STATE>`, `MRSAMTR<CODE><STATE>`, legacy `CODE-STATE`) against the
+  official station-code list plus curated overrides for internal yards (Sunnyside,
+  Ivy City, Beech Grove, Rensselaer, …), so blank-site devices can be auto-seeded:
+  ~78% of blank-site hostnames decode into 90+ curated rules.
+- **Interface walks**: `POST /api/backfill/interfaces` SNMP v2c IF-MIB walks the
+  network devices (switch/router/core-switch, excludes APs) with the vault's
+  communities — 25 threads, 8s timeout, 3 retries. Persisted per-device.
+- **Link validation**: `POST /api/backfill/links` runs LLDP/CDP probes
+  (v2c/v3) across core-switch/router links first; validated neighbors become
+  real `Link` rows under a `validation` scan. The 2233 `unknown` Catalyst links
+  are relabeled `catalyst` (kept with provenance) and are replaced by
+  SNMP-validated links as walks complete.
+- **Config collection**: Catalyst Center running-config API is the primary path
+  (`POST /api/catalyst/collect-config`, no per-device SSH); SSH fallback with
+  vault credentials when no Catalyst creds are available.
+- **Scan provenance**: `scan_jobs.scan_kind` distinguishes
+  `full_env | site:<name> | subnet | filter:<expr> | validation`, so backfill
+  scans never pollute origin data and change detection can ignore them.
+- **Blank classification**: `POST /api/backfill/classify-blanks` fixes the
+  148 devices with blank `device_type` (Catalyst AP hostnames → `accesspoint`,
+  port 9100 → `printer`); the rest stay `unknown`.
+- **DoD gates**: `GET /api/inventory/report` now includes `dod_gates`:
+  site ≥ 90%, interfaces ≥ 95% of network devices, validated links ≥ 80% of
+  links with `protocol != 'catalyst'`, configs ≥ 90% of switches. The Data
+  Quality page shows each gate with actual-vs-target and met/missed status.
+- **Vault**: SNMP communities and SSH credentials for backfill live in the
+  credential vault (v2c communities are tried in order of first use).
+  Catalyst API credentials stay in the Catalyst form, not the vault.
+
+### API (new)
+
+```
+GET    /api/inventory/site-mappings                     list mappings
+POST   /api/inventory/site-mappings                     create mapping (admin)
+DELETE /api/inventory/site-mappings/{id}                delete mapping (admin)
+POST   /api/inventory/site-mappings/seed                discover prefixes (admin)
+POST   /api/inventory/site-mappings/apply               backfill blank sites (operator)
+POST   /api/backfill/interfaces                         SNMP IF-MIB walk network devices
+POST   /api/backfill/links                              LLDP/CDP link validation
+POST   /api/backfill/classify-blanks                    fix blank device_type
+POST   /api/catalyst/collect-config                     Catalyst config API collection
+GET    /api/inventory/report                            includes dod_gates
+```
+
 ## Roadmap
 
 - **Sprint 1** Discovery + classification MVP ✅
@@ -313,9 +370,10 @@ GET /api/inventory/report/export?report=devices|links|scans|configs   -> CSV dow
 - **Sprint 10** Layer 3 path analysis
 - **Sprint 11** Change detection ✅
 - **Sprint 12** Reporting ✅
-- **Sprint 13** Redis/Celery scale-out
-- **Sprint 14** Security hardening
-- **Sprint 15** Production release
+- **Sprint 13** Data quality (site attribution, interface/link validation, configs, DoD gates) ✅
+- **Sprint 14** Redis/Celery scale-out
+- **Sprint 15** Security hardening
+- **Sprint 16** Production release
 
 ## Legacy files
 

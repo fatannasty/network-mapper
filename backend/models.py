@@ -62,6 +62,7 @@ class Device(Base):
     open_ports = Column(JSON, default=list)
     snmp_community = Column(String(64), default="")
     site = Column(String(255), default="", index=True)
+    catalyst_id = Column(String(64), default="", index=True)
 
     last_scan_id = Column(String(32), ForeignKey("scan_jobs.id"), nullable=True)
     first_seen = Column(DateTime, default=_utcnow)
@@ -87,6 +88,7 @@ class Device(Base):
             "open_ports": self.open_ports or [],
             "snmp_community": self.snmp_community,
             "site": self.site,
+            "catalyst_id": self.catalyst_id,
             "last_scan_id": self.last_scan_id,
             "interfaces": [i.to_dict() for i in self.interfaces],
             "first_seen": self.first_seen.isoformat() if self.first_seen else None,
@@ -140,6 +142,7 @@ class ScanJob(Base):
     status = Column(String(16), default="running", index=True)
     local_ip = Column(String(45), default="")
     snmpv3_username = Column(String(64), default="", index=True)
+    scan_kind = Column(String(64), default="subnet", index=True)  # full_env | site:<name> | subnet
     scanned_hosts = Column(Integer, default=0)
     alive_hosts = Column(Integer, default=0)
     device_count = Column(Integer, default=0)
@@ -159,6 +162,7 @@ class ScanJob(Base):
             "status": self.status,
             "local_ip": self.local_ip,
             "snmpv3_username": self.snmpv3_username,
+            "scan_kind": self.scan_kind,
             "scanned_hosts": self.scanned_hosts,
             "alive_hosts": self.alive_hosts,
             "device_count": self.device_count,
@@ -273,6 +277,31 @@ class DeviceConfig(Base):
             "collected_at": self.collected_at.isoformat() if self.collected_at else None,
             "error": self.error,
             "config_text": self.config_text,
+        }
+
+
+class SiteMapping(Base):
+    """A hostname-prefix → site rule used to attribute devices to sites (Sprint 13).
+
+    Catalyst's network-device API returns null site fields for most devices, so
+    site attribution falls back to a curated mapping of hostname prefixes
+    (e.g. "AMTRCHIIL" or "MRSAMTRCH") to a site name. Devices whose hostname
+    starts with a mapped prefix get the mapped site when the backfill runs.
+    """
+
+    __tablename__ = "site_mappings"
+
+    id = Column(Integer, primary_key=True)
+    prefix = Column(String(128), nullable=False, unique=True, index=True)
+    site = Column(String(255), nullable=False, index=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "prefix": self.prefix,
+            "site": self.site,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 

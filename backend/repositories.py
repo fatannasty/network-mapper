@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from models import Credential, Device, DeviceConfig, Interface, Link, ScanJob, Site, User
+from models import Credential, Device, DeviceConfig, Interface, Link, ScanJob, Site, SiteMapping, User
 from security import create_token, hash_password, verify_password
 
 
@@ -41,6 +41,7 @@ def upsert_device(db: Session, data: dict, scan_id: str) -> Device:
     device.open_ports = data.get("open_ports", device.open_ports or [])
     device.snmp_community = data.get("snmp_community") or device.snmp_community
     device.site = data.get("site", device.site or "")
+    device.catalyst_id = data.get("catalyst_id") or data.get("_id") or device.catalyst_id
     device.last_scan_id = scan_id
     device.last_seen = now
     db.commit()
@@ -281,6 +282,26 @@ def delete_credential(db: Session, credential_id: int) -> bool:
     return True
 
 
+def vault_communities(db: Session) -> list[str]:
+    """All unique SNMP v2c communities stored in the credential vault.
+
+    Used as the default community set for backfill walks so operators only
+    need to maintain the vault, not per-request values.
+    """
+    rows = db.query(Credential.snmp_community).filter(
+        Credential.snmp_community != "").all()
+    seen: list[str] = []
+    for (community,) in rows:
+        if community and community not in seen:
+            seen.append(community)
+    return seen or ["public"]
+
+
+def vault_ssh_credentials(db: Session) -> list[Credential]:
+    """SSH credentials from the vault (type == 'ssh')."""
+    return db.query(Credential).filter(Credential.credential_type == "ssh").all()
+
+
 # ── Users ─────────────────────────────────────────────────────────────────────
 
 def create_user(db: Session, username: str, password: str, role: str = "viewer") -> User:
@@ -356,6 +377,170 @@ def list_sites(db: Session) -> list[Site]:
     return db.query(Site).order_by(Site.name).all()
 
 
+# ── Site mappings (Sprint 13) ────────────────────────────────────────────────
+
+def create_site_mapping(db: Session, prefix: str, site: str) -> SiteMapping:
+    """Add a hostname-prefix → site rule. Returns the mapping (or raises on dup)."""
+    existing = db.query(SiteMapping).filter(SiteMapping.prefix == prefix).first()
+    if existing:
+        raise ValueError(f"mapping for prefix '{prefix}' already exists")
+    mapping = SiteMapping(prefix=prefix, site=site)
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    return mapping
+
+
+def list_site_mappings(db: Session) -> list[SiteMapping]:
+    return db.query(SiteMapping).order_by(SiteMapping.prefix).all()
+
+
+def delete_site_mapping(db: Session, mapping_id: int) -> bool:
+    mapping = db.get(SiteMapping, mapping_id)
+    if mapping is None:
+        return False
+    db.delete(mapping)
+    db.commit()
+    return True
+
+
+def seed_site_mappings_from_hostnames(db: Session) -> dict:
+    """Discover hostname-prefix → site rules from devices that DO have a site.
+
+    Devices imported from a site-scoped Catalyst import carry both a site and
+    a hostname; the shared prefix (e.g. "AMTRCHIIL") is a strong signal that
+    other devices sharing that prefix belong to the same site. This seeds the
+    mapping table so the full-environment backfill can use it.
+    """
+    rows = (
+        db.query(Device.hostname, Device.site)
+        .filter(Device.site != "", Device.hostname != "")
+        .all()
+    )
+    prefixes: dict[str, str] = {}
+    for hostname, site in rows:
+        prefix = _hostname_prefix(hostname)
+        if prefix and len(prefix) >= 5:
+            prefixes.setdefault(prefix, site)
+
+    created = 0
+    skipped = 0
+    for prefix, site in sorted(prefixes.items()):
+        if db.query(SiteMapping).filter(SiteMapping.prefix == prefix).first():
+            skipped += 1
+            continue
+        db.add(SiteMapping(prefix=prefix, site=site))
+        created += 1
+    db.commit()
+    return {"discovered": len(prefixes), "created": created, "skipped": skipped}
+
+
+def _hostname_prefix(hostname: str) -> str:
+    """Extract the uppercase alphanumeric prefix of a hostname (up to 9 chars)."""
+    clean = (hostname or "").split(".")[0].strip().upper()
+    letters = ""
+    for ch in clean:
+        if ch.isalnum():
+            letters += ch
+        else:
+            break
+    return letters
+
+
+def apply_site_mappings(db: Session, limit: int = 0) -> dict:
+    """Backfill device.site for devices with blank site by matching hostname prefixes."""
+    mappings = list_site_mappings(db)
+    matched = 0
+    updated = 0
+    unchanged = 0
+    query = db.query(Device).filter(Device.site == "")
+    if limit:
+        query = query.limit(limit)
+    for device in query.all():
+        hostname = (device.hostname or "").upper()
+        if not hostname:
+            continue
+        best: tuple[int, str] = (0, "")
+        for mapping in mappings:
+            pref = mapping.prefix.upper()
+            if hostname.startswith(pref) and len(pref) > best[0]:
+                best = (len(pref), mapping.site)
+        if best[0] > 0:
+            matched += 1
+            if device.site != best[1]:
+                device.site = best[1]
+                updated += 1
+            else:
+                unchanged += 1
+    db.commit()
+    return {"mappings": len(mappings), "matched": matched, "updated": updated,
+            "unchanged": unchanged}
+
+
+# ── Data-quality gates (Sprint 13) ────────────────────────────────────────────
+
+def dod_gates(db: Session) -> dict:
+    """Measure the Sprint 13 Definition of Done thresholds.
+
+    Gates (from the Q19 decision):
+        - site coverage    ≥ 90% of devices have a site
+        - interface coverage ≥ 95% of network devices have interfaces
+        - link validation  ≥ 80% of links validated (protocol != 'catalyst')
+        - config coverage  ≥ 90% of switches have a config
+    """
+    total = db.query(func.count(Device.id)).scalar() or 0
+    with_site = db.query(func.count(Device.id)).filter(Device.site != "").scalar() or 0
+
+    network_types = ("switch", "router", "core-switch", "firewall")
+    network_devices = (
+        db.query(func.count(Device.id))
+        .filter(Device.device_type.in_(network_types))
+        .scalar() or 0
+    )
+    network_with_interfaces = (
+        db.query(func.count(func.distinct(Interface.device_id)))
+        .join(Device, Device.id == Interface.device_id)
+        .filter(Device.device_type.in_(network_types))
+        .scalar() or 0
+    )
+
+    total_links = db.query(func.count(Link.id)).scalar() or 0
+    validated_links = (
+        db.query(func.count(Link.id)).filter(Link.protocol != "catalyst").scalar() or 0
+    )
+
+    switches = db.query(func.count(Device.id)).filter(Device.device_type == "switch").scalar() or 0
+    switches_with_config = (
+        db.query(func.count(func.distinct(DeviceConfig.device_id)))
+        .join(Device, Device.id == DeviceConfig.device_id)
+        .filter(Device.device_type == "switch")
+        .scalar() or 0
+    )
+
+    def pct(n: int, d: int) -> float:
+        return round(100.0 * n / d, 1) if d else 0.0
+
+    return {
+        "site": {
+            "target": 90, "actual": pct(with_site, total),
+            "devices_with_site": with_site, "devices_total": total, "met": with_site >= 0.9 * total,
+        },
+        "interfaces": {
+            "target": 95, "actual": pct(network_with_interfaces, network_devices),
+            "devices_with_interfaces": network_with_interfaces, "devices_total": network_devices,
+            "met": network_with_interfaces >= 0.95 * network_devices,
+        },
+        "links": {
+            "target": 80, "actual": pct(validated_links, total_links),
+            "validated": validated_links, "links_total": total_links, "met": validated_links >= 0.8 * total_links,
+        },
+        "configs": {
+            "target": 90, "actual": pct(switches_with_config, switches),
+            "switches_with_config": switches_with_config, "switches_total": switches, "met": switches_with_config >= 0.9 * switches,
+        },
+    }
+
+
 # ── Device Configs (Sprint 9) ─────────────────────────────────────────────────
 
 def save_device_config(db: Session, device_id: int, config_text: str,
@@ -403,3 +588,37 @@ def get_devices_by_type(db: Session, device_type: str = "switch",
     if limit:
         q = q.limit(limit)
     return q.all()
+
+
+def classify_blank_devices(db: Session, limit: int = 0) -> dict:
+    """Fill in device_type for blank-type devices using cheap heuristics.
+
+    From Q18: fix the Catalyst full-env blanks (Meraki MR APs whose hostname
+    ends in -AP/-APxx) and port-fingerprint the SNMP blanks (port 9100 →
+    printer, port 161 → generic network host). Devices that stay blank remain
+    honest 'unknown' rather than a wrong guess.
+    """
+    import re
+
+    query = db.query(Device).filter(Device.device_type == "")
+    if limit:
+        query = query.limit(limit)
+    changed = 0
+    rows: list[tuple[Device, str]] = []
+    for d in query.all():
+        hostname = (d.hostname or "").strip().upper()
+        ports = d.open_ports or []
+        new_type = ""
+        if re.search(r"(^|[-_])(AP|WAP|WIFI|AIR)[-_]?\d*$", hostname) or \
+           re.search(r"-AP\d*$", hostname):
+            new_type = "accesspoint"
+        elif 9100 in ports:
+            new_type = "printer"
+        elif hostname.startswith("AP-") or "-AP" in hostname:
+            new_type = "accesspoint"
+        if new_type and new_type != d.device_type:
+            d.device_type = new_type
+            changed += 1
+            rows.append((d, new_type))
+    db.commit()
+    return {"changed": changed, "total_scanned": len(rows)}

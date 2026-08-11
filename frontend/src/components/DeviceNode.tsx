@@ -18,8 +18,10 @@ const colors: Record<string, string> = {
   'sd-wan': 'border-green-400 bg-green-950',
   'wireless-controller': 'border-cyan-400 bg-cyan-950',
   'access-point': 'border-emerald-400 bg-emerald-950',
+  accesspoint: 'border-emerald-400 bg-emerald-950',
   'load-balancer': 'border-pink-400 bg-pink-950',
-  unknown: 'border-gray-500 bg-gray-900',
+  'velocloud-edge': 'border-teal-400 bg-teal-950',
+  unknown: 'border-gray-500 bg-gray-800',
 }
 
 export default function DeviceNode({ data }: NodeProps<Node<DeviceData>>) {
@@ -29,21 +31,21 @@ export default function DeviceNode({ data }: NodeProps<Node<DeviceData>>) {
 
   return (
     <div className={`px-3 py-2 rounded-lg border-2 ${color} text-white text-sm min-w-[160px] cursor-pointer shadow-lg`}>
-      <Handle type="target" position={Position.Top} className="!bg-gray-500" />
+      <Handle id="target" type="target" position={Position.Top} className="!bg-gray-500" />
       <div className="font-semibold truncate max-w-[200px]">{label}</div>
       {deviceData.ip && deviceData.ip !== label && (
         <div className="text-blue-400 text-[11px] font-mono mt-0.5">{deviceData.ip}</div>
       )}
-      <div className="text-gray-400 text-xs mt-0.5">
+      <div className="text-muted text-xs mt-0.5">
         {deviceData.vendor && <span>{deviceData.vendor}</span>}
         {deviceData.model && <span> {deviceData.model}</span>}
       </div>
       {deviceData.device_type && deviceData.device_type !== 'unknown' && (
-        <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase bg-white/10 text-gray-300">
+        <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase bg-white/10 text-text-secondary">
           {deviceData.device_type}
         </span>
       )}
-      <Handle type="source" position={Position.Bottom} className="!bg-gray-500" />
+      <Handle id="source" type="source" position={Position.Bottom} className="!bg-gray-500" />
     </div>
   )
 }

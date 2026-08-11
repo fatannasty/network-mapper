@@ -85,6 +85,42 @@ def test_topology_scan_not_found():
     assert resp.status_code == 404
 
 
+def test_topology_excludes_velocloud_lan_inference_links():
+    """Experimental 'velocloud-lan' inference links must not leak foreign
+    SD-WAN edges into a site's topology graph."""
+    from database import SessionLocal
+    import repositories
+
+    with SessionLocal() as db:
+        repositories.create_scan_job(db, "topo-vc-scan", "10.0.0.0/24", ["public"], False)
+        repositories.upsert_device(db, {
+            "ip": "10.0.0.1", "hostname": "sw1", "vendor": "Cisco", "device_type": "switch",
+        }, scan_id="topo-vc-scan")
+        # Velocloud belongs to a different site/scan; only reachable via an
+        # inferred 'velocloud-lan' link.
+        repositories.upsert_device(db, {
+            "ip": "10.0.0.99", "hostname": "AMT-XX-VC1", "vendor": "VMware VeloCloud",
+            "device_type": "velocloud-edge",
+        }, scan_id="other-scan")
+        repositories.replace_links(db, "topo-vc-scan", [
+            {"source": "10.0.0.1", "target": "10.0.0.2",
+             "source_interface": "Gi1/0/1", "target_interface": "Gi1/0/1",
+             "protocol": "lldp", "source_hostname": "sw1", "target_hostname": "sw2"},
+            {"source": "10.0.0.1", "target": "10.0.0.99",
+             "source_interface": "GE1 (LAN)", "target_interface": "unknown",
+             "protocol": "velocloud-lan", "source_hostname": "sw1", "target_hostname": ""},
+        ])
+
+    resp = admin.get("/api/topology", params={"scan_id": "topo-vc-scan"})
+    assert resp.status_code == 200
+    data = resp.json()
+    node_ips = {n["id"] for n in data["nodes"]}
+    assert "10.0.0.99" not in node_ips
+    assert not any(n.get("device_type") == "velocloud-edge" for n in data["nodes"])
+    assert all(l["protocol"] != "velocloud-lan" for l in data["links"])
+    assert {l["protocol"] for l in data["links"]} == {"lldp"}
+
+
 def test_topology_after_discover():
     resp = admin.post("/api/discover", json={
         "subnet": "127.0.0.1/32", "communities": ["public"], "exclude_pcs": False,

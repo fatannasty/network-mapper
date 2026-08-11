@@ -274,6 +274,107 @@ def snmp_walk(host: str, subtree_oid: str, community: str,
         sock.close()
 
 
+# ── IF-MIB table walk (v2c) ──────────────────────────────────────────────────
+
+IF_NUMBER = "1.3.6.1.2.1.2.1"
+IF_TABLE = "1.3.6.1.2.1.2.2.1"
+IF_XTABLE = "1.3.6.1.2.1.31.1.1.1"
+
+_IF_COL_DESCR = 2
+_IF_COL_TYPE = 3
+_IF_COL_SPEED = 5
+_IF_COL_PHYS_ADDR = 6
+_IF_COL_ADMIN = 7
+_IF_COL_OPER = 8
+_IFX_COL_NAME = 1
+_IFX_COL_HIGH_SPEED = 15
+_IF_COL_IF_ALIAS = 18
+
+_IF_TYPE_MAP = {
+    1: "other", 6: "ethernet", 24: "softwareLoopback", 53: "propVirtual",
+    135: "l2vlan", 136: "l3ipvlan", 161: "ieee8023adLag", 209: "bridge",
+}
+
+
+def _if_parts_from_oid(oid: str, subtree: str) -> tuple[str, str]:
+    prefix = subtree + "."
+    if oid.startswith(prefix):
+        parts = oid[len(prefix):].split(".", 2)
+        if len(parts) >= 2:
+            return parts[0], parts[1]
+    return "", ""
+
+
+def walk_if_table(host: str, communities: list[str], port: int = SNMP_PORT,
+                  timeout: float = DEFAULT_TIMEOUT, max_oids: int = 2048) -> list[dict[str, str]]:
+    """Walk ifTable + ifXTable over SNMPv2c; [] on total failure.
+
+    Mirrors the SNMPv3 walk_if_table but uses GETBULK via the v2c client so
+    interface discovery works for devices reachable with a v2c community.
+    """
+    count_result = None
+    community_used = ""
+    for community in communities:
+        try:
+            result = send_get_request(host, [IF_NUMBER + ".0"], community, timeout, port)
+        except (socket.timeout, OSError, ValueError):
+            continue
+        if result and IF_NUMBER + ".0" in result:
+            count_result = result
+            community_used = community
+            break
+    if count_result is None:
+        return []
+    try:
+        if_count = int(count_result.get(IF_NUMBER + ".0", 0) or 0)
+    except (TypeError, ValueError):
+        if_count = 0
+    if if_count == 0:
+        return []
+
+    if_raw = snmp_walk(host, IF_TABLE + ".", community_used, port=port,
+                       timeout=timeout, max_oids=max_oids)
+    ifx_raw = snmp_walk(host, IF_XTABLE + ".", community_used, port=port,
+                        timeout=timeout, max_oids=max_oids)
+
+    interfaces: dict[str, dict[str, str]] = {}
+    for oid, val in if_raw.items():
+        col, idx = _if_parts_from_oid(oid, IF_TABLE)
+        if not col or not idx:
+            continue
+        col = int(col)
+        if idx not in interfaces:
+            interfaces[idx] = {"ifIndex": idx}
+        entry = interfaces[idx]
+        if col == _IF_COL_DESCR:
+            entry["ifDescr"] = _to_str(val)
+        elif col == _IF_COL_TYPE:
+            entry["ifType"] = _IF_TYPE_MAP.get(int(val), _to_str(val))
+        elif col == _IF_COL_SPEED:
+            entry["ifSpeed"] = str(int(val)) if val is not None else ""
+        elif col == _IF_COL_PHYS_ADDR:
+            entry["ifPhysAddress"] = ":".join(f"{b:02x}" for b in val) if isinstance(val, bytes) else ""
+        elif col == _IF_COL_ADMIN:
+            entry["ifAdminStatus"] = {1: "up", 2: "down", 3: "testing"}.get(int(val), _to_str(val))
+        elif col == _IF_COL_OPER:
+            entry["ifOperStatus"] = {1: "up", 2: "down", 3: "testing"}.get(int(val), _to_str(val))
+
+    for oid, val in ifx_raw.items():
+        col, idx = _if_parts_from_oid(oid, IF_XTABLE)
+        if not col or not idx or idx not in interfaces:
+            continue
+        col = int(col)
+        entry = interfaces[idx]
+        if col == _IFX_COL_NAME:
+            entry["ifName"] = _to_str(val)
+        elif col == _IFX_COL_HIGH_SPEED:
+            entry["ifHighSpeed"] = str(int(val)) if val is not None else ""
+        elif col == _IF_COL_IF_ALIAS:
+            entry["ifAlias"] = _to_str(val)
+
+    return [interfaces[i] for i in sorted(interfaces, key=lambda x: int(x))]
+
+
 def snmp_poll(host: str, community_list, timeout: float = DEFAULT_TIMEOUT, port: int = SNMP_PORT):
     """Try each community in turn; return the first non-empty result dict."""
     communities = community_list if isinstance(community_list, list) else ["public"]

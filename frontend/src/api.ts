@@ -142,6 +142,23 @@ export async function getCredentials() {
   return r.data as { count: number; credentials: Credential[] }
 }
 
+export async function createCredential(data: {
+  name: string
+  credential_type?: string
+  username?: string
+  password?: string
+  snmp_community?: string
+  site?: string
+}) {
+  const r = await api.post('/api/inventory/credentials', data)
+  return r.data as Credential
+}
+
+export async function deleteCredential(id: number) {
+  const r = await api.delete(`/api/inventory/credentials/${id}`)
+  return r.data as { deleted: boolean }
+}
+
 export async function testCatalyst(baseUrl: string, username: string, password: string) {
   const r = await api.post('/api/catalyst/test', { base_url: baseUrl, username, password })
   return r.data as { connected: boolean; device_count: number; sample: Record<string, unknown> | null }
@@ -334,6 +351,7 @@ export interface Report {
   interface_status: Record<string, number>
   config_coverage: ConfigCoverage
   stale_devices_90d: number
+  dod_gates: Record<string, DodGate>
   scan_history: ScanHistoryEntry[]
   recent_scans: ScanHistoryEntry[]
 }
@@ -341,6 +359,101 @@ export interface Report {
 export async function getReport() {
   const r = await api.get('/api/inventory/report')
   return r.data as Report
+}
+
+// ── Sprint 13: Data Quality ──────────────────────────────────────────────────
+
+export interface SiteMapping {
+  id: number
+  prefix: string
+  site: string
+  created_at: string | null
+}
+
+export interface DodGate {
+  target: number
+  actual: number
+  met: boolean
+}
+
+export interface BackfillSummary {
+  total: number
+  successful: number
+  failed: number
+  interfaces_walked?: number
+  neighbors_discovered?: number
+  persisted_devices?: number
+  persisted_interfaces?: number
+  validation_links?: number
+  sample_errors?: string[]
+  results: {
+    ip: string
+    hostname: string
+    device_type: string
+    interfaces?: number
+    interface_count?: number
+    neighbor_count?: number
+    error: string
+  }[]
+}
+
+export async function getSiteMappings() {
+  const r = await api.get('/api/inventory/site-mappings')
+  return r.data as { count: number; mappings: SiteMapping[] }
+}
+
+export async function createSiteMapping(prefix: string, site: string) {
+  const r = await api.post('/api/inventory/site-mappings', { prefix, site })
+  return r.data as SiteMapping
+}
+
+export async function deleteSiteMapping(id: number) {
+  const r = await api.delete(`/api/inventory/site-mappings/${id}`)
+  return r.data as { deleted: boolean }
+}
+
+export async function seedSiteMappings() {
+  const r = await api.post('/api/inventory/site-mappings/seed')
+  return r.data as { discovered: number; created: number; skipped: number }
+}
+
+export async function applySiteMappings(limit = 0) {
+  const r = await api.post('/api/inventory/site-mappings/apply', null, { params: { limit } })
+  return r.data as { mappings: number; matched: number; updated: number; unchanged: number }
+}
+
+export interface BackfillRequest {
+  communities?: string[]
+  max_workers?: number
+  timeout?: number
+  limit?: number
+  device_type?: string
+}
+
+export async function backfillInterfaces(req?: BackfillRequest) {
+  const r = await api.post('/api/backfill/interfaces', req || {})
+  return r.data as BackfillSummary
+}
+
+export async function backfillLinks(req?: BackfillRequest) {
+  const r = await api.post('/api/backfill/links', req || {})
+  return r.data as BackfillSummary & { scan_id: string; validation_links: number }
+}
+
+export async function classifyBlanks(limit = 0) {
+  const r = await api.post('/api/backfill/classify-blanks', null, { params: { limit } })
+  return r.data as { changed: number; total_scanned: number }
+}
+
+export async function collectConfigsCatalyst(
+  baseUrl: string, username: string, password: string,
+  deviceType = 'switch', sitePattern = '', limit = 50,
+) {
+  const r = await api.post('/api/catalyst/collect-config', {
+    base_url: baseUrl, username, password,
+    device_type: deviceType, site_pattern: sitePattern, limit,
+  })
+  return r.data as CollectResult
 }
 
 export async function exportReport(report: 'devices' | 'links' | 'scans' | 'configs') {

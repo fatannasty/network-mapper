@@ -2,6 +2,10 @@ import { useState, useEffect, useMemo, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AxiosError } from 'axios'
 import { importFromCatalyst, testCatalyst, fetchSites, debugSiteMembership, type SiteInfo } from '../api'
+import PageHeader from './ui/PageHeader'
+import Input from './ui/Input'
+import Select from './ui/Select'
+import Button from './ui/Button'
 
 function errDetail(err: unknown): string {
   if (err instanceof AxiosError && err.response?.data) {
@@ -202,38 +206,41 @@ export default function CatalystForm() {
   return (
     <div className="h-full overflow-auto p-6 flex justify-center">
       <div className="w-full max-w-lg">
-        <h2 className="text-xl font-bold mb-2">Import from Catalyst Center</h2>
+        <PageHeader
+          title="Import from Catalyst Center"
+          description="Pull devices and topology from a Catalyst Center environment."
+        />
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-gray-400 text-sm mb-1">Catalyst Center URL</label>
+            <label className="block text-muted text-sm mb-1">Catalyst Center URL</label>
             {savedUrls.length > 0 && (
-              <select
+              <Select
                 value=""
                 onChange={(e) => { if (e.target.value) setBaseUrl(e.target.value) }}
-                className="w-full px-3 py-2 mb-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                className="w-full mb-2"
               >
                 <option value="">Saved URLs…</option>
                 {savedUrls.map((u) => (
                   <option key={u} value={u}>{u}</option>
                 ))}
-              </select>
+              </Select>
             )}
             <div className="flex gap-2">
-              <input
+              <Input
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
-                className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+                className="flex-1"
                 placeholder="https://catalyst-center.example.com"
               />
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={handleSaveUrl}
                 disabled={!baseUrl.trim()}
-                className="px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm disabled:opacity-50"
                 title="Save this URL for next time"
               >
                 Save
-              </button>
+              </Button>
             </div>
             {savedUrls.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
@@ -241,12 +248,12 @@ export default function CatalystForm() {
                   <span
                     key={u}
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
-                      u === baseUrl ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'
+                      u === baseUrl ? 'bg-blue-600 text-white' : 'bg-surface-3 text-text-secondary'
                     }`}
                   >
                     <button
                       type="button"
-                      className="hover:text-white"
+                      className="hover:text-text-primary"
                       onClick={() => setBaseUrl(u)}
                       title="Use this URL"
                     >
@@ -254,7 +261,7 @@ export default function CatalystForm() {
                     </button>
                     <button
                       type="button"
-                      className="text-gray-400 hover:text-red-400"
+                      className="text-muted hover:text-red-400"
                       onClick={() => handleRemoveUrl(u)}
                       title="Remove saved URL"
                     >
@@ -268,27 +275,27 @@ export default function CatalystForm() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-gray-400 text-sm mb-1">Username</label>
-              <input
+              <label className="block text-muted text-sm mb-1">Username</label>
+              <Input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+                className="w-full"
               />
             </div>
             <div>
-              <label className="block text-gray-400 text-sm mb-1">Password</label>
-              <input
+              <label className="block text-muted text-sm mb-1">Password</label>
+              <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+                className="w-full"
               />
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-gray-400 text-sm">Site Filter</label>
+              <label className="text-muted text-sm">Site Filter</label>
               <button
                 type="button"
                 disabled={loadingSites}
@@ -302,10 +309,10 @@ export default function CatalystForm() {
             {sites.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <select
+                  <Select
                     value={selectedState}
                     onChange={(e) => { setSelectedState(e.target.value); setSelectedCity('') }}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full"
                   >
                     <option value="">All States</option>
                     {siteTree.map((g) => (
@@ -313,14 +320,14 @@ export default function CatalystForm() {
                         {g.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div>
-                  <select
+                  <Select
                     value={selectedCity}
                     onChange={(e) => setSelectedCity(e.target.value)}
                     disabled={!selectedState}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                    className="w-full disabled:opacity-50"
                   >
                     <option value="">
                       {selectedState ? `All ${selectedState} sites` : 'State first'}
@@ -330,14 +337,14 @@ export default function CatalystForm() {
                         {c.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
             ) : (
-              <input
+              <Input
                 value={siteText}
                 onChange={(e) => setSiteText(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                className="w-full"
                 placeholder="Type site name or hostname pattern"
               />
             )}
@@ -349,24 +356,24 @@ export default function CatalystForm() {
           </div>
 
           {sitesDebug && (
-            <details className="border border-gray-800 rounded bg-gray-950">
-              <summary className="px-3 py-2 text-xs text-gray-400 cursor-pointer hover:text-gray-300">
+            <details className="border border-border rounded bg-surface-0">
+              <summary className="px-3 py-2 text-xs text-muted cursor-pointer hover:text-text-secondary">
                 Raw site API samples
               </summary>
-              <pre className="px-3 pb-3 text-[11px] text-gray-400 overflow-auto max-h-64 whitespace-pre-wrap">
+              <pre className="px-3 pb-3 text-[11px] text-muted overflow-auto max-h-64 whitespace-pre-wrap">
                 {sitesDebug}
               </pre>
             </details>
           )}
 
           <div>
-            <label className="block text-gray-400 text-sm mb-1">
+            <label className="block text-muted text-sm mb-1">
               Device filter <span className="text-gray-600">(hostname / model / IP substring)</span>
             </label>
-            <input
+            <Input
               value={deviceFilter}
               onChange={(e) => setDeviceFilter(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+              className="w-full"
               placeholder="e.g. AMT-, 610, or 10.10.1.20"
             />
             <p className="text-gray-600 text-[11px] mt-0.5">
@@ -375,24 +382,26 @@ export default function CatalystForm() {
           </div>
 
           {selectedSite && (
-            <button
+            <Button
               type="button"
+              variant="secondary"
               disabled={debuggingMembership}
               onClick={handleDebugMembership}
-              className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 border border-gray-700 rounded text-sm transition-colors"
+              className="w-full"
             >
               {debuggingMembership ? 'Querying membership API...' : 'Debug Site Membership'}
-            </button>
+            </Button>
           )}
           {membershipDebug && (
-            <pre className="bg-gray-950 border border-gray-800 rounded p-3 text-[11px] text-gray-300 overflow-auto max-h-96 whitespace-pre-wrap">
+            <pre className="bg-surface-0 border border-border rounded p-3 text-[11px] text-text-secondary overflow-auto max-h-96 whitespace-pre-wrap">
               {membershipDebug}
             </pre>
           )}
 
           <div className="flex gap-3">
-            <button
+            <Button
               type="button"
+              variant="secondary"
               disabled={testing}
               onClick={async () => {
                 setTesting(true)
@@ -406,24 +415,24 @@ export default function CatalystForm() {
                   setTesting(false)
                 }
               }}
-              className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white rounded text-sm transition-colors"
+              className="flex-1"
             >
               {testing ? 'Testing...' : 'Test Connection'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2 rounded font-medium transition-colors"
+              className="flex-1"
             >
               {loading ? 'Importing...' : 'Import'}
-            </button>
+            </Button>
           </div>
 
           <button
             type="button"
             disabled={loading}
             onClick={handleFullImport}
-            className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded text-sm font-medium transition-colors"
+            className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-text-primary rounded text-sm font-medium transition-colors"
           >
             Import Full Environment (all sites)
           </button>
