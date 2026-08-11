@@ -694,6 +694,9 @@ def import_devices(base_url: str, username: str, password: str,
         debug_sample = {
             "keys": sorted(d0.keys()),
             "managementIpAddress": d0.get("managementIpAddress"),
+            "deviceManagementIpAddress": d0.get("deviceManagementIpAddress"),
+            "networkDeviceIpAddress": d0.get("networkDeviceIpAddress"),
+            "mgmtIP": d0.get("mgmtIP"),
             "hostname": d0.get("hostname"),
             "type": d0.get("type"),
             "family": d0.get("family"),
@@ -840,9 +843,18 @@ def import_devices(base_url: str, username: str, password: str,
 
     devices: list[dict] = []
     skipped_no_ip = 0
+    ip_field_names = [
+        "managementIpAddress", "deviceManagementIpAddress",
+        "ipAddress", "deviceIp", "networkDeviceIpAddress",
+        "networkDeviceManagementIpAddress", "mgmtIP",
+    ]
     for d in raw_devices:
-        ip = (d.get("managementIpAddress") or d.get("ipAddress")
-              or d.get("deviceIp") or d.get("networkDeviceIpAddress") or "")
+        ip = ""
+        for fn in ip_field_names:
+            v = d.get(fn)
+            if isinstance(v, str) and v.strip():
+                ip = v.strip()
+                break
         if not ip:
             skipped_no_ip += 1
             continue
@@ -904,10 +916,18 @@ def import_devices(base_url: str, username: str, password: str,
                      or link.get("interfaceB") or "")
         src_dev = device_by_id.get(src, {})
         tgt_dev = device_by_id.get(tgt, {})
-        src_ip = (src_dev.get("managementIpAddress") or src_dev.get("ipAddress")
-                  or src_dev.get("deviceIp") or "")
-        tgt_ip = (tgt_dev.get("managementIpAddress") or tgt_dev.get("ipAddress")
-                  or tgt_dev.get("deviceIp") or "")
+        src_ip = ""
+        for fn in ip_field_names:
+            v = src_dev.get(fn)
+            if isinstance(v, str) and v.strip():
+                src_ip = v.strip()
+                break
+        tgt_ip = ""
+        for fn in ip_field_names:
+            v = tgt_dev.get(fn)
+            if isinstance(v, str) and v.strip():
+                tgt_ip = v.strip()
+                break
         if not src_ip or not tgt_ip:
             continue
 

@@ -429,7 +429,7 @@ def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get
     else:
         jobs = repositories.list_scan_jobs(db, limit=1)
         if not jobs:
-            return {"scan_id": None, "nodes": [], "links": []}
+            return {"scan_id": None, "nodes": [], "links": [], "scan_meta": None}
         job = jobs[0]
         devices = db.query(Device).filter(Device.last_scan_id == job.id).all()
         links = [l for l in repositories.list_links(db, scan_id=job.id) if _keep_topology_link(l)]
@@ -485,7 +485,17 @@ def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get
                               "model": "", "device_type": "unknown"})
                 seen.add(ep)
 
-    return {"scan_id": job.id, "nodes": nodes, "links": [l.to_dict() for l in links]}
+    return {
+        "scan_id": job.id,
+        "nodes": nodes,
+        "links": [l.to_dict() for l in links],
+        "scan_meta": {
+            "subnet": job.subnet,
+            "device_count": job.device_count,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "scan_kind": getattr(job, "scan_kind", None),
+        },
+    }
 
 
 @app.get("/api/topology/path", dependencies=[Depends(authenticated)])

@@ -61,6 +61,9 @@ export interface Device {
   interfaces: Interface[]
   site?: string
   snmp_debug?: SnmpDebug
+  last_scan_id?: string
+  first_seen?: string
+  last_seen?: string
 }
 
 export interface Interface {
@@ -90,6 +93,12 @@ export interface TopologyData {
   scan_id: string | null
   nodes: TopoNode[]
   links: TopoLink[]
+  scan_meta?: {
+    subnet: string
+    device_count: number
+    started_at: string | null
+    scan_kind: string | null
+  }
 }
 
 export interface TopoNode {

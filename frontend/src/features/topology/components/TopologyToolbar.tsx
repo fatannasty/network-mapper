@@ -43,6 +43,14 @@ export default function TopologyToolbar({
             {linkCounts.cdp > 0 && <span className="text-amber-400 ml-1">{linkCounts.cdp} CDP</span>}
           </span>
         )}
+        {topology.scan_meta && (
+          <span className="ml-3 text-[11px] text-muted/70">
+            &middot; Scan: <span className="text-text-secondary">{topology.scan_meta.subnet}</span>
+            {topology.scan_meta.scan_kind && (
+              <span className="ml-1">({topology.scan_meta.scan_kind})</span>
+            )}
+          </span>
+        )}
       </span>
 
       <div className="flex-1" />

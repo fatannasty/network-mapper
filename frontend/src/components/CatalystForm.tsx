@@ -458,6 +458,12 @@ export default function CatalystForm() {
               <p className="text-green-300 text-sm">
                 Imported {result.device_count} devices, {result.links_found} topology links.
               </p>
+              {result.debug && (result.debug.skipped_no_ip as number) > 0 && (
+                <div className="bg-amber-900/30 border border-amber-800 rounded px-3 py-2 text-xs text-amber-300">
+                  {result.debug.skipped_no_ip as number} device(s) were skipped — no IP address found.
+                  Check the debug output below for available field names.
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => navigate(`/topology?scan_id=${result.scan_id}`)}

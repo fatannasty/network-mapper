@@ -162,7 +162,13 @@ export default function DeviceInventory() {
                 variant="secondary"
                 size="sm"
                 className="w-full"
-                onClick={() => navigate(`/topology?scan_id=latest&device=${encodeURIComponent(selectedDevice.ip)}`)}
+                onClick={() => {
+                  const scanId = selectedDevice.last_scan_id
+                  const url = scanId
+                    ? `/topology?scan_id=${scanId}&device=${encodeURIComponent(selectedDevice.ip)}`
+                    : '/topology'
+                  navigate(url)
+                }}
                 icon={
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
