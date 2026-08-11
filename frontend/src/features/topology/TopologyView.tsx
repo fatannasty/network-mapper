@@ -12,6 +12,7 @@ import { treeLayout, freeLayout } from './services/layout'
 import { normalizeType, pluralLabel } from './services/friendly'
 import TopologyToolbar from './components/TopologyToolbar'
 import TopologyCanvas from './components/TopologyCanvas'
+import TopologyGroupDetail from './components/TopologyGroupDetail'
 import DeviceDetail from '../../components/DeviceDetail'
 import { shortenInterface } from '../../components/ui/iface'
 import PageState from '../../components/ui/PageState'
@@ -27,6 +28,7 @@ export default function TopologyView() {
 
   const {
     topology,
+    devices,
     deviceByIp,
     scans,
     loading,
@@ -49,6 +51,7 @@ export default function TopologyView() {
 
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
   const [simplified, setSimplified] = useState(true)
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
 
   // A focused device view should always show individual devices so the
   // connections around the selected device are visible.
@@ -57,6 +60,7 @@ export default function TopologyView() {
   const handleScanChange = (id: string) => {
     setSearchParams(id ? { scan_id: id } : {}, { replace: true })
     setSelectedDevice(null)
+    setExpandedGroup(null)
     setPathSource('')
     setPathTarget('')
     setPathResult(null)
@@ -65,6 +69,14 @@ export default function TopologyView() {
   const clearFocus = () => {
     setSearchParams(scanId ? { scan_id: scanId } : {}, { replace: true })
     setSelectedDevice(null)
+    setExpandedGroup(null)
+  }
+
+  const viewGroupDevice = (ip: string) => {
+    setExpandedGroup(null)
+    setSelectedDevice(null)
+    setSimplified(false)
+    setSearchParams({ ...(scanId ? { scan_id: scanId } : {}), device: ip }, { replace: true })
   }
 
   const focusedDevice = useMemo(() => {
@@ -321,7 +333,12 @@ export default function TopologyView() {
               edges={edges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
-              onNodeClick={(_e, node) => {
+          onNodeClick={(_e, node) => {
+                if (showSimple && node.data?.group) {
+                  setSelectedDevice(null)
+                  setExpandedGroup(node.data.device_type as string)
+                  return
+                }
                 if (showSimple) return
                 setSelectedDevice(node.id)
               }}
@@ -332,6 +349,16 @@ export default function TopologyView() {
                 device={selectedDeviceData.device}
                 connectedLinks={selectedDeviceData.connectedLinks}
                 onClose={() => setSelectedDevice(null)}
+              />
+            )}
+
+            {expandedGroup && topology && (
+              <TopologyGroupDetail
+                type={expandedGroup}
+                nodes={topology.nodes}
+                devices={devices}
+                onClose={() => setExpandedGroup(null)}
+                onViewConnections={viewGroupDevice}
               />
             )}
           </>

@@ -29,7 +29,7 @@ export function useTopology(scanId?: string, focus?: string) {
     try {
       const [topo, devResp] = await Promise.all([
         getTopology(scanId, focus),
-        getDevices({ limit: '500' }),
+        getDevices({ limit: '5000' }),
       ])
       setTopology(topo)
       setDevices(devResp.devices || [])
