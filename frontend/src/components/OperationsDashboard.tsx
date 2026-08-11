@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getReport, type Report, type ScanHistoryEntry } from '../api'
+import { getReport, exportReport, type Report, type ScanHistoryEntry } from '../api'
 import Badge from './ui/Badge'
 import Button from './ui/Button'
 import Card from './ui/Card'
@@ -8,6 +8,7 @@ import PageHeader from './ui/PageHeader'
 import PageState from './ui/PageState'
 import Select from './ui/Select'
 import Tooltip from './ui/Tooltip'
+import GaugeBar from './ui/GaugeBar'
 
 type Health = 'healthy' | 'warning' | 'critical'
 
@@ -280,8 +281,8 @@ export default function OperationsDashboard() {
   const hc = healthColors[health.state]
 
   const alerts: { severity: 'critical' | 'warning' | 'info'; title: string; message: string; href: string }[] = []
-  if (down > 0) alerts.push({ severity: 'critical', title: 'Interfaces down', message: `${down} interface${down === 1 ? '' : 's'} reported down.`, href: '/reports' })
-  if (scan?.status !== 'completed') alerts.push({ severity: 'critical', title: 'Latest scan failed', message: `Scan "${scan?.subnet || 'unknown'}" did not complete.`, href: '/reports' })
+  if (down > 0) alerts.push({ severity: 'critical', title: 'Interfaces down', message: `${down} interface${down === 1 ? '' : 's'} reported down.`, href: '/dashboard' })
+  if (scan?.status !== 'completed') alerts.push({ severity: 'critical', title: 'Latest scan failed', message: `Scan "${scan?.subnet || 'unknown'}" did not complete.`, href: '/dashboard' })
   if (report.stale_devices_90d > 0) alerts.push({ severity: 'warning', title: 'Stale devices', message: `${report.stale_devices_90d} devices not seen in 90 days.`, href: '/quality' })
   if (!scan?.finished_at || Date.now() - new Date(scan.finished_at).getTime() > 60 * 60 * 1000) alerts.push({ severity: 'info', title: 'Data may be stale', message: 'Latest discovery is more than one hour old.', href: '/discover' })
 
@@ -301,6 +302,10 @@ export default function OperationsDashboard() {
               </Select>
               <span className="text-xs text-muted whitespace-nowrap">{refreshing ? 'Refreshing...' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString()}` : 'Waiting for data'}</span>
               <Button variant="secondary" size="sm" onClick={() => void refresh()} disabled={refreshing}>Refresh</Button>
+              <div className="h-5 w-px bg-border" />
+              <Tooltip content="Export inventory data as CSV" position="bottom">
+                <Button variant="ghost" size="sm" onClick={() => void exportReport('devices')}>Export</Button>
+              </Tooltip>
             </div>
           }
         />
@@ -312,7 +317,6 @@ export default function OperationsDashboard() {
             <Link to="/catalyst" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">Import Catalyst</Link>
             <Link to="/topology" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">View Topology</Link>
             <Link to="/configs" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">Collect Configs</Link>
-            <Link to="/reports" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">Reports</Link>
             <div className="flex-1" />
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-muted">Type</span>
@@ -351,7 +355,7 @@ export default function OperationsDashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label={hasFilters ? 'Filtered devices' : 'Devices'} value={filteredDevices} sub={hasFilters ? 'matching filters' : 'known network devices'} accent="blue" tooltip="Total known devices in inventory. Click to open Inventory." href="/inventory" sparkData={scanHistoryValues} sparkColor="#3b82f6" />
           <KpiCard label="Connections" value={report.total_links} sub="topology links" accent="green" tooltip="Total topology links. Click to open Topology." href="/topology" />
-          <KpiCard label="Interfaces down" value={down} sub="current persisted status" accent={down > 0 ? 'red' : 'green'} tooltip="Interfaces reporting operational down. Click to open Reports." href="/reports" />
+          <KpiCard label="Interfaces down" value={down} sub="current persisted status" accent={down > 0 ? 'red' : 'green'} tooltip="Interfaces reporting operational down. Click to open Quality." href="/quality" />
           <KpiCard label="Stale devices" value={report.stale_devices_90d} sub="not seen in 90 days" accent={report.stale_devices_90d > 0 ? 'amber' : 'green'} tooltip="Devices missing from recent scans. Click to open Quality." href="/quality" />
         </div>
 
@@ -399,7 +403,7 @@ export default function OperationsDashboard() {
           <Card>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Scan timeline</h2>
-              <Link to="/reports" className="text-xs text-accent hover:text-accent-hover">All scans &rarr;</Link>
+              <span className="text-[11px] text-muted">{report.recent_scans.length} recent</span>
             </div>
             <ScanTimeline scans={report.recent_scans} />
           </Card>
@@ -445,6 +449,95 @@ export default function OperationsDashboard() {
             </div>
           </Card>
         </div>
+
+        {report.dod_gates && Object.keys(report.dod_gates).length > 0 && (
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Definition of Done</h2>
+              <span className="text-[11px] text-muted">Sprint 13 targets</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {Object.entries(report.dod_gates).map(([key, gate]) => (
+                <div key={key} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted capitalize">{key}</span>
+                    <Badge label={gate.met ? 'met' : 'gap'} />
+                  </div>
+                  <div className="text-3xl font-bold text-text-primary tabular-nums">{gate.actual}%</div>
+                  <GaugeBar label="target" actual={gate.actual} target={gate.target} />
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        <div className="grid lg:grid-cols-2 gap-4">
+          <Card>
+            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Devices by vendor</h2>
+            <div className="space-y-2">
+              {Object.entries(report.by_vendor).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, v]) => {
+                const max = Math.max(...Object.values(report.by_vendor), 1)
+                return (
+                  <div key={k} className="flex items-center gap-3 text-xs">
+                    <span className="w-36 shrink-0 truncate text-muted">{k}</span>
+                    <div className="flex-1 h-2.5 bg-surface-3 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${(v / max) * 100}%` }} />
+                    </div>
+                    <span className="w-12 text-right text-muted tabular-nums font-medium">{v}</span>
+                  </div>
+                )
+              })}
+              {Object.keys(report.by_vendor).length === 0 && <p className="text-xs text-muted">No vendor data available.</p>}
+            </div>
+          </Card>
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Export data</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="secondary" size="sm" onClick={() => void exportReport('devices')} className="w-full">Export Devices</Button>
+              <Button variant="secondary" size="sm" onClick={() => void exportReport('links')} className="w-full">Export Links</Button>
+              <Button variant="secondary" size="sm" onClick={() => void exportReport('configs')} className="w-full">Export Configs</Button>
+              <Button variant="secondary" size="sm" onClick={() => void exportReport('scans')} className="w-full">Export Scans</Button>
+            </div>
+          </Card>
+        </div>
+
+        <Card padding={false}>
+          <div className="p-5 pb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Scan History</h2>
+            <span className="text-[11px] text-muted">{report.scan_history.length} scans</span>
+          </div>
+          <div className="overflow-auto max-h-80">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-surface-2 z-10">
+                <tr className="text-left text-muted text-[11px] uppercase tracking-wider">
+                  <th className="px-5 py-2 font-medium">Scan</th>
+                  <th className="px-5 py-2 font-medium">Status</th>
+                  <th className="px-5 py-2 font-medium text-right">Devices</th>
+                  <th className="px-5 py-2 font-medium text-right">Links</th>
+                  <th className="px-5 py-2 font-medium">Started</th>
+                  <th className="px-5 py-2 font-medium">Finished</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.scan_history.map((s) => (
+                  <tr key={s.id} className="border-t border-border hover:bg-surface-3/50 transition-colors">
+                    <td className="px-5 py-2">
+                      <span className="font-mono text-xs">{s.subnet}</span>
+                      <span className="text-muted ml-2 font-mono text-[10px]">{s.id.slice(0, 8)}</span>
+                    </td>
+                    <td className="px-5 py-2"><Badge label={s.status} /></td>
+                    <td className="px-5 py-2 text-right tabular-nums text-xs">{s.device_count}</td>
+                    <td className="px-5 py-2 text-right tabular-nums text-xs text-muted">{s.links}</td>
+                    <td className="px-5 py-2 text-xs text-muted">{s.started_at?.slice(0, 16) || '\u2014'}</td>
+                    <td className="px-5 py-2 text-xs text-muted">{s.finished_at?.slice(0, 16) || '\u2014'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       </div>
     </div>
   )
