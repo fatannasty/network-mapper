@@ -904,6 +904,7 @@ class CatalystImportRequest(BaseModel):
     site_name: str = ""
     site_id: str = ""
     device_filter: str = ""
+    skip_enrichment: bool = False  # skip CDP/LLDP/POE per-device walk for faster imports
 
 
 @app.post("/api/catalyst/import", dependencies=[Depends(operator)])
@@ -914,7 +915,8 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
         devices, links, debug = catalyst.import_devices(
             req.base_url, req.username, req.password,
             site_name=req.site_name, site_id=req.site_id,
-            device_filter=req.device_filter)
+            device_filter=req.device_filter,
+            skip_enrichment=req.skip_enrichment)
     except catalyst.CatalystError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:

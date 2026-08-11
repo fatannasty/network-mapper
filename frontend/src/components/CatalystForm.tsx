@@ -6,6 +6,7 @@ import PageHeader from './ui/PageHeader'
 import Input from './ui/Input'
 import Select from './ui/Select'
 import Button from './ui/Button'
+import Card from './ui/Card'
 
 function errDetail(err: unknown): string {
   if (err instanceof AxiosError && err.response?.data) {
@@ -16,49 +17,11 @@ function errDetail(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-interface CityOption { name: string; site_id: string }
-interface StateGroup { name: string; site_id: string; cities: CityOption[] }
-
-function parseSiteTree(sites: SiteInfo[]): StateGroup[] {
-  const states = new Map<string, StateGroup>()
-  const byId = new Map(sites.map((s) => [s.site_id, s]))
-
-  for (const s of sites) {
-    const parts = (s.hierarchy || s.name || '').split('/').map((p) => p.trim()).filter(Boolean)
-    if (parts.length >= 4) {
-      const stateName = parts[2]
-      const cityName = parts[3]
-      let grp = states.get(stateName)
-      if (!grp) {
-        grp = { name: stateName, site_id: '', cities: [] }
-        states.set(stateName, grp)
-      }
-      if (cityName && !grp.cities.some((c) => c.name === cityName)) {
-        const citySite = sites.find((x) => (x.hierarchy || x.name) === parts.slice(0, 4).join('/'))
-        grp.cities.push({ name: cityName, site_id: citySite?.site_id || s.site_id })
-      }
-    } else if (parts.length === 3) {
-      const stateName = parts[2]
-      const existing = states.get(stateName)
-      if (!existing) {
-        states.set(stateName, { name: stateName, site_id: s.site_id, cities: [] })
-      } else if (!existing.site_id) {
-        existing.site_id = s.site_id
-      }
-    }
-  }
-
-  for (const grp of states.values()) {
-    if (!grp.site_id) {
-      const stateSite = sites.find((s) => (s.hierarchy || s.name) === `Global/United States/${grp.name}`)
-      grp.site_id = stateSite?.site_id || ''
-    }
-    grp.cities.sort((a, b) => a.name.localeCompare(b.name))
-  }
-
-  const result = Array.from(states.values()).sort((a, b) => a.name.localeCompare(b.name))
-  void byId
-  return result
+/** Build a flat list of sites sorted by full hierarchy path. */
+function buildSiteList(sites: SiteInfo[]): SiteInfo[] {
+  return [...sites]
+    .filter((s) => s.hierarchy || s.name)
+    .sort((a, b) => (a.hierarchy || a.name).localeCompare(b.hierarchy || b.name))
 }
 
 const STORAGE_KEY = 'catalyst.savedUrls'
@@ -96,31 +59,27 @@ export default function CatalystForm() {
 
   const [sites, setSites] = useState<SiteInfo[]>([])
   const [loadingSites, setLoadingSites] = useState(false)
-  const [sitesDebug, setSitesDebug] = useState<string | null>(null)
-  const [selectedState, setSelectedState] = useState('')
-  const [selectedCity, setSelectedCity] = useState('')
+  const [selectedSiteId, setSelectedSiteId] = useState('')
   const [siteText, setSiteText] = useState('')
-  const [deviceFilter, setDeviceFilter] = useState('')
+  const [skipEnrichment, setSkipEnrichment] = useState(false)
   const navigate = useNavigate()
 
-  const siteTree = useMemo(() => parseSiteTree(sites), [sites])
-  const stateGroups = siteTree.filter((g) => g.name === selectedState)
-  const cities = selectedState ? (stateGroups[0]?.cities || []) : []
+  const siteList = useMemo(() => buildSiteList(sites), [sites])
 
-  const selectedStateSiteId = selectedState ? (stateGroups[0]?.site_id || '') : ''
-  const selectedCitySiteId = selectedCity
-    ? (cities.find((c) => c.name === selectedCity)?.site_id || '') : ''
-  const selectedSite = selectedCitySiteId || selectedStateSiteId
+  const selectedSite = useMemo(() => {
+    if (!selectedSiteId) return null
+    return siteList.find((s) => s.site_id === selectedSiteId) ?? null
+  }, [selectedSiteId, siteList])
+
+  const siteFilter = selectedSite
+    ? (selectedSite.hierarchy || selectedSite.name)
+    : siteText
 
   const loadSites = async () => {
     setLoadingSites(true)
-    setSitesDebug(null)
     try {
       const data = await fetchSites(baseUrl, username, password)
       setSites(data.sites || [])
-      if (data.debug && data.debug.samples) {
-        setSitesDebug(JSON.stringify(data.debug.samples, null, 2))
-      }
     } catch {
       setSites([])
     } finally {
@@ -129,29 +88,8 @@ export default function CatalystForm() {
   }
 
   useEffect(() => {
-    setSites([]); setSelectedState(''); setSelectedCity(''); setSiteText('')
+    setSites([]); setSelectedSiteId(''); setSiteText(''); setSkipEnrichment(false)
   }, [baseUrl])
-
-  const selectedSiteName = selectedCity
-    ? `${selectedState} > ${selectedCity}`
-    : (selectedState || '')
-  const siteFilter = selectedSiteName || siteText
-
-  const handleDebugMembership = async () => {
-    if (!selectedSite) return
-    setDebuggingMembership(true)
-    setMembershipDebug(null)
-    setError('')
-    try {
-      const data = await debugSiteMembership(baseUrl, username, password, selectedSite)
-      setMembershipDebug(JSON.stringify(data, null, 2))
-    } catch (err: unknown) {
-      setMembershipDebug(null)
-      setError(errDetail(err))
-    } finally {
-      setDebuggingMembership(false)
-    }
-  }
 
   const handleSaveUrl = () => {
     const url = baseUrl.trim()
@@ -175,7 +113,8 @@ export default function CatalystForm() {
     try {
       const data = await importFromCatalyst(
         baseUrl, username, password,
-        siteFilter || undefined, selectedSite || undefined, deviceFilter || undefined)
+        siteFilter || undefined, selectedSite?.site_id || undefined,
+        undefined, skipEnrichment)
       setResult(data)
     } catch (err: unknown) {
       setError(errDetail(err))
@@ -194,7 +133,7 @@ export default function CatalystForm() {
     setResult(null)
     setError('')
     try {
-      const data = await importFromCatalyst(baseUrl, username, password)
+      const data = await importFromCatalyst(baseUrl, username, password, undefined, undefined, undefined, skipEnrichment)
       setResult(data)
     } catch (err: unknown) {
       setError(errDetail(err))
@@ -298,7 +237,7 @@ export default function CatalystForm() {
               <label className="text-muted text-sm">Site Filter</label>
               <button
                 type="button"
-                disabled={loadingSites}
+                disabled={loadingSites || !baseUrl || !username}
                 onClick={loadSites}
                 className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-50"
               >
@@ -307,39 +246,18 @@ export default function CatalystForm() {
             </div>
 
             {sites.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Select
-                    value={selectedState}
-                    onChange={(e) => { setSelectedState(e.target.value); setSelectedCity('') }}
-                    className="w-full"
-                  >
-                    <option value="">All States</option>
-                    {siteTree.map((g) => (
-                      <option key={g.name} value={g.name}>
-                        {g.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div>
-                  <Select
-                    value={selectedCity}
-                    onChange={(e) => setSelectedCity(e.target.value)}
-                    disabled={!selectedState}
-                    className="w-full disabled:opacity-50"
-                  >
-                    <option value="">
-                      {selectedState ? `All ${selectedState} sites` : 'State first'}
-                    </option>
-                    {cities.map((c) => (
-                      <option key={c.site_id} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
+              <Select
+                value={selectedSiteId}
+                onChange={(e) => setSelectedSiteId(e.target.value)}
+                className="w-full"
+              >
+                <option value="">All sites</option>
+                {siteList.map((s) => (
+                  <option key={s.site_id} value={s.site_id}>
+                    {s.hierarchy || s.name}
+                  </option>
+                ))}
+              </Select>
             ) : (
               <Input
                 value={siteText}
@@ -350,43 +268,44 @@ export default function CatalystForm() {
             )}
             <p className="text-gray-600 text-[11px] mt-0.5">
               {sites.length > 0
-                ? `Pick a state then city (e.g. Florida > Miami). Choosing a state imports all sites under it.`
+                ? `Pick a site from the hierarchy (e.g. Delaware/Wilmington/15 South Poplar St). Choosing a site imports all sub-sites.`
                 : `Click "Load Sites" to fetch from Catalyst Center, or type a hostname pattern.`}
             </p>
           </div>
 
-          {sitesDebug && (
-            <details className="border border-border rounded bg-surface-0">
-              <summary className="px-3 py-2 text-xs text-muted cursor-pointer hover:text-text-secondary">
-                Raw site API samples
-              </summary>
-              <pre className="px-3 pb-3 text-[11px] text-muted overflow-auto max-h-64 whitespace-pre-wrap">
-                {sitesDebug}
-              </pre>
-            </details>
-          )}
-
-          <div>
-            <label className="block text-muted text-sm mb-1">
-              Device filter <span className="text-gray-600">(hostname / model / IP substring)</span>
-            </label>
-            <Input
-              value={deviceFilter}
-              onChange={(e) => setDeviceFilter(e.target.value)}
-              className="w-full"
-              placeholder="e.g. AMT-, 610, or 10.10.1.20"
+          <label className="flex items-center gap-2 text-sm text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={skipEnrichment}
+              onChange={(e) => setSkipEnrichment(e.target.checked)}
+              className="rounded"
             />
-            <p className="text-gray-600 text-[11px] mt-0.5">
-              Imports only matching devices plus all links touching them.
-            </p>
-          </div>
+            <span>Fast import — skip neighbor enrichment (CDP/LLDP/POE walk)</span>
+          </label>
+          <p className="text-gray-600 text-[11px] -mt-3 ml-6">
+            Skips the per-device SNMP neighbor walk. Cuts import time from minutes to seconds.
+            Site imports already have topology from Catalyst; use this for faster results.
+          </p>
 
           {selectedSite && (
             <Button
               type="button"
               variant="secondary"
               disabled={debuggingMembership}
-              onClick={handleDebugMembership}
+              onClick={async () => {
+                setDebuggingMembership(true)
+                setMembershipDebug(null)
+                setError('')
+                try {
+                  const data = await debugSiteMembership(baseUrl, username, password, selectedSite.site_id)
+                  setMembershipDebug(JSON.stringify(data, null, 2))
+                } catch (err: unknown) {
+                  setMembershipDebug(null)
+                  setError(errDetail(err))
+                } finally {
+                  setDebuggingMembership(false)
+                }
+              }}
               className="w-full"
             >
               {debuggingMembership ? 'Querying membership API...' : 'Debug Site Membership'}
@@ -402,7 +321,7 @@ export default function CatalystForm() {
             <Button
               type="button"
               variant="secondary"
-              disabled={testing}
+              disabled={testing || !baseUrl || !username}
               onClick={async () => {
                 setTesting(true)
                 setTestResult(null)
@@ -421,25 +340,22 @@ export default function CatalystForm() {
             </Button>
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || !baseUrl || !username}
               className="flex-1"
             >
               {loading ? 'Importing...' : 'Import'}
             </Button>
           </div>
 
-          <button
+          <Button
             type="button"
-            disabled={loading}
+            variant="secondary"
+            disabled={loading || !baseUrl || !username}
             onClick={handleFullImport}
-            className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-text-primary rounded text-sm font-medium transition-colors"
+            className="w-full"
           >
             Import Full Environment (all sites)
-          </button>
-          <p className="text-gray-600 text-[11px] -mt-2">
-            Pulls every network device from Catalyst Center regardless of site filter.
-            Use this to populate the full inventory and reports.
-          </p>
+          </Button>
 
           {testResult && (
             <div className={`rounded p-3 text-xs ${testResult.startsWith('Connected') ? 'bg-green-900/50 border border-green-800 text-green-300' : 'bg-red-900/50 border border-red-800 text-red-300'}`}>
@@ -454,29 +370,28 @@ export default function CatalystForm() {
           )}
 
           {result && (
-            <div className="bg-green-900/50 border border-green-800 rounded p-4 space-y-3">
+            <Card className="space-y-3">
               <p className="text-green-300 text-sm">
                 Imported {result.device_count} devices, {result.links_found} topology links.
               </p>
               {result.debug && (result.debug.skipped_no_ip as number) > 0 && (
                 <div className="bg-amber-900/30 border border-amber-800 rounded px-3 py-2 text-xs text-amber-300">
                   {result.debug.skipped_no_ip as number} device(s) were skipped — no IP address found.
-                  Check the debug output below for available field names.
                 </div>
               )}
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => navigate(`/topology?scan_id=${result.scan_id}`)}
-                className="px-4 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded text-sm transition-colors"
               >
                 View Topology
-              </button>
+              </Button>
               {result.debug && (
-                <pre className="text-xs text-green-300 bg-black/30 p-2 rounded max-h-60 overflow-auto whitespace-pre-wrap">
+                <pre className="text-xs text-muted bg-surface-2 p-2 rounded max-h-60 overflow-auto whitespace-pre-wrap">
                   {JSON.stringify(result.debug, null, 2)}
                 </pre>
               )}
-            </div>
+            </Card>
           )}
         </form>
       </div>

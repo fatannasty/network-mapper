@@ -637,7 +637,8 @@ def get_poe_interfaces(base_url: str, token: str, device_id: str,
 
 def import_devices(base_url: str, username: str, password: str,
                    timeout: float = 120.0, site_name: str = "",
-                   site_id: str = "", device_filter: str = "") -> tuple[list[dict], list[dict], dict]:
+                   site_id: str = "", device_filter: str = "",
+                   skip_enrichment: bool = False) -> tuple[list[dict], list[dict], dict]:
     """Authenticate, fetch devices and topology, return (devices, links, debug).
 
     If site_name is given, filters devices by case-insensitive substring match
@@ -646,6 +647,10 @@ def import_devices(base_url: str, username: str, password: str,
     If device_filter is given, only devices whose hostname, platformId, type,
     family or management IP contains the term are imported, along with all links
     touching them.
+
+    If skip_enrichment is True, the expensive per-device CDP/LLDP/POE neighbor
+    walk is skipped. Use this for site imports where Catalyst already has the
+    topology data — it cuts import time from minutes to seconds.
 
     Devices are normalized to our standard dict format:
         {ip, hostname, vendor, model, device_type, interfaces, ...}
@@ -948,20 +953,25 @@ def import_devices(base_url: str, username: str, password: str,
     # wireless uplinks, so walking each AP's own wired interfaces is the only
     # way to recover its connection to the switch. APs have few wired uplinks
     # so this is cheap. Non-AP devices stay capped to bound API-call volume.
+    #
+    # Skip this when skip_enrichment=True — Catalyst already has topology for
+    # site-scoped imports, and the per-device walk is the main bottleneck.
     neighbor_links_added = 0
     ap_links_added = 0
     poe_devices_walked = 0
     poe_links_added = 0
     poe_skipped = 0
-    max_poe_devices = 200
-    max_enrich_devices = 30
-    max_enrich_interfaces = 32
-    max_ap_enrich_devices = 400
-    max_ap_interfaces = 24
     ap_neighbors_queried = 0
     enrich_skipped = 0
     ap_enrich_skipped = 0
-    if devices:
+
+    if not skip_enrichment and devices:
+        max_poe_devices = 200
+        max_enrich_devices = 30
+        max_enrich_interfaces = 32
+        max_ap_enrich_devices = 400
+        max_ap_interfaces = 24
+
         ip_by_hostname: dict[str, str] = {}
         type_by_ip: dict[str, str] = {}
         for dev in devices:
