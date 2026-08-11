@@ -101,27 +101,47 @@ export default function TopologyToolbar({
 
       <div className="flex-1" />
 
+      <div className="flex items-center gap-1 bg-surface-2 rounded p-0.5">
+        <button
+          onClick={() => onLayoutModeChange('tree')}
+          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+            layoutMode === 'tree' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+          }`}
+          title="Hierarchical tree layout"
+        >
+          Tree
+        </button>
+        <button
+          onClick={() => onLayoutModeChange('radial')}
+          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+            layoutMode === 'radial' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+          }`}
+          title="Concentric rings by distance from core"
+        >
+          Radial
+        </button>
+        <button
+          onClick={() => onLayoutModeChange('circle')}
+          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+            layoutMode === 'circle' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+          }`}
+          title="Single ring layout"
+        >
+          Circle
+        </button>
+        <button
+          onClick={() => onLayoutModeChange('free')}
+          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+            layoutMode === 'free' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+          }`}
+          title="Free-form DFS layout"
+        >
+          Free
+        </button>
+      </div>
+
       {!simplified && (
         <>
-          <div className="flex items-center gap-1 bg-surface-2 rounded p-0.5">
-            <button
-              onClick={() => onLayoutModeChange('tree')}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                layoutMode === 'tree' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
-              }`}
-            >
-              Tree
-            </button>
-            <button
-              onClick={() => onLayoutModeChange('free')}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                layoutMode === 'free' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
-              }`}
-            >
-              Free
-            </button>
-          </div>
-
           {(topology?.links.length ?? 0) > 0 && (
             <select
               value={protocolFilter}

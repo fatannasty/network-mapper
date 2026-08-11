@@ -11,6 +11,34 @@ function buildAdjacency(nodes: IdNode[], links: IdLink[]) {
   return adj
 }
 
+/** Pick the node with the most connections, or the first node. */
+function pickRoot(nodes: IdNode[], adj: Map<string, string[]>): string {
+  let root = nodes[0]?.id || ''
+  let maxDeg = 0
+  for (const [id, neighbors] of adj) {
+    if (neighbors.length > maxDeg) { maxDeg = neighbors.length; root = id }
+  }
+  return root
+}
+
+/** BFS level assignment starting from root. */
+function bfsLevels(root: string, adj: Map<string, string[]>): Map<string, number> {
+  const levels = new Map<string, number>()
+  const queue: string[] = [root]
+  levels.set(root, 0)
+  while (queue.length > 0) {
+    const id = queue.shift()!
+    const level = levels.get(id)!
+    for (const neighbor of adj.get(id) || []) {
+      if (!levels.has(neighbor)) {
+        levels.set(neighbor, level + 1)
+        queue.push(neighbor)
+      }
+    }
+  }
+  return levels
+}
+
 export function freeLayout(nodes: IdNode[], links: IdLink[]) {
   const adjacency = buildAdjacency(nodes, links)
   const positions = new Map<string, { x: number; y: number }>()
@@ -40,11 +68,7 @@ export function treeLayout(nodes: IdNode[], links: IdLink[]) {
   const SX = 260
   const SY = 200
 
-  let root = nodes[0]?.id || ''
-  let maxDeg = 0
-  for (const [id, neighbors] of adjacency) {
-    if (neighbors.length > maxDeg) { maxDeg = neighbors.length; root = id }
-  }
+  const root = pickRoot(nodes, adjacency)
 
   const positions = new Map<string, { x: number; y: number }>()
   const visited = new Set<string>()
@@ -79,6 +103,100 @@ export function treeLayout(nodes: IdNode[], links: IdLink[]) {
       col += SX
       if (col > (nodes.length * SX) / 4) { col = -(nodes.length * SX) / 4; row++ }
     }
+  }
+
+  return positions
+}
+
+/**
+ * Circle layout: arrange all nodes in a single ring.
+ * Connected nodes are placed near each other via BFS ordering.
+ */
+export function circleLayout(nodes: IdNode[], links: IdLink[]) {
+  const adjacency = buildAdjacency(nodes, links)
+  const positions = new Map<string, { x: number; y: number }>()
+  const count = nodes.length
+  if (count === 0) return positions
+
+  const radius = Math.max(200, count * 22)
+  const root = pickRoot(nodes, adjacency)
+  const levels = bfsLevels(root, adjacency)
+
+  // Order nodes by BFS level, then by degree (most connected first within level)
+  const ordered = [...nodes].sort((a, b) => {
+    const la = levels.get(a.id) ?? 9999
+    const lb = levels.get(b.id) ?? 9999
+    if (la !== lb) return la - lb
+    return (adjacency.get(b.id)?.length ?? 0) - (adjacency.get(a.id)?.length ?? 0)
+  })
+
+  ordered.forEach((node, i) => {
+    const angle = (2 * Math.PI * i) / count - Math.PI / 2
+    positions.set(node.id, {
+      x: Math.round(radius * Math.cos(angle)),
+      y: Math.round(radius * Math.sin(angle)),
+    })
+  })
+
+  return positions
+}
+
+/**
+ * Radial layout: root at center, children arranged in concentric rings
+ * by BFS level. Best for hierarchical network topologies.
+ */
+export function radialLayout(nodes: IdNode[], links: IdLink[]) {
+  const adjacency = buildAdjacency(nodes, links)
+  const positions = new Map<string, { x: number; y: number }>()
+  if (nodes.length === 0) return positions
+
+  const root = pickRoot(nodes, adjacency)
+  const levels = bfsLevels(root, adjacency)
+
+  // Group nodes by level
+  const byLevel = new Map<number, string[]>()
+  const unvisited: string[] = []
+  for (const n of nodes) {
+    const level = levels.get(n.id)
+    if (level === undefined) {
+      unvisited.push(n.id)
+    } else {
+      const arr = byLevel.get(level) || []
+      arr.push(n.id)
+      byLevel.set(level, arr)
+    }
+  }
+
+  // Place root at center
+  positions.set(root, { x: 0, y: 0 })
+
+  // Place each level in a concentric ring
+  const baseRadius = 180
+  const ringSpacing = 200
+  for (const [level, ids] of byLevel) {
+    if (level === 0) continue
+    const radius = baseRadius + (level - 1) * ringSpacing
+    // Sort within ring by degree (most connected first)
+    ids.sort((a, b) => (adjacency.get(b)?.length ?? 0) - (adjacency.get(a)?.length ?? 0))
+    ids.forEach((id, i) => {
+      const angle = (2 * Math.PI * i) / ids.length - Math.PI / 2
+      positions.set(id, {
+        x: Math.round(radius * Math.cos(angle)),
+        y: Math.round(radius * Math.sin(angle)),
+      })
+    })
+  }
+
+  // Place unvisited nodes (disconnected components) in a grid below
+  let col = 0
+  let row = 0
+  const gridX = 200
+  const gridY = 180
+  const maxY = Math.max(...[...byLevel.keys()].map(l => baseRadius + l * ringSpacing), 0) + 300
+  for (const id of unvisited) {
+    positions.set(id, { x: col * gridX, y: maxY + row * gridY })
+    col++
+    if (col > 5) { col = 0; row++ }
   }
 
   return positions

@@ -8,7 +8,7 @@ import {
 import { useSearchParams } from 'react-router-dom'
 
 import { useTopology } from './hooks/useTopology'
-import { treeLayout, freeLayout } from './services/layout'
+import { treeLayout, freeLayout, circleLayout, radialLayout } from './services/layout'
 import { normalizeType, pluralLabel } from './services/friendly'
 import TopologyToolbar from './components/TopologyToolbar'
 import TopologyCanvas from './components/TopologyCanvas'
@@ -167,7 +167,10 @@ export default function TopologyView() {
       return { initialNodes: posNodes, initialEdges: posEdges }
     }
 
-    const layoutFn = layoutMode === 'tree' ? treeLayout : freeLayout
+    const layoutFn = layoutMode === 'tree' ? treeLayout
+      : layoutMode === 'circle' ? circleLayout
+      : layoutMode === 'radial' ? radialLayout
+      : freeLayout
     const positions = layoutFn(topology.nodes as IdNode[], filteredLinks as IdLink[])
 
     const rn: Node[] = topology.nodes.map((n) => {
