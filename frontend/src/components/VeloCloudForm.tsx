@@ -7,7 +7,9 @@ import Button from './ui/Button'
 import Card from './ui/Card'
 
 export default function VeloCloudForm() {
-  const [baseUrl, setBaseUrl] = useState('https://velocloud.net')
+  const [baseUrl, setBaseUrl] = useState('https://vco124-usca1.velocloud.net')
+  const [authMode, setAuthMode] = useState<'token' | 'password'>('token')
+  const [token, setToken] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,7 +23,7 @@ export default function VeloCloudForm() {
     setTesting(true)
     setTestResult(null)
     try {
-      const r = await testVeloCloud(baseUrl, username, password)
+      const r = await testVeloCloud(baseUrl, username, password, authMode === 'token' ? token : undefined)
       setTestResult(`Connected! Found ${r.edge_count} edges.`)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -37,7 +39,7 @@ export default function VeloCloudForm() {
     setResult(null)
     setError('')
     try {
-      const data = await importFromVeloCloud(baseUrl, username, password)
+      const data = await importFromVeloCloud(baseUrl, username, password, authMode === 'token' ? token : undefined)
       setResult(data)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Import failed')
@@ -45,6 +47,8 @@ export default function VeloCloudForm() {
       setLoading(false)
     }
   }
+
+  const canSubmit = authMode === 'token' ? !!token : (!!username && !!password)
 
   return (
     <div className="h-full overflow-auto p-6 flex justify-center">
@@ -60,39 +64,73 @@ export default function VeloCloudForm() {
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               className="w-full"
-              placeholder="https://velocloud.net or https://vco123.velocloud.net"
+              placeholder="https://vco124-usca1.velocloud.net"
             />
-            <p className="text-gray-600 text-[11px] mt-0.5">
-              Enter your VeloCloud Orchestrator URL (e.g., https://vco123.velocloud.net).
-            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex items-center gap-2 bg-surface-2 rounded-lg p-1 w-fit">
+            <button
+              type="button"
+              onClick={() => setAuthMode('token')}
+              className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                authMode === 'token' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+              }`}
+            >
+              Token
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMode('password')}
+              className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                authMode === 'password' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+              }`}
+            >
+              Username / Password
+            </button>
+          </div>
+
+          {authMode === 'token' ? (
             <div>
-              <label className="block text-muted text-sm mb-1">Username</label>
-              <Input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full"
-                placeholder="operator"
-              />
-            </div>
-            <div>
-              <label className="block text-muted text-sm mb-1">Password</label>
+              <label className="block text-muted text-sm mb-1">VCO Token (JWT)</label>
               <Input
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
                 className="w-full"
+                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
               />
+              <p className="text-gray-600 text-[11px] mt-0.5">
+                Paste the token from your VCO session or API token page.
+              </p>
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-muted text-sm mb-1">Username</label>
+                <Input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full"
+                  placeholder="operator"
+                />
+              </div>
+              <div>
+                <label className="block text-muted text-sm mb-1">Password</label>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3">
             <Button
               type="button"
               variant="secondary"
-              disabled={testing || !username || !password}
+              disabled={testing || !canSubmit}
               onClick={handleTest}
               className="flex-1"
             >
@@ -100,7 +138,7 @@ export default function VeloCloudForm() {
             </Button>
             <Button
               type="submit"
-              disabled={loading || !username || !password}
+              disabled={loading || !canSubmit}
               className="flex-1"
             >
               {loading ? 'Importing...' : 'Import'}

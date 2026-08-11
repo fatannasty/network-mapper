@@ -107,19 +107,24 @@ def get_edge_config(base_url: str, token: str, edge_id: int,
 
 def import_edges(base_url: str, username: str, password: str,
                  timeout: float = 60.0) -> tuple[list[dict], list[dict], dict]:
-    """Authenticate, fetch edges, return (devices, links, debug).
-
-    Normalizes VeloCloud edges into the standard device/link format used by
-    the network mapper so they appear in inventory and topology.
-
-    Devices are normalized to:
-        {ip, hostname, vendor, model, device_type, site, ...}
-
-    Links are normalized to:
-        {source, target, source_interface, target_interface, protocol}
-    """
+    """Authenticate with username/password, fetch edges, return (devices, links, debug)."""
     token = authenticate(base_url, username, password, timeout=timeout)
+    return _import_with_token(base_url, token, timeout)
 
+
+def import_edges_with_token(base_url: str, token: str,
+                            timeout: float = 60.0) -> tuple[list[dict], list[dict], dict]:
+    """Import edges using a pre-existing JWT token."""
+    return _import_with_token(base_url, token, timeout)
+
+
+def _import_with_token(base_url: str, token: str,
+                       timeout: float = 60.0) -> tuple[list[dict], list[dict], dict]:
+    """Import edges using an authenticated token.
+
+    VCO edges typically don't expose a management LAN IP in the REST API.
+    The best available IP comes from the recentLinks WAN interface entries.
+    """
     errors: list[str] = []
     try:
         raw_edges = get_edges(base_url, token, timeout=timeout)
@@ -128,38 +133,37 @@ def import_edges(base_url: str, username: str, password: str,
         raw_edges = []
 
     devices: list[dict] = []
-    links: list[dict] = []
     skipped_no_ip = 0
 
     for edge in raw_edges:
-        # Extract IP from various VeloCloud fields
-        ip = (
-            edge.get("managementIPAddress", {}).get("address", "")
-            if isinstance(edge.get("managementIPAddress"), dict)
-            else str(edge.get("managementIPAddress") or "")
-        )
-        if not ip:
-            ip = edge.get("managementIP", "") or edge.get("ipAddress", "") or ""
-        if not ip:
-            # Try interfaces for a LAN IP
-            for iface in edge.get("interfaces", []):
-                if isinstance(iface, dict):
-                    ip_list = iface.get("ipAddress", [])
-                    if isinstance(ip_list, list) and ip_list:
-                        ip = ip_list[0]
-                        break
-                    elif isinstance(ip_list, str) and ip_list:
-                        ip = ip_list
-                        break
-        if not ip:
-            skipped_no_ip += 1
-            continue
-
-        hostname = edge.get("name", "") or edge.get("hostname", "") or edge.get("description", "")
+        hostname = edge.get("name", "") or edge.get("description", "") or ""
         site_name = ""
         site_info = edge.get("site", {})
         if isinstance(site_info, dict):
             site_name = site_info.get("name", "") or site_info.get("siteName", "")
+
+        # Extract IP: try management IP fields first, then recentLinks WAN IPs
+        ip = ""
+        for key in ("managementIPAddress", "managementIp", "ipAddress"):
+            val = edge.get(key)
+            if isinstance(val, str) and val.strip():
+                ip = val.strip()
+                break
+            elif isinstance(val, dict) and val.get("address"):
+                ip = val["address"]
+                break
+
+        # Fall back to first WAN link IP from recentLinks
+        recent_links = edge.get("recentLinks", [])
+        if not ip and isinstance(recent_links, list):
+            for link in recent_links:
+                if isinstance(link, dict) and link.get("ipAddress"):
+                    ip = link["ipAddress"]
+                    break
+
+        if not ip:
+            skipped_no_ip += 1
+            continue
 
         devices.append({
             "ip": ip,
@@ -177,18 +181,17 @@ def import_edges(base_url: str, username: str, password: str,
             "_id": str(edge.get("id", "")),
         })
 
-    # Build links from edge-to-edge links reported by VeloCloud
-    edge_by_id: dict[str, dict] = {}
-    for d in devices:
-        edge_by_id[d["_id"]] = d
+    # Build links from recentLinks: each WAN link connects this edge to
+    # a remote peer (identified by IP).
+    links: list[dict] = []
+    seen_link_keys: set[tuple[str, str]] = set()
 
     for edge in raw_edges:
         edge_id = str(edge.get("id", ""))
-        src_dev = edge_by_id.get(edge_id)
+        src_dev = next((d for d in devices if d["_id"] == edge_id), None)
         if not src_dev:
             continue
 
-        # recentLinks contains link data to other edges
         recent_links = edge.get("recentLinks", [])
         if not isinstance(recent_links, list):
             continue
@@ -196,24 +199,26 @@ def import_edges(base_url: str, username: str, password: str,
         for link in recent_links:
             if not isinstance(link, dict):
                 continue
-            link_type = link.get("linkType", "")
-            state = link.get("state", "")
-            # Only include active or recently active links
-            if state not in ("good", "steady", "active", ""):
+            state = link.get("linkState", "") or link.get("state", "")
+            if state and state.lower() not in ("active", "stable", "up", "good", ""):
                 continue
 
-            remote_ip = link.get("remoteIP", "") or link.get("peerIP", "")
+            remote_ip = link.get("ipAddress", "")
+            local_iface = link.get("interface", "") or link.get("displayName", "")
+
             if not remote_ip:
                 continue
 
-            local_iface = link.get("interface", "") or link.get("internalName", "")
-            remote_iface = link.get("remoteInterface", "")
+            pair = tuple(sorted([src_dev["ip"], remote_ip]))
+            if pair in seen_link_keys:
+                continue
+            seen_link_keys.add(pair)
 
             links.append({
                 "source": src_dev["ip"],
                 "target": remote_ip,
                 "source_interface": local_iface,
-                "target_interface": remote_iface or "",
+                "target_interface": "",
                 "protocol": "velocloud",
                 "source_hostname": src_dev["hostname"],
                 "target_hostname": "",

@@ -201,13 +201,13 @@ export async function debugSiteMembership(baseUrl: string, username: string, pas
   return r.data as { site_id: string; endpoints: { url: string; status: string; error?: string; raw: unknown }[]; parsed: { ids: string[] } }
 }
 
-export async function testVeloCloud(baseUrl: string, username: string, password: string) {
-  const r = await api.post('/api/velocloud/test', { base_url: baseUrl, username, password })
-  return r.data as { connected: boolean; edge_count: number; sample: Record<string, unknown> | null }
+export async function testVeloCloud(baseUrl: string, username: string, password: string, token?: string) {
+  const r = await api.post('/api/velocloud/test', { base_url: baseUrl, username, password, token: token || '' })
+  return r.data as { connected: boolean; edge_count: number; sample?: Record<string, unknown> | null }
 }
 
-export async function importFromVeloCloud(baseUrl: string, username: string, password: string) {
-  const r = await api.post('/api/velocloud/import', { base_url: baseUrl, username, password })
+export async function importFromVeloCloud(baseUrl: string, username: string, password: string, token?: string) {
+  const r = await api.post('/api/velocloud/import', { base_url: baseUrl, username, password, token: token || '' })
   return r.data as { scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> }
 }
 

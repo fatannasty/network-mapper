@@ -177,8 +177,13 @@ def import_devices(base_url: str, api_key: str,
                 "_org": org_name,
             })
 
-        # Fetch LLDP/CDP data for each device with a LAN IP
-        ip_by_serial: dict[str, dict] = {d["_serial"]: d for d in all_devices if d.get("_org") == org_name}
+        # Fetch LLDP/CDP data only for infrastructure devices (switches,
+        # routers, firewalls, gateways). APs, cameras, and sensors are leaf
+        # devices that rarely have useful neighbor data and fetching one API
+        # call per device is too slow for large orgs.
+        infra_types = {"switch", "firewall", "cellular-gateway"}
+        ip_by_serial: dict[str, dict] = {d["_serial"]: d for d in all_devices
+                                         if d.get("_org") == org_name and d.get("device_type") in infra_types}
         for serial, dev in ip_by_serial.items():
             try:
                 lldp_data = get_device_lldp_cdp(base_url, api_key, serial, timeout=timeout)

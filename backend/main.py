@@ -1003,8 +1003,9 @@ def catalyst_test(req: CatalystImportRequest):
 
 class VeloCloudImportRequest(BaseModel):
     base_url: str
-    username: str
-    password: str
+    username: str = ""
+    password: str = ""
+    token: str = ""  # Direct JWT token (alternative to username/password)
 
 
 @app.post("/api/velocloud/test", dependencies=[Depends(operator)])
@@ -1012,7 +1013,11 @@ def velocloud_test(req: VeloCloudImportRequest):
     import velocloud
 
     try:
-        result = velocloud.test_connection(req.base_url, req.username, req.password)
+        if req.token:
+            edges = velocloud.get_edges(req.base_url, req.token)
+            result = {"connected": True, "edge_count": len(edges)}
+        else:
+            result = velocloud.test_connection(req.base_url, req.username, req.password)
     except velocloud.VeloCloudError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -1025,8 +1030,10 @@ def velocloud_import(req: VeloCloudImportRequest, db: Session = Depends(get_db))
     import velocloud
 
     try:
-        devices, links, debug = velocloud.import_edges(
-            req.base_url, req.username, req.password)
+        if req.token:
+            devices, links, debug = velocloud.import_edges_with_token(req.base_url, req.token)
+        else:
+            devices, links, debug = velocloud.import_edges(req.base_url, req.username, req.password)
     except velocloud.VeloCloudError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
