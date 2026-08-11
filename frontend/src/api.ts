@@ -100,6 +100,7 @@ export interface TopologyData {
     started_at: string | null
     scan_kind: string | null
   }
+  focus?: string | null
 }
 
 export interface TopoNode {
@@ -200,10 +201,11 @@ export async function debugSiteMembership(baseUrl: string, username: string, pas
   return r.data as { site_id: string; endpoints: { url: string; status: string; error?: string; raw: unknown }[]; parsed: { ids: string[] } }
 }
 
-export async function getTopology(scanId?: string) {
-  const r = await api.get('/api/topology', {
-    params: scanId ? { scan_id: scanId } : {},
-  })
+export async function getTopology(scanId?: string, focus?: string) {
+  const params: Record<string, string> = {}
+  if (scanId) params.scan_id = scanId
+  if (focus) params.focus = focus
+  const r = await api.get('/api/topology', { params })
   return r.data as TopologyData
 }
 

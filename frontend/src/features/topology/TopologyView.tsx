@@ -23,6 +23,7 @@ type IdLink = { source: string; target: string }
 export default function TopologyView() {
   const [searchParams, setSearchParams] = useSearchParams()
   const scanId = searchParams.get('scan_id') || undefined
+  const focusIp = searchParams.get('device') || undefined
 
   const {
     topology,
@@ -44,10 +45,14 @@ export default function TopologyView() {
     filteredLinks,
     runPath,
     fetchData,
-  } = useTopology(scanId)
+  } = useTopology(scanId, focusIp)
 
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
   const [simplified, setSimplified] = useState(true)
+
+  // A focused device view should always show individual devices so the
+  // connections around the selected device are visible.
+  const showSimple = simplified && !focusIp
 
   const handleScanChange = (id: string) => {
     setSearchParams(id ? { scan_id: id } : {}, { replace: true })
@@ -56,6 +61,16 @@ export default function TopologyView() {
     setPathTarget('')
     setPathResult(null)
   }
+
+  const clearFocus = () => {
+    setSearchParams(scanId ? { scan_id: scanId } : {}, { replace: true })
+    setSelectedDevice(null)
+  }
+
+  const focusedDevice = useMemo(() => {
+    if (!focusIp) return null
+    return deviceByIp.get(focusIp) ?? null
+  }, [focusIp, deviceByIp])
 
   const typeByIp = useMemo(() => {
     const m = new Map<string, string>()
@@ -66,7 +81,7 @@ export default function TopologyView() {
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!topology) return { initialNodes: [], initialEdges: [] }
 
-    if (simplified) {
+    if (showSimple) {
       const groups = new Map<string, { count: number; internal: number }>()
       for (const n of topology.nodes) {
         const t = normalizeType(n.device_type || 'unknown')
@@ -148,6 +163,7 @@ export default function TopologyView() {
           ip: n.ip,
           hostname: n.hostname || dev?.hostname || '',
           device_type: n.device_type || dev?.device_type || '',
+          focus: !!focusIp && n.id === focusIp,
         },
       }
     })
@@ -183,7 +199,7 @@ export default function TopologyView() {
     })
 
     return { initialNodes: rn, initialEdges: re }
-  }, [topology, filteredLinks, deviceByIp, layoutMode, pathEdgeIds, simplified, typeByIp])
+  }, [topology, filteredLinks, deviceByIp, layoutMode, pathEdgeIds, showSimple, typeByIp, focusIp])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -194,14 +210,14 @@ export default function TopologyView() {
   }, [initialNodes, initialEdges, setNodes, setEdges])
 
   const selectedDeviceData = useMemo(() => {
-    if (!selectedDevice || simplified) return null
+    if (!selectedDevice || showSimple) return null
     const device = deviceByIp.get(selectedDevice)
     if (!device) return null
     const connectedLinks = filteredLinks.filter(
       (l) => l.source === selectedDevice || l.target === selectedDevice,
     )
     return { device, connectedLinks }
-  }, [selectedDevice, deviceByIp, filteredLinks, simplified])
+  }, [selectedDevice, deviceByIp, filteredLinks, showSimple])
 
   if (loading) {
     return (
@@ -232,7 +248,7 @@ export default function TopologyView() {
         scans={scans}
         scanId={scanId}
         onScanChange={handleScanChange}
-        simplified={simplified}
+        simplified={showSimple}
         onSimplifiedChange={setSimplified}
         protocolFilter={protocolFilter}
         onProtocolFilterChange={setProtocolFilter}
@@ -251,7 +267,22 @@ export default function TopologyView() {
         }}
       />
 
-      {pathResult && !simplified && (
+      {focusIp && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2 bg-accent-subtle border-b border-accent/30 text-xs">
+          <span className="text-text-secondary">
+            Showing direct connections for{' '}
+            <strong className="text-text-primary">
+              {focusedDevice?.hostname?.split('.')[0] || focusIp}
+            </strong>{' '}
+            <span className="text-muted font-mono">({focusIp})</span>
+          </span>
+          <Button variant="secondary" size="sm" onClick={clearFocus}>
+            Show full scan
+          </Button>
+        </div>
+      )}
+
+      {pathResult && !showSimple && (
         <div className={`px-4 py-2 border-b text-xs ${
           pathResult.error ? 'bg-red-900/30 border-red-800 text-red-300' : 'bg-green-900/30 border-green-800 text-green-300'
         }`}>
@@ -291,7 +322,7 @@ export default function TopologyView() {
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onNodeClick={(_e, node) => {
-                if (simplified) return
+                if (showSimple) return
                 setSelectedDevice(node.id)
               }}
             />

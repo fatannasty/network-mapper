@@ -378,13 +378,52 @@ def inventory_report_export(report: str = Query(...), db: Session = Depends(get_
 
 
 @app.get("/api/topology", dependencies=[Depends(authenticated)])
-def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get_db)):
+def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Query(None),
+                 db: Session = Depends(get_db)):
+    """Topology for a scan. With `focus=<ip>`, only that device and its
+    direct neighbors (across every scan) are returned so the view stays
+    focused on a single device's connections."""
     from models import Device, ScanJob
+    from models import Link as LinkModel
 
     if scan_id:
         job = db.get(ScanJob, scan_id)
         if job is None:
             raise HTTPException(status_code=404, detail="scan not found")
+    else:
+        jobs = repositories.list_scan_jobs(db, limit=1)
+        if not jobs:
+            return {"scan_id": None, "nodes": [], "links": [], "scan_meta": None}
+        job = jobs[0]
+
+    if focus:
+        focus_dev = db.query(Device).filter(Device.ip == focus).first()
+        if focus_dev is None:
+            raise HTTPException(status_code=404, detail="device not found")
+
+        # Direct links touching the focused device, across every scan.
+        direct = [l for l in repositories.list_links(db, limit=50000)
+                  if _keep_topology_link(l) and (l.endpoint_a == focus or l.endpoint_b == focus)]
+        neighbor_ips = {focus}
+        for l in direct:
+            neighbor_ips.add(l.endpoint_a)
+            neighbor_ips.add(l.endpoint_b)
+
+        links = list(direct)
+        # Include links between neighbours so the neighbourhood graph is
+        # fully connected (not just spokes from the focused device).
+        extra = db.query(LinkModel).filter(
+            LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+            LinkModel.endpoint_a.in_(neighbor_ips) & LinkModel.endpoint_b.in_(neighbor_ips),
+        ).all()
+        link_keys = {(l.endpoint_a, l.endpoint_b, l.interface_a, l.interface_b) for l in links}
+        for l in extra:
+            key = (l.endpoint_a, l.endpoint_b, l.interface_a, l.interface_b)
+            if key not in link_keys:
+                links.append(l)
+
+        devices = db.query(Device).filter(Device.ip.in_(neighbor_ips)).all()
+    elif scan_id:
         # For specific scans, fetch links first, then include ALL devices
         # that appear as link endpoints — even those whose last_scan_id
         # was later overwritten by a newer import.
@@ -400,7 +439,6 @@ def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get
         # Also include links between any of these devices regardless of
         # which scan created them, so site imports show their connections
         # even when the links were discovered by an earlier SNMP walk.
-        from models import Link as LinkModel
         device_ips = {d.ip for d in devices}
         if device_ips:
             touched = db.query(LinkModel).filter(
@@ -427,16 +465,11 @@ def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get
                 if key not in link_keys:
                     links.append(l)
     else:
-        jobs = repositories.list_scan_jobs(db, limit=1)
-        if not jobs:
-            return {"scan_id": None, "nodes": [], "links": [], "scan_meta": None}
-        job = jobs[0]
         devices = db.query(Device).filter(Device.last_scan_id == job.id).all()
         links = [l for l in repositories.list_links(db, scan_id=job.id) if _keep_topology_link(l)]
 
         # Same cross-scan link inclusion as the scan_id branch so the default
         # latest-scan view also shows connections discovered by older scans.
-        from models import Link as LinkModel
         device_ips = {d.ip for d in devices}
         if device_ips:
             # 1. Find all links touching the scan's devices, collect neighbors
@@ -495,6 +528,7 @@ def api_topology(scan_id: Optional[str] = Query(None), db: Session = Depends(get
             "started_at": job.started_at.isoformat() if job.started_at else None,
             "scan_kind": getattr(job, "scan_kind", None),
         },
+        "focus": focus,
     }
 
 

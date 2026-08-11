@@ -10,6 +10,7 @@ export type SimpleNodeData = {
   group?: boolean
   count?: number
   internalLinks?: number
+  focus?: boolean
 }
 
 const nodeColor: Record<string, string> = {
@@ -49,7 +50,7 @@ export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
   return (
     <div
       className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border-2 ${nodeColor[type] || nodeColor.unknown}
-        text-white shadow-lg cursor-pointer select-none`}
+        text-white shadow-lg cursor-pointer select-none ${d.focus ? 'ring-2 ring-white/90 ring-offset-2 ring-offset-surface-0' : ''}`}
     >
       <Handle id="target" type="target" position={Position.Left} className="!bg-gray-500" />
       <Handle id="source" type="source" position={Position.Right} className="!bg-gray-500" />

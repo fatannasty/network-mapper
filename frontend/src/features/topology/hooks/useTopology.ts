@@ -5,7 +5,7 @@ import { getTopology, getDevices, findPath, getScans } from '../../../api'
 export type ProtocolFilter = 'all' | 'lldp' | 'cdp'
 export type LayoutMode = 'tree' | 'free'
 
-export function useTopology(scanId?: string) {
+export function useTopology(scanId?: string, focus?: string) {
   const [topology, setTopology] = useState<TopologyData | null>(null)
   const [devices, setDevices] = useState<Device[]>([])
   const [scans, setScans] = useState<ScanInfo[]>([])
@@ -28,7 +28,7 @@ export function useTopology(scanId?: string) {
     setError('')
     try {
       const [topo, devResp] = await Promise.all([
-        getTopology(scanId),
+        getTopology(scanId, focus),
         getDevices({ limit: '500' }),
       ])
       setTopology(topo)
@@ -38,7 +38,7 @@ export function useTopology(scanId?: string) {
     } finally {
       setLoading(false)
     }
-  }, [scanId])
+  }, [scanId, focus])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -88,6 +88,7 @@ export function useTopology(scanId?: string) {
     deviceByIp,
     scans,
     scanId,
+    focus,
     loading,
     error,
     protocolFilter,
