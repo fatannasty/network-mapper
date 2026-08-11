@@ -6,10 +6,12 @@ import Input from './ui/Input'
 import LoadingSpinner from './ui/LoadingSpinner'
 import DataTable, { type Column, type SortDir } from './ui/Table'
 import Button from './ui/Button'
+import Tabs from './ui/Tabs'
 import DeviceDetail from './DeviceDetail'
 import PageState from './ui/PageState'
 
 type SortField = 'hostname' | 'ip' | 'device_type' | 'vendor'
+type LinkSortField = 'source' | 'source_interface' | 'target_interface' | 'target'
 
 export default function DeviceInventory() {
   const [devices, setDevices] = useState<Device[]>([])
@@ -21,7 +23,10 @@ export default function DeviceInventory() {
   const [typeFilter, setTypeFilter] = useState('')
   const [sortKey, setSortKey] = useState<SortField>('hostname')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [linkSortKey, setLinkSortKey] = useState<LinkSortField>('source')
+  const [linkSortDir, setLinkSortDir] = useState<SortDir>('asc')
   const [selectedIp, setSelectedIp] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'devices' | 'connections'>('devices')
   const initialLoad = useRef(true)
   const navigate = useNavigate()
 
@@ -81,6 +86,44 @@ export default function DeviceInventory() {
     return arr
   }, [devices, sortKey, sortDir])
 
+  const linkColumns: Column<TopoLink>[] = useMemo(() => [
+    {
+      key: 'source', label: 'Source', sortable: true, cellClassName: 'text-xs',
+      render: (l) => (
+        <span className="flex flex-col">
+          <span className="text-text-primary font-mono">{l.source}</span>
+          {l.source_hostname && <span className="text-muted text-[11px] truncate max-w-48">{l.source_hostname}</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'source_interface', label: 'Src Interface', sortable: true, cellClassName: 'font-mono text-xs text-muted',
+    },
+    { key: 'protocol', label: 'Protocol', render: (l) => <Badge label={l.protocol || 'unknown'} /> },
+    {
+      key: 'target_interface', label: 'Dst Interface', sortable: true, cellClassName: 'font-mono text-xs text-muted',
+    },
+    {
+      key: 'target', label: 'Target', sortable: true, cellClassName: 'text-xs',
+      render: (l) => (
+        <span className="flex flex-col">
+          <span className="text-text-primary font-mono">{l.target}</span>
+          {l.target_hostname && <span className="text-muted text-[11px] truncate max-w-48">{l.target_hostname}</span>}
+        </span>
+      ),
+    },
+  ], [])
+
+  const sortedLinks = useMemo(() => {
+    const arr = [...rawLinks]
+    arr.sort((a, b) => {
+      const va = String((a as unknown as Record<string, string>)[linkSortKey] || '').toLowerCase()
+      const vb = String((b as unknown as Record<string, string>)[linkSortKey] || '').toLowerCase()
+      return linkSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+    })
+    return arr
+  }, [rawLinks, linkSortKey, linkSortDir])
+
   if (loading && devices.length === 0) return <LoadingSpinner />
   if (error && devices.length === 0) {
     return (
@@ -94,10 +137,15 @@ export default function DeviceInventory() {
     )
   }
 
+  const openDevice = (ip: string) => {
+    setSelectedIp(selectedIp === ip ? null : ip)
+    if (activeTab !== 'devices') setActiveTab('devices')
+  }
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="px-5 py-3 bg-surface-1 border-b border-border shrink-0 space-y-3">
-        <div className="flex items-center gap-3">
+      <div className="px-5 pt-3 bg-surface-1 border-b border-border shrink-0">
+        <div className="flex items-center gap-3 pb-3">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search hostname, IP, model..." className="w-64" />
           <div className="flex-1" />
           <span className="text-xs text-muted tabular-nums">
@@ -105,8 +153,8 @@ export default function DeviceInventory() {
           </span>
         </div>
 
-        {types.length > 0 && (
-          <div className="flex items-center gap-1 flex-wrap">
+        {activeTab === 'devices' && types.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap pb-3">
             <button
               onClick={() => setTypeFilter('')}
               className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
@@ -133,25 +181,51 @@ export default function DeviceInventory() {
             ))}
           </div>
         )}
+
+        <Tabs
+          tabs={[
+            { id: 'devices', label: 'Devices', count: devices.length },
+            { id: 'connections', label: 'Connections', count: rawLinks.length },
+          ]}
+          active={activeTab}
+          onChange={(id) => setActiveTab(id as 'devices' | 'connections')}
+        />
       </div>
 
       <div className="flex-1 flex min-h-0">
         <div className="flex-1 overflow-auto">
-          <DataTable
-            columns={columns}
-            data={sorted}
-            rowKey={(d) => d.ip}
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSort={(key) => {
-              if (sortKey === key && sortDir === 'asc') setSortDir('desc')
-              else setSortDir('asc')
-              setSortKey(key as SortField)
-            }}
-            onRowClick={(d) => setSelectedIp(selectedIp === d.ip ? null : d.ip)}
-            selectedId={selectedIp}
-            emptyMessage={debouncedSearch || typeFilter ? 'No devices match the filter' : 'No devices found'}
-          />
+          {activeTab === 'devices' ? (
+            <DataTable
+              columns={columns}
+              data={sorted}
+              rowKey={(d) => d.ip}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={(key) => {
+                if (sortKey === key && sortDir === 'asc') setSortDir('desc')
+                else setSortDir('asc')
+                setSortKey(key as SortField)
+              }}
+              onRowClick={(d) => openDevice(d.ip)}
+              selectedId={selectedIp}
+              emptyMessage={debouncedSearch || typeFilter ? 'No devices match the filter' : 'No devices found'}
+            />
+          ) : (
+            <DataTable
+              columns={linkColumns}
+              data={sortedLinks}
+              rowKey={(l) => `${l.source}-${l.target}-${l.source_interface}-${l.target_interface}`}
+              sortKey={linkSortKey}
+              sortDir={linkSortDir}
+              onSort={(key) => {
+                if (linkSortKey === key && linkSortDir === 'asc') setLinkSortDir('desc')
+                else setLinkSortDir('asc')
+                setLinkSortKey(key as LinkSortField)
+              }}
+              onRowClick={(l) => openDevice(l.source)}
+              emptyMessage="No connections found"
+            />
+          )}
         </div>
 
         {selectedDevice && (
