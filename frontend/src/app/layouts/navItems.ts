@@ -5,6 +5,7 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
+  { to: '/dashboard',  label: 'Dashboard',  icon: 'M3 13h4v8H3v-8zm7-10h4v18h-4V3zm7 6h4v12h-4V9z' },
   { to: '/discover',  label: 'Discover',   icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
   { to: '/catalyst',  label: 'Catalyst',   icon: 'M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16M9 11h6' },
   { to: '/topology',  label: 'Topology',   icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },

@@ -10,6 +10,7 @@ import DeviceInventory from './components/DeviceInventory'
 import ChangeDetection from './components/ChangeDetection'
 import Reports from './components/Reports'
 import DataQuality from './components/DataQuality'
+import OperationsDashboard from './components/OperationsDashboard'
 import { setToken } from './api'
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
       <AppShell onLogout={() => { setToken(null); setLoggedIn(false) }}>
         <Routes>
           <Route path="/" element={<TopologyViewer />} />
+          <Route path="/dashboard" element={<OperationsDashboard />} />
           <Route path="/discover" element={<DiscoveryForm />} />
           <Route path="/catalyst" element={<CatalystForm />} />
           <Route path="/topology" element={<TopologyViewer />} />
