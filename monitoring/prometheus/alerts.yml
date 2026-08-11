@@ -1,0 +1,38 @@
+groups:
+  - name: network-mapper
+    rules:
+      - alert: NetworkMapperUnavailable
+        expr: up{job="network-mapper"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Network Mapper is unavailable
+          description: Prometheus cannot scrape the Network Mapper API.
+
+      - alert: NetworkMapperScanStale
+        expr: time() - network_mapper_last_scan_timestamp_seconds > 3600
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Network discovery data is stale
+          description: The latest completed scan is more than one hour old.
+
+      - alert: NetworkMapperInterfacesDown
+        expr: sum(network_mapper_interfaces_total{status=~"(?i)down"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Network interfaces are down
+          description: One or more persisted interfaces are currently marked down.
+
+      - alert: NetworkMapperStaleDevices
+        expr: network_mapper_stale_devices_total{days="90"} > 0
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: Devices have not been seen recently
+          description: Devices are older than the 90-day freshness threshold.

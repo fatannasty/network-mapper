@@ -1,0 +1,117 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Known devices",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [{"expr": "sum(network_mapper_devices_total)", "refId": "A"}],
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}]}}}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Topology links",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [{"expr": "sum(network_mapper_links_total)", "refId": "A"}],
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed"}, "decimals": 0}}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Interfaces down",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "targets": [{"expr": "sum(network_mapper_interfaces_total{status=~\"(?i)down\"})", "refId": "A"}],
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Stale devices",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "targets": [{"expr": "network_mapper_stale_devices_total{days=\"90\"}", "refId": "A"}],
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}}
+    },
+    {
+      "id": 5,
+      "type": "gauge",
+      "title": "Latest scan health",
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 4},
+      "targets": [{"expr": "network_mapper_last_scan_success", "refId": "A"}],
+      "options": {"minValue": 0, "maxValue": 1, "showThresholdLabels": false, "showThresholdMarkers": true, "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "FAILED"}, "1": {"text": "HEALTHY"}}}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}}
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Time since last scan",
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 4},
+      "targets": [{"expr": "time() - network_mapper_last_scan_timestamp_seconds", "refId": "A"}],
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "fieldConfig": {"defaults": {"unit": "s", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 3600}, {"color": "red", "value": 86400}]}}}
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Latest scan devices",
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 4},
+      "targets": [{"expr": "network_mapper_last_scan_devices", "refId": "A"}],
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}}
+    },
+    {
+      "id": 8,
+      "type": "bargauge",
+      "title": "Devices by type",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9},
+      "targets": [{"expr": "sum by (device_type) (network_mapper_devices_total)", "legendFormat": "{{device_type}}", "refId": "A"}],
+      "options": {"displayMode": "gradient", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}}
+    },
+    {
+      "id": 9,
+      "type": "bargauge",
+      "title": "Interfaces by status",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9},
+      "targets": [{"expr": "sum by (status) (network_mapper_interfaces_total)", "legendFormat": "{{status}}", "refId": "A"}],
+      "options": {"displayMode": "gradient", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}}
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Link protocols",
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 17},
+      "targets": [{"expr": "sum by (protocol) (network_mapper_links_total)", "legendFormat": "{{protocol}}", "format": "table", "instant": true, "refId": "A"}],
+      "options": {"cellHeight": "sm", "footer": {"show": false}, "showHeader": true},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}}
+    },
+    {
+      "id": 11,
+      "type": "text",
+      "title": "How to read this dashboard",
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 17},
+      "options": {"mode": "markdown", "content": "### Outage guide\n\n- **Interfaces down**: a persisted interface reports an operational down state.\n- **Stale devices**: devices have not been seen within the 90-day freshness window.\n- **Time since last scan**: orange means over one hour; red means over one day.\n- **Latest scan health**: green means the most recent scan completed successfully.\n\nMetrics represent the latest state recorded by Network Mapper. Add active polling for second-level outage detection."}
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "style": "dark",
+  "tags": ["network", "network-mapper", "outages"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Network Mapper - Operations Overview",
+  "uid": "network-mapper-ops",
+  "version": 1
+}

@@ -35,6 +35,28 @@ npm run setup        # or: cd backend && python3 -m venv .venv && .venv/bin/pip 
 npm run api          # uvicorn on http://localhost:8000 (reload enabled)
 ```
 
+### Grafana Operations Dashboard
+
+The repository includes a Prometheus/Grafana monitoring stack for the latest
+persisted network state. Start the API first, then run:
+
+```bash
+docker compose -f monitoring/docker-compose.yml up -d
+```
+
+- Grafana: `http://localhost:3000` (`admin` / `change-me-now`)
+- Prometheus: `http://localhost:9090`
+- Metrics endpoint: `http://localhost:8000/metrics`
+
+The provisioned dashboard highlights device and link totals, interfaces marked
+down, stale devices, last scan age, scan success, device types, and link
+protocols. Prometheus alert rules cover API availability, stale scans, down
+interfaces, and stale devices.
+
+These metrics represent the latest state recorded by discovery. For true
+second-level outage detection, add a scheduled reachability poller that updates
+device/interface health independently of full discovery scans.
+
 ### API
 
 ```

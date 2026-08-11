@@ -30,9 +30,11 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from prometheus_client import CollectorRegistry, Gauge, generate_latest
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import repositories
@@ -188,6 +190,86 @@ admin = require_roles("admin")
 def health():
     return {"status": "ok", "service": "network-discovery", "version": app.version,
             "local_ip": scanner.local_ip()}
+
+
+@app.get("/metrics")
+def metrics(db: Session = Depends(get_db)):
+    """Prometheus metrics for the latest persisted network state.
+
+    This is intentionally public so Prometheus can scrape it without an
+    application bearer token. It reports last-known state; active reachability
+    polling is separate from this export layer.
+    """
+    from models import Device, Interface, Link
+
+    registry = CollectorRegistry()
+    devices = Gauge(
+        "network_mapper_devices_total",
+        "Known devices grouped by type, vendor and site.",
+        ["device_type", "vendor", "site"], registry=registry,
+    )
+    links = Gauge(
+        "network_mapper_links_total",
+        "Known topology links grouped by discovery protocol.",
+        ["protocol"], registry=registry,
+    )
+    interfaces = Gauge(
+        "network_mapper_interfaces_total",
+        "Known interfaces grouped by operational status.",
+        ["status"], registry=registry,
+    )
+    stale = Gauge(
+        "network_mapper_stale_devices_total",
+        "Devices not seen within the stale threshold.",
+        ["days"], registry=registry,
+    )
+    last_scan = Gauge(
+        "network_mapper_last_scan_timestamp_seconds",
+        "Unix timestamp of the latest completed scan.", registry=registry,
+    )
+    last_scan_devices = Gauge(
+        "network_mapper_last_scan_devices",
+        "Device count recorded by the latest scan.", registry=registry,
+    )
+    last_scan_links = Gauge(
+        "network_mapper_last_scan_links",
+        "Link count recorded by the latest scan.", registry=registry,
+    )
+    scan_success = Gauge(
+        "network_mapper_last_scan_success",
+        "Whether the latest scan completed successfully.", registry=registry,
+    )
+
+    for (device_type, vendor, site, count) in (
+        db.query(Device.device_type, Device.vendor, Device.site, func.count(Device.id))
+        .group_by(Device.device_type, Device.vendor, Device.site)
+        .all()
+    ):
+        devices.labels(device_type or "unknown", vendor or "unknown", site or "unknown").set(count)
+
+    for protocol, count in db.query(Link.protocol, func.count(Link.id)).group_by(Link.protocol).all():
+        links.labels(protocol or "unknown").set(count)
+
+    for status, count in (
+        db.query(Interface.if_oper_status, func.count(Interface.id))
+        .group_by(Interface.if_oper_status)
+        .all()
+    ):
+        interfaces.labels(status or "unknown").set(count)
+
+    stale.labels("90").set(repositories.stale_devices(db, days=90))
+    latest = repositories.list_scan_jobs(db, limit=1)
+    if latest:
+        scan = latest[0]
+        scan_success.set(1 if scan.status == "completed" else 0)
+        last_scan_devices.set(scan.device_count or 0)
+        last_scan_links.set(
+            db.query(func.count(Link.id)).filter(Link.scan_id == scan.id).scalar() or 0
+        )
+        if scan.finished_at:
+            last_scan.set(scan.finished_at.timestamp())
+
+    return Response(content=generate_latest(registry), media_type="text/plain; version=0.0.4")
 
 
 # ── Auth ─────────────────────────────────────────────────────────────────────

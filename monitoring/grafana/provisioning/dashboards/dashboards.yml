@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Network Mapper
+    orgId: 1
+    folder: Network Mapper
+    type: file
+    disableDeletion: true
+    editable: false
+    options:
+      path: /var/lib/grafana/dashboards
