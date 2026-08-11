@@ -57,6 +57,13 @@ export default function TopologyView() {
   // connections around the selected device are visible.
   const showSimple = simplified && !focusIp
 
+  // Auto-select the focused device when arriving from inventory
+  useEffect(() => {
+    if (focusIp) {
+      setSelectedDevice(focusIp)
+    }
+  }, [focusIp])
+
   const handleScanChange = (id: string) => {
     setSearchParams(id ? { scan_id: id } : {}, { replace: true })
     setSelectedDevice(null)
@@ -181,13 +188,11 @@ export default function TopologyView() {
     })
 
     const re: Edge[] = filteredLinks.map((l, i) => {
-      const srcIface = shortenInterface(l.source_interface || '')
-      const tgtIface = shortenInterface(l.target_interface || '')
-      const ifaceLabel = srcIface && tgtIface
-        ? `${srcIface} \u2192 ${tgtIface}`
-        : srcIface || tgtIface || ''
-      const label = ifaceLabel
-        ? `${ifaceLabel}\n${l.protocol.toUpperCase()}`
+      const protocolLabel = l.protocol === 'cdp-lldp' ? 'CDP/LLDP'
+        : l.protocol === 'catalyst' ? 'Catalyst'
+        : l.protocol === 'lldp' ? 'LLDP'
+        : l.protocol === 'cdp' ? 'CDP'
+        : l.protocol === 'poe' ? 'PoE'
         : l.protocol.toUpperCase()
       const pathKey = `${l.source}->${l.target}-${i}`
       const isPath = pathEdgeIds.has(pathKey)
@@ -196,8 +201,8 @@ export default function TopologyView() {
         id: `e-${l.source}-${l.target}-${i}`,
         source: l.source,
         target: l.target,
-        label,
-        labelStyle: { fill: isPath ? '#22c55e' : '#9ca3af', fontSize: 9, fontWeight: 500 },
+        label: protocolLabel,
+        labelStyle: { fill: isPath ? '#22c55e' : '#9ca3af', fontSize: 10, fontWeight: 500 },
         labelBgStyle: { fill: isPath ? '#064e3b' : '#1f2937', fillOpacity: 0.85 },
         labelBgPadding: [6, 3] as [number, number],
         labelBgBorderRadius: 4,
