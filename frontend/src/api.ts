@@ -64,6 +64,7 @@ export interface Device {
   last_scan_id?: string
   first_seen?: string
   last_seen?: string
+  catalyst_id?: string
 }
 
 export interface Interface {

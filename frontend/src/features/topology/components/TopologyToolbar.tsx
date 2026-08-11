@@ -7,7 +7,8 @@ interface Props {
   scans: ScanInfo[]
   scanId?: string
   onScanChange: (id: string) => void
-  linkCounts: { lldp: number; cdp: number }
+  simplified: boolean
+  onSimplifiedChange: (v: boolean) => void
   protocolFilter: ProtocolFilter
   onProtocolFilterChange: (v: ProtocolFilter) => void
   layoutMode: LayoutMode
@@ -32,7 +33,8 @@ export default function TopologyToolbar({
   scans,
   scanId,
   onScanChange,
-  linkCounts,
+  simplified,
+  onSimplifiedChange,
   protocolFilter,
   onProtocolFilterChange,
   layoutMode,
@@ -47,26 +49,24 @@ export default function TopologyToolbar({
 }: Props) {
   return (
     <div className="flex items-center gap-3 px-4 py-2 bg-surface-1 border-b border-border shrink-0 text-sm">
-      <span className="text-muted">
-        {topology?.nodes.length ?? 0} devices
-        {(topology?.links.length ?? 0) > 0 && (
-          <span className="ml-2">
-            &middot; {topology?.links.length} links
-            {linkCounts.lldp > 0 && <span className="text-blue-400 ml-1">{linkCounts.lldp} LLDP</span>}
-            {linkCounts.cdp > 0 && <span className="text-amber-400 ml-1">{linkCounts.cdp} CDP</span>}
-          </span>
-        )}
-        {topology?.scan_meta && (
-          <span className="ml-3 text-[11px] text-muted/70">
-            &middot; Scan: <span className="text-text-secondary">{topology.scan_meta.subnet}</span>
-            {topology.scan_meta.scan_kind && (
-              <span className="ml-1">({topology.scan_meta.scan_kind})</span>
-            )}
-          </span>
-        )}
-      </span>
-
-      <div className="flex-1" />
+      <div className="flex items-center gap-0.5 bg-surface-2 rounded-lg p-0.5">
+        <button
+          onClick={() => onSimplifiedChange(true)}
+          className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+            simplified ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+          }`}
+        >
+          Simple
+        </button>
+        <button
+          onClick={() => onSimplifiedChange(false)}
+          className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+            !simplified ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+          }`}
+        >
+          Technical
+        </button>
+      </div>
 
       <Select
         value={scanId || ''}
@@ -82,69 +82,92 @@ export default function TopologyToolbar({
         ))}
       </Select>
 
-      <div className="flex items-center gap-1 bg-surface-2 rounded p-0.5">
-        <button
-          onClick={() => onLayoutModeChange('tree')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-            layoutMode === 'tree' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
-          }`}
-        >
-          Tree
-        </button>
-        <button
-          onClick={() => onLayoutModeChange('free')}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-            layoutMode === 'free' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
-          }`}
-        >
-          Free
-        </button>
-      </div>
+      <span className="text-muted">
+        {topology?.nodes.length ?? 0} devices
+        {(topology?.links.length ?? 0) > 0 && (
+          <span className="ml-2">
+            &middot; {topology?.links.length} links
+          </span>
+        )}
+        {topology?.scan_meta && (
+          <span className="ml-3 text-[11px] text-muted/70">
+            &middot; Scan: <span className="text-text-secondary">{topology.scan_meta.subnet}</span>
+            {topology.scan_meta.scan_kind && (
+              <span className="ml-1">({topology.scan_meta.scan_kind})</span>
+            )}
+          </span>
+        )}
+      </span>
 
-      {(topology?.links.length ?? 0) > 0 && (
-        <select
-          value={protocolFilter}
-          onChange={(e) => onProtocolFilterChange(e.target.value as ProtocolFilter)}
-          className="px-3 py-1 bg-surface-2 border border-border rounded text-text-secondary text-xs focus:outline-none focus:border-accent"
-        >
-          <option value="all">All Links</option>
-          <option value="lldp">LLDP Only</option>
-          <option value="cdp">CDP Only</option>
-        </select>
+      <div className="flex-1" />
+
+      {!simplified && (
+        <>
+          <div className="flex items-center gap-1 bg-surface-2 rounded p-0.5">
+            <button
+              onClick={() => onLayoutModeChange('tree')}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                layoutMode === 'tree' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+              }`}
+            >
+              Tree
+            </button>
+            <button
+              onClick={() => onLayoutModeChange('free')}
+              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                layoutMode === 'free' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+              }`}
+            >
+              Free
+            </button>
+          </div>
+
+          {(topology?.links.length ?? 0) > 0 && (
+            <select
+              value={protocolFilter}
+              onChange={(e) => onProtocolFilterChange(e.target.value as ProtocolFilter)}
+              className="px-3 py-1 bg-surface-2 border border-border rounded text-text-secondary text-xs focus:outline-none focus:border-accent"
+            >
+              <option value="all">All Links</option>
+              <option value="lldp">LLDP Only</option>
+              <option value="cdp">CDP Only</option>
+            </select>
+          )}
+
+          <span className="text-muted text-xs mx-1">|</span>
+
+          <input
+            value={pathSource}
+            onChange={(e) => onPathSourceChange(e.target.value)}
+            placeholder="Source IP"
+            className="w-32 px-2 py-1 bg-surface-2 border border-border rounded text-text-secondary text-xs focus:outline-none focus:border-accent"
+          />
+          <span className="text-muted text-xs">&rarr;</span>
+          <input
+            value={pathTarget}
+            onChange={(e) => onPathTargetChange(e.target.value)}
+            placeholder="Target IP"
+            className="w-32 px-2 py-1 bg-surface-2 border border-border rounded text-text-secondary text-xs focus:outline-none focus:border-accent"
+          />
+          <button
+            onClick={onRunPath}
+            disabled={!pathSource || !pathTarget}
+            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded text-xs transition-colors"
+          >
+            Find Path
+          </button>
+          {pathResult && (
+            <button
+              onClick={onClearPath}
+              className="px-3 py-1 bg-surface-3 hover:bg-gray-600 text-text-secondary rounded text-xs transition-colors"
+            >
+              Clear Path
+            </button>
+          )}
+        </>
       )}
 
-      <span className="text-muted text-xs mx-1">|</span>
-
-      <input
-        value={pathSource}
-        onChange={(e) => onPathSourceChange(e.target.value)}
-        placeholder="Source IP"
-        className="w-32 px-2 py-1 bg-surface-2 border border-border rounded text-text-secondary text-xs focus:outline-none focus:border-accent"
-      />
-      <span className="text-muted text-xs">&rarr;</span>
-      <input
-        value={pathTarget}
-        onChange={(e) => onPathTargetChange(e.target.value)}
-        placeholder="Target IP"
-        className="w-32 px-2 py-1 bg-surface-2 border border-border rounded text-text-secondary text-xs focus:outline-none focus:border-accent"
-      />
-      <button
-        onClick={onRunPath}
-        disabled={!pathSource || !pathTarget}
-        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded text-xs transition-colors"
-      >
-        Find Path
-      </button>
-      {pathResult && (
-        <button
-          onClick={onClearPath}
-          className="px-3 py-1 bg-surface-3 hover:bg-gray-600 text-text-secondary rounded text-xs transition-colors"
-        >
-          Clear Path
-        </button>
-      )}
-
-      {(topology?.links.length ?? 0) === 0 && (
+      {!simplified && (topology?.links.length ?? 0) === 0 && (
         <span className="text-muted text-xs">
           No auto-discovered links &mdash; run SNMP discovery on switches with LLDP/CDP enabled
         </span>

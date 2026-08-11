@@ -9,12 +9,16 @@ import { useSearchParams } from 'react-router-dom'
 
 import { useTopology } from './hooks/useTopology'
 import { treeLayout, freeLayout } from './services/layout'
+import { normalizeType, pluralLabel } from './services/friendly'
 import TopologyToolbar from './components/TopologyToolbar'
 import TopologyCanvas from './components/TopologyCanvas'
 import DeviceDetail from '../../components/DeviceDetail'
 import { shortenInterface } from '../../components/ui/iface'
 import PageState from '../../components/ui/PageState'
 import Button from '../../components/ui/Button'
+
+type IdNode = { id: string }
+type IdLink = { source: string; target: string }
 
 export default function TopologyView() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -38,12 +42,12 @@ export default function TopologyView() {
     setPathResult,
     pathEdgeIds,
     filteredLinks,
-    linkCounts,
     runPath,
     fetchData,
   } = useTopology(scanId)
 
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
+  const [simplified, setSimplified] = useState(true)
 
   const handleScanChange = (id: string) => {
     setSearchParams(id ? { scan_id: id } : {}, { replace: true })
@@ -53,11 +57,84 @@ export default function TopologyView() {
     setPathResult(null)
   }
 
+  const typeByIp = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const n of topology?.nodes || []) m.set(n.id, n.device_type || 'unknown')
+    return m
+  }, [topology])
+
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!topology) return { initialNodes: [], initialEdges: [] }
 
+    if (simplified) {
+      const groups = new Map<string, { count: number; internal: number }>()
+      for (const n of topology.nodes) {
+        const t = normalizeType(n.device_type || 'unknown')
+        const g = groups.get(t) || { count: 0, internal: 0 }
+        g.count++
+        groups.set(t, g)
+      }
+
+      const between = new Map<string, { src: string; tgt: string; count: number }>()
+      for (const l of filteredLinks) {
+        const st = normalizeType(typeByIp.get(l.source) || 'unknown')
+        const tt = normalizeType(typeByIp.get(l.target) || 'unknown')
+        if (st === tt) {
+          const g = groups.get(st)
+          if (g) g.internal++
+          continue
+        }
+        const [a, b] = [st, tt].sort()
+        const key = `${a}|${b}`
+        const e = between.get(key) || { src: a, tgt: b, count: 0 }
+        e.count++
+        between.set(key, e)
+      }
+
+      const clusterNodes: Node[] = [...groups.entries()].map(([t, g]) => ({
+        id: `group:${t}`,
+        type: 'device',
+        position: { x: 0, y: 0 },
+        data: {
+          id: `group:${t}`,
+          ip: '',
+          hostname: pluralLabel(t),
+          device_type: t,
+          group: true,
+          count: g.count,
+          internalLinks: g.internal,
+        },
+      }))
+
+      const clusterLinks: (IdLink & { count: number })[] = [...between.values()].map((e) => ({
+        source: `group:${e.src}`,
+        target: `group:${e.tgt}`,
+        count: e.count,
+      }))
+
+      const positions = freeLayout(clusterNodes as IdNode[], clusterLinks)
+      const posNodes = clusterNodes.map((n) => ({
+        ...n,
+        position: positions.get(n.id) || { x: 0, y: 0 },
+      }))
+      const posEdges: Edge[] = clusterLinks.map((e, i) => ({
+        id: `cg-${i}`,
+        source: e.source,
+        target: e.target,
+        label: `${e.count}`,
+        labelStyle: { fill: '#9ca3af', fontSize: 11, fontWeight: 600 },
+        labelBgStyle: { fill: '#1f2937', fillOpacity: 0.85 },
+        labelBgPadding: [6, 3] as [number, number],
+        labelBgBorderRadius: 4,
+        style: { stroke: '#64748b', strokeWidth: Math.min(6, 1 + Math.log2(e.count + 1)) },
+        type: 'smoothstep',
+      }))
+
+      return { initialNodes: posNodes, initialEdges: posEdges }
+    }
+
     const layoutFn = layoutMode === 'tree' ? treeLayout : freeLayout
-    const positions = layoutFn(topology.nodes, filteredLinks)
+    const positions = layoutFn(topology.nodes as IdNode[], filteredLinks as IdLink[])
 
     const rn: Node[] = topology.nodes.map((n) => {
       const pos = positions.get(n.id) || { x: 0, y: 0 }
@@ -70,8 +147,6 @@ export default function TopologyView() {
           id: n.id,
           ip: n.ip,
           hostname: n.hostname || dev?.hostname || '',
-          vendor: n.vendor || dev?.vendor || '',
-          model: n.model || dev?.model || '',
           device_type: n.device_type || dev?.device_type || '',
         },
       }
@@ -108,7 +183,7 @@ export default function TopologyView() {
     })
 
     return { initialNodes: rn, initialEdges: re }
-  }, [topology, filteredLinks, deviceByIp, layoutMode, pathEdgeIds])
+  }, [topology, filteredLinks, deviceByIp, layoutMode, pathEdgeIds, simplified, typeByIp])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -119,14 +194,14 @@ export default function TopologyView() {
   }, [initialNodes, initialEdges, setNodes, setEdges])
 
   const selectedDeviceData = useMemo(() => {
-    if (!selectedDevice) return null
+    if (!selectedDevice || simplified) return null
     const device = deviceByIp.get(selectedDevice)
     if (!device) return null
     const connectedLinks = filteredLinks.filter(
       (l) => l.source === selectedDevice || l.target === selectedDevice,
     )
     return { device, connectedLinks }
-  }, [selectedDevice, deviceByIp, filteredLinks])
+  }, [selectedDevice, deviceByIp, filteredLinks, simplified])
 
   if (loading) {
     return (
@@ -157,7 +232,8 @@ export default function TopologyView() {
         scans={scans}
         scanId={scanId}
         onScanChange={handleScanChange}
-        linkCounts={linkCounts}
+        simplified={simplified}
+        onSimplifiedChange={setSimplified}
         protocolFilter={protocolFilter}
         onProtocolFilterChange={setProtocolFilter}
         layoutMode={layoutMode}
@@ -175,7 +251,7 @@ export default function TopologyView() {
         }}
       />
 
-      {pathResult && (
+      {pathResult && !simplified && (
         <div className={`px-4 py-2 border-b text-xs ${
           pathResult.error ? 'bg-red-900/30 border-red-800 text-red-300' : 'bg-green-900/30 border-green-800 text-green-300'
         }`}>
@@ -183,9 +259,7 @@ export default function TopologyView() {
             <span>{pathResult.error}</span>
           ) : (
             <span>
-              <strong>{pathResult.hops}</strong> hop{pathResult.hops !== 1 ? 's' : ''} from{' '}
-              <strong>{pathResult.source}</strong> to{' '}
-              <strong>{pathResult.target}</strong>
+              <strong>Path found:</strong>{' '}
               {pathResult.path.map((h, i) => (
                 <span key={i} className="ml-2 text-muted">
                   {h.source_interface && h.target_interface
@@ -216,7 +290,10 @@ export default function TopologyView() {
               edges={edges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
-              onNodeClick={(_e, node) => setSelectedDevice(node.id)}
+              onNodeClick={(_e, node) => {
+                if (simplified) return
+                setSelectedDevice(node.id)
+              }}
             />
 
             {selectedDeviceData && (

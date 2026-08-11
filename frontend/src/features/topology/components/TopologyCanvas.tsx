@@ -7,10 +7,11 @@ import {
   MiniMap,
 } from '@xyflow/react'
 
-import DeviceNode from '../../../components/DeviceNode'
+import SimpleNode from '../../../components/SimpleNode'
+import TopologyLegend from './TopologyLegend'
 import { topologyTokens } from '../../../app/theme/tokens/topology'
 
-const nodeTypes = { device: DeviceNode }
+const nodeTypes = { device: SimpleNode }
 
 interface Props {
   nodes: Node[]
@@ -18,6 +19,7 @@ interface Props {
   onNodesChange: OnNodesChange
   onEdgesChange: OnEdgesChange
   onNodeClick: NodeMouseHandler
+  showLegend?: boolean
 }
 
 const nodeColors: Record<string, string> = {
@@ -31,9 +33,10 @@ const nodeColors: Record<string, string> = {
   unknown: '#6b7280',
 }
 
-export default function TopologyCanvas({ nodes, edges, onNodesChange, onEdgesChange, onNodeClick }: Props) {
+export default function TopologyCanvas({ nodes, edges, onNodesChange, onEdgesChange, onNodeClick, showLegend = true }: Props) {
+  const presentTypes = [...new Set(nodes.map((n) => (n.data?.device_type as string) || 'unknown'))]
   return (
-    <div className="flex-1">
+    <div className="flex-1 relative">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -55,6 +58,7 @@ export default function TopologyCanvas({ nodes, edges, onNodesChange, onEdgesCha
           className="!bg-surface-1 !border-border"
         />
       </ReactFlow>
+      {showLegend && <TopologyLegend presentTypes={presentTypes} />}
     </div>
   )
 }

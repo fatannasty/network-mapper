@@ -10,3 +10,4 @@ __pycache__/
 backend/.pytest_cache/
 backend/network_mapper.db
 backend/.secret_key
+network_mapper.db
