@@ -6,11 +6,24 @@ import Button from './ui/Button'
 import Card from './ui/Card'
 import PageHeader from './ui/PageHeader'
 import PageState from './ui/PageState'
-import StatCard from './ui/StatCard'
 import Select from './ui/Select'
 import Tooltip from './ui/Tooltip'
 
 type Health = 'healthy' | 'warning' | 'critical'
+
+const typeColors: Record<string, string> = {
+  switch: '#38bdf8',
+  'core-switch': '#a78bfa',
+  router: '#fbbf24',
+  firewall: '#f87171',
+  accesspoint: '#34d399',
+  'access-point': '#34d399',
+  'sd-wan': '#4ade80',
+  'velocloud-edge': '#2dd4bf',
+  'wireless-controller': '#22d3ee',
+  'load-balancer': '#f472b6',
+  unknown: '#6b7280',
+}
 
 function interfaceDownCount(report: Report): number {
   return Object.entries(report.interface_status)
@@ -27,6 +40,7 @@ function scanAge(scan?: ScanHistoryEntry): string {
   const value = scan.finished_at || scan.started_at
   if (!value) return 'Unknown'
   const minutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60000))
+  if (minutes < 1) return 'Just now'
   if (minutes < 60) return `${minutes}m ago`
   if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`
   return `${Math.floor(minutes / 1440)}d ago`
@@ -38,12 +52,13 @@ function healthFor(report: Report): { state: Health; title: string; message: str
   const scanFailed = Boolean(scan && scan.status !== 'completed')
   const scanTime = scan?.finished_at || scan?.started_at
   const staleScan = !scanTime || Date.now() - new Date(scanTime).getTime() > 60 * 60 * 1000
-
   if (scanFailed || down > 0) {
     return {
       state: 'critical',
       title: 'Attention required',
-      message: down > 0 ? `${down} interface${down === 1 ? '' : 's'} reported down.` : 'The latest discovery scan did not complete successfully.',
+      message: down > 0
+        ? `${down} interface${down === 1 ? '' : 's'} reported down.`
+        : 'The latest discovery scan did not complete successfully.',
     }
   }
   if (report.stale_devices_90d > 0 || staleScan) {
@@ -58,82 +73,157 @@ function healthFor(report: Report): { state: Health; title: string; message: str
   return { state: 'healthy', title: 'Network appears healthy', message: 'No current outage indicators were found in the latest data.' }
 }
 
-const healthStyles: Record<Health, string> = {
-  healthy: 'border-green-500/30 bg-green-500/10 text-green-300',
-  warning: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
-  critical: 'border-red-500/30 bg-red-500/10 text-red-300',
+const healthColors: Record<Health, { bg: string; border: string; text: string; dot: string }> = {
+  healthy: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-300', dot: 'bg-green-400' },
+  warning: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-300', dot: 'bg-amber-400' },
+  critical: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-300', dot: 'bg-red-400' },
 }
 
-function Distribution({
-  title,
-  values,
-  selected,
-  onSelect,
-}: {
-  title: string
-  values: Record<string, number>
-  selected?: string
-  onSelect?: (value: string) => void
-}) {
-  const rows = Object.entries(values).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]).slice(0, 8)
-  const maximum = Math.max(...rows.map(([, value]) => value), 1)
+const healthIcon: Record<Health, string[]> = {
+  healthy: ['M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
+  warning: ['M12 9v2m0 4h.01M10.29 3.86l-8.6 14.87A1 1 0 002.55 20h16.9a1 1 0 00.86-1.27l-8.6-14.87a1 1 0 00-1.72 0z'],
+  critical: ['M12 8v4m0 4h.01M10.29 3.86l-8.6 14.87A1 1 0 002.55 20h16.9a1 1 0 00.86-1.27l-8.6-14.87a1 1 0 00-1.72 0z'],
+}
+
+function Sparkline({ values, color = 'currentColor', width = 80, height = 28 }: { values: number[]; color?: string; width?: number; height?: number }) {
+  if (values.length < 2) return null
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const points = values.map((v, i) => `${(i / (values.length - 1)) * width},${height - ((v - min) / range) * (height - 4) - 2}`).join(' ')
+  const area = `0,${height} ${points} ${width},${height}`
   return (
-    <Card>
-      <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">{title}</h2>
-      <div className="space-y-3">
-        {rows.map(([label, value]) => (
-          <Tooltip key={label} content={`${label || 'unknown'}: ${value.toLocaleString()} devices`} position="top">
-            <button
-              type="button"
-              onClick={() => onSelect?.(label)}
-              className={`block w-full text-left rounded-lg p-1.5 -m-1.5 transition-colors ${onSelect ? 'hover:bg-surface-2' : ''} ${selected === label ? 'bg-accent-subtle' : ''}`}
-            >
-            <div className="flex justify-between gap-3 text-xs mb-1">
-              <span className="text-text-secondary truncate capitalize">{label || 'unknown'}</span>
-              <span className="text-muted tabular-nums">{value.toLocaleString()}</span>
-            </div>
-            <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
-              <div className="h-full rounded-full bg-accent" style={{ width: `${(value / maximum) * 100}%` }} />
-            </div>
-            </button>
-          </Tooltip>
-        ))}
-        {rows.length === 0 && <p className="text-xs text-muted">No data available.</p>}
-      </div>
-    </Card>
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+      <polygon points={area} fill={color} opacity="0.15" />
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 
-function ScanTrend({ scans }: { scans: ScanHistoryEntry[] }) {
-  const points = [...scans].reverse().slice(-10)
-  if (points.length < 2) {
-    return <p className="text-xs text-muted py-8">Run more scans to see the device-count trend.</p>
-  }
-  const max = Math.max(...points.map((scan) => scan.device_count), 1)
-  const min = Math.min(...points.map((scan) => scan.device_count), 0)
-  const range = Math.max(max - min, 1)
-  const coords = points.map((scan, index) => ({
-    scan,
-    x: (index / (points.length - 1)) * 100,
-    y: 92 - ((scan.device_count - min) / range) * 78,
-  }))
-  const line = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
-
+function DonutChart({ data, size = 140, strokeWidth = 22 }: { data: Record<string, number>; size?: number; strokeWidth?: number }) {
+  const entries = Object.entries(data).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])
+  const total = entries.reduce((sum, [, v]) => sum + v, 0)
+  if (total === 0) return <p className="text-xs text-muted">No data.</p>
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  let offset = 0
   return (
-    <div className="relative h-40">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-        <path d="M 0 92 L 100 92" stroke="rgb(var(--border))" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
-        <path d={line} fill="none" stroke="rgb(var(--accent))" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-        {coords.map((point) => (
-          <circle key={point.scan.id} cx={point.x} cy={point.y} r="2.5" fill="rgb(var(--accent))" vectorEffect="non-scaling-stroke">
-            <title>{`${point.scan.subnet}: ${point.scan.device_count} devices`}</title>
-          </circle>
-        ))}
-      </svg>
-      <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px] text-muted">
-        <span>{points[0].started_at?.slice(0, 10) || ''}</span>
-        <span>{points[points.length - 1].started_at?.slice(0, 10) || ''}</span>
+    <div className="flex items-center gap-4">
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90">
+          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgb(var(--surface-3))" strokeWidth={strokeWidth} />
+          {entries.map(([key, value]) => {
+            const pct = value / total
+            const dash = circumference * pct
+            const gap = circumference - dash
+            const el = (
+              <Tooltip key={key} content={`${key}: ${value.toLocaleString()} (${(pct * 100).toFixed(1)}%)`} position="top">
+                <circle
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  fill="none"
+                  stroke={typeColors[key] || typeColors.unknown}
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={`${dash} ${gap}`}
+                  strokeDashoffset={-offset}
+                  className="transition-all duration-300 cursor-pointer hover:opacity-80"
+                >
+                  <title>{`${key}: ${value.toLocaleString()} (${(pct * 100).toFixed(1)}%)`}</title>
+                </circle>
+              </Tooltip>
+            )
+            offset += dash
+            return el
+          })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-xl font-bold text-text-primary tabular-nums">{total.toLocaleString()}</span>
+          <span className="text-[10px] text-muted uppercase">total</span>
+        </div>
       </div>
+      <div className="space-y-1 min-w-0">
+        {entries.slice(0, 6).map(([key, value]) => (
+          <div key={key} className="flex items-center gap-2 text-xs">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: typeColors[key] || typeColors.unknown }} />
+            <span className="text-text-secondary capitalize truncate">{key}</span>
+            <span className="ml-auto text-muted tabular-nums shrink-0">{value.toLocaleString()}</span>
+          </div>
+        ))}
+        {entries.length > 6 && <p className="text-[10px] text-muted">+{entries.length - 6} more</p>}
+      </div>
+    </div>
+  )
+}
+
+function KpiCard({ label, value, sub, accent, tooltip, href, sparkData, sparkColor }: {
+  label: string
+  value: number
+  sub: string
+  accent: 'blue' | 'green' | 'red' | 'amber'
+  tooltip: string
+  href: string
+  sparkData?: number[]
+  sparkColor?: string
+}) {
+  const colors = {
+    blue: 'border-l-blue-500',
+    green: 'border-l-green-500',
+    red: 'border-l-red-500',
+    amber: 'border-l-amber-500',
+  }
+  return (
+    <Tooltip content={tooltip} position="bottom">
+      <Link to={href} className={`block bg-surface-2 border border-border border-l-4 ${colors[accent]} rounded-xl p-4 hover:bg-surface-3 transition-colors group`}>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="text-xs font-medium text-muted uppercase tracking-wider mb-1">{label}</div>
+            <div className="text-2xl font-bold text-text-primary tabular-nums">{value.toLocaleString()}</div>
+            <div className="text-xs text-muted mt-1">{sub}</div>
+          </div>
+          {sparkData && sparkData.length >= 2 && <Sparkline values={sparkData} color={sparkColor} />}
+        </div>
+        <div className="mt-2 text-[11px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">View details &rarr;</div>
+      </Link>
+    </Tooltip>
+  )
+}
+
+function AlertItem({ severity, title, message, href }: { severity: 'critical' | 'warning' | 'info'; title: string; message: string; href: string }) {
+  const colors = {
+    critical: 'bg-red-500/10 border-red-500/30 text-red-300',
+    warning: 'bg-amber-500/10 border-amber-500/30 text-amber-300',
+    info: 'bg-blue-500/10 border-blue-500/30 text-blue-300',
+  }
+  return (
+    <Link to={href} className={`flex items-start gap-3 rounded-lg border px-3 py-3 ${colors[severity]} hover:opacity-90 transition-opacity`}>
+      <Badge label={severity} />
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-xs opacity-80 mt-0.5">{message}</p>
+      </div>
+      <span className="ml-auto text-xs opacity-60 shrink-0">&rarr;</span>
+    </Link>
+  )
+}
+
+function ScanTimeline({ scans }: { scans: ScanHistoryEntry[] }) {
+  const visible = scans.slice(0, 8)
+  if (visible.length === 0) return <p className="text-xs text-muted">No scans recorded yet.</p>
+  return (
+    <div className="space-y-0">
+      {visible.map((scan, index) => (
+        <Link key={scan.id} to={`/topology?scan_id=${scan.id}`} className="flex items-start gap-3 group">
+          <div className="flex flex-col items-center">
+            <div className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${scan.status === 'completed' ? 'bg-green-400' : 'bg-red-400'}`} />
+            {index < visible.length - 1 && <div className="w-px h-8 bg-border" />}
+          </div>
+          <div className="pb-3 min-w-0">
+            <p className="text-xs font-medium text-text-primary truncate group-hover:text-accent transition-colors">{scan.subnet}</p>
+            <p className="text-[11px] text-muted">{scan.device_count} devices &middot; {scan.started_at?.slice(0, 16).replace('T', ' ') || 'Unknown'}</p>
+          </div>
+        </Link>
+      ))}
     </div>
   )
 }
@@ -146,6 +236,7 @@ export default function OperationsDashboard() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [typeFilter, setTypeFilter] = useState('')
   const [siteFilter, setSiteFilter] = useState('')
+  const [refreshMs, setRefreshMs] = useState(30_000)
 
   const refresh = useCallback(async (initial = false) => {
     if (initial) setLoading(true)
@@ -164,9 +255,9 @@ export default function OperationsDashboard() {
 
   useEffect(() => {
     void refresh(true)
-    const timer = window.setInterval(() => void refresh(), 30_000)
+    const timer = window.setInterval(() => void refresh(), refreshMs)
     return () => window.clearInterval(timer)
-  }, [refresh])
+  }, [refresh, refreshMs])
 
   if (loading) return <PageState type="loading" title="Loading operations dashboard..." className="h-full" />
   if (error && !report) {
@@ -185,80 +276,109 @@ export default function OperationsDashboard() {
   const visibleTypes = typeFilter ? { [typeFilter]: report.by_device_type[typeFilter] || 0 } : report.by_device_type
   const visibleSites = siteFilter ? { [siteFilter]: report.by_site[siteFilter] || 0 } : report.by_site
   const hasFilters = Boolean(typeFilter || siteFilter)
+  const scanHistoryValues = [...report.scan_history].reverse().map((s) => s.device_count)
+  const hc = healthColors[health.state]
 
-  const clearFilters = () => {
-    setTypeFilter('')
-    setSiteFilter('')
-  }
+  const alerts: { severity: 'critical' | 'warning' | 'info'; title: string; message: string; href: string }[] = []
+  if (down > 0) alerts.push({ severity: 'critical', title: 'Interfaces down', message: `${down} interface${down === 1 ? '' : 's'} reported down.`, href: '/reports' })
+  if (scan?.status !== 'completed') alerts.push({ severity: 'critical', title: 'Latest scan failed', message: `Scan "${scan?.subnet || 'unknown'}" did not complete.`, href: '/reports' })
+  if (report.stale_devices_90d > 0) alerts.push({ severity: 'warning', title: 'Stale devices', message: `${report.stale_devices_90d} devices not seen in 90 days.`, href: '/quality' })
+  if (!scan?.finished_at || Date.now() - new Date(scan.finished_at).getTime() > 60 * 60 * 1000) alerts.push({ severity: 'info', title: 'Data may be stale', message: 'Latest discovery is more than one hour old.', href: '/discover' })
 
   return (
     <div className="h-full overflow-auto">
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         <PageHeader
           title="Operations Dashboard"
-          description="A live, beginner-friendly view of network health and potential outages."
+          description="A live, interactive view of network health and potential outages."
           actions={
             <div className="flex items-center gap-3">
-              <span className="text-xs text-muted">{refreshing ? 'Refreshing...' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString()}` : 'Waiting for data'}</span>
+              <Select value={String(refreshMs)} onChange={(e) => setRefreshMs(Number(e.target.value))} className="text-xs w-36">
+                <option value="10000">Every 10s</option>
+                <option value="30000">Every 30s</option>
+                <option value="60000">Every 1m</option>
+                <option value="300000">Every 5m</option>
+              </Select>
+              <span className="text-xs text-muted whitespace-nowrap">{refreshing ? 'Refreshing...' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString()}` : 'Waiting for data'}</span>
               <Button variant="secondary" size="sm" onClick={() => void refresh()} disabled={refreshing}>Refresh</Button>
             </div>
           }
         />
 
         <Card padding={false}>
-          <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted">Explore</span>
-            <Select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="min-w-44 text-xs">
-              <option value="">All device types</option>
-              {Object.keys(report.by_device_type).filter(Boolean).sort().map((type) => <option key={type} value={type}>{type}</option>)}
-            </Select>
-            <Select value={siteFilter} onChange={(event) => setSiteFilter(event.target.value)} className="min-w-52 text-xs">
-              <option value="">All sites</option>
-              {Object.keys(report.by_site).filter(Boolean).sort().map((site) => <option key={site} value={site}>{site}</option>)}
-            </Select>
-            {hasFilters && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
-            <span className="ml-auto text-xs text-muted">Click a chart bar to filter.</span>
+          <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted mr-1">Quick actions</span>
+            <Link to="/discover" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">Run Discovery</Link>
+            <Link to="/catalyst" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">Import Catalyst</Link>
+            <Link to="/topology" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">View Topology</Link>
+            <Link to="/configs" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">Collect Configs</Link>
+            <Link to="/reports" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">Reports</Link>
+            <div className="flex-1" />
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted">Type</span>
+              <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="min-w-36 text-xs">
+                <option value="">All types</option>
+                {Object.keys(report.by_device_type).filter(Boolean).sort().map((t) => <option key={t} value={t}>{t}</option>)}
+              </Select>
+              <span className="text-[11px] text-muted">Site</span>
+              <Select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} className="min-w-40 text-xs">
+                <option value="">All sites</option>
+                {Object.keys(report.by_site).filter(Boolean).sort().map((s) => <option key={s} value={s}>{s}</option>)}
+              </Select>
+              {hasFilters && <Button variant="ghost" size="sm" onClick={() => { setTypeFilter(''); setSiteFilter('') }}>Clear</Button>}
+            </div>
           </div>
         </Card>
 
-        <div className={`rounded-xl border px-4 py-3 flex items-center justify-between gap-4 ${healthStyles[health.state]}`}>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-current" />
-              <h2 className="font-semibold">{health.title}</h2>
+        <div className={`rounded-xl border px-4 py-3 flex items-center justify-between gap-4 ${hc.bg} ${hc.border} ${hc.text}`}>
+          <div className="flex items-center gap-3">
+            <span className={`w-3 h-3 rounded-full ${hc.dot} animate-pulse`} />
+            <div>
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                  {healthIcon[health.state].map((d, i) => <path key={i} d={d} />)}
+                </svg>
+                <h2 className="font-semibold">{health.title}</h2>
+              </div>
+              <p className="text-xs opacity-80 mt-0.5">{health.message}</p>
             </div>
-            <p className="text-xs opacity-80 mt-1">{health.message}</p>
           </div>
-          {health.state !== 'healthy' && <Link className="text-xs font-semibold underline shrink-0" to="/quality">Review details</Link>}
+          {health.state !== 'healthy' && <Link className="text-xs font-semibold underline shrink-0" to="/quality">Review details &rarr;</Link>}
         </div>
 
         {error && <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">Refresh warning: {error}</div>}
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Tooltip content="Known devices, narrowed by the selected site or device type." position="bottom"><div><StatCard label={hasFilters ? 'Filtered devices' : 'Devices'} value={filteredDevices.toLocaleString()} sub={hasFilters ? 'matching current filters' : 'known network devices'} accent="blue" /></div></Tooltip>
-          <StatCard label="Connections" value={report.total_links.toLocaleString()} sub="topology links" accent="green" />
-          <StatCard label="Interfaces down" value={down.toLocaleString()} sub="current persisted status" accent={down > 0 ? 'red' : 'green'} />
-          <StatCard label="Stale devices" value={report.stale_devices_90d.toLocaleString()} sub="not seen in 90 days" accent={report.stale_devices_90d > 0 ? 'amber' : 'green'} />
+          <KpiCard label={hasFilters ? 'Filtered devices' : 'Devices'} value={filteredDevices} sub={hasFilters ? 'matching filters' : 'known network devices'} accent="blue" tooltip="Total known devices in inventory. Click to open Inventory." href="/inventory" sparkData={scanHistoryValues} sparkColor="#3b82f6" />
+          <KpiCard label="Connections" value={report.total_links} sub="topology links" accent="green" tooltip="Total topology links. Click to open Topology." href="/topology" />
+          <KpiCard label="Interfaces down" value={down} sub="current persisted status" accent={down > 0 ? 'red' : 'green'} tooltip="Interfaces reporting operational down. Click to open Reports." href="/reports" />
+          <KpiCard label="Stale devices" value={report.stale_devices_90d} sub="not seen in 90 days" accent={report.stale_devices_90d > 0 ? 'amber' : 'green'} tooltip="Devices missing from recent scans. Click to open Quality." href="/quality" />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-4">
           <Card>
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-3 mb-4">
               <div>
                 <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Latest scan</h2>
                 <p className="text-xs text-muted mt-1">How fresh is the network view?</p>
               </div>
               <Badge label={scan?.status || 'unknown'} dot />
             </div>
-            <div className="mt-5 text-3xl font-bold text-text-primary tabular-nums">{scanAge(scan)}</div>
+            <div className="text-3xl font-bold text-text-primary tabular-nums">{scanAge(scan)}</div>
             <p className="text-xs text-muted mt-1 truncate">{scan?.subnet || 'No scan recorded'}</p>
             <div className="grid grid-cols-2 gap-3 mt-5 text-xs">
-              <div className="bg-surface-2 rounded-lg p-3"><span className="text-muted block">Devices found</span><strong className="text-text-primary text-lg">{scan?.device_count ?? 0}</strong></div>
-              <div className="bg-surface-2 rounded-lg p-3"><span className="text-muted block">Links found</span><strong className="text-text-primary text-lg">{scan?.links ?? 0}</strong></div>
+              <div className="bg-surface-3/50 rounded-lg p-3"><span className="text-muted block">Devices found</span><strong className="text-text-primary text-lg">{scan?.device_count ?? 0}</strong></div>
+              <div className="bg-surface-3/50 rounded-lg p-3"><span className="text-muted block">Links found</span><strong className="text-text-primary text-lg">{scan?.links ?? 0}</strong></div>
             </div>
           </Card>
-          <Distribution title="Devices by type" values={visibleTypes} selected={typeFilter} onSelect={(value) => setTypeFilter(typeFilter === value ? '' : value)} />
-          <Distribution title="Interfaces by status" values={report.interface_status} />
+          <Card>
+            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Devices by type</h2>
+            <DonutChart data={visibleTypes} />
+          </Card>
+          <Card>
+            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Devices by site</h2>
+            <DonutChart data={visibleSites} />
+          </Card>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-4">
@@ -269,34 +389,96 @@ export default function OperationsDashboard() {
             </div>
             <ScanTrend scans={report.recent_scans} />
           </Card>
-          <Distribution title="Devices by site" values={visibleSites} selected={siteFilter} onSelect={(value) => setSiteFilter(siteFilter === value ? '' : value)} />
+          <Card>
+            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Interfaces by status</h2>
+            <DonutChart data={report.interface_status} />
+          </Card>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-4">
+        <div className="grid lg:grid-cols-3 gap-4">
           <Card>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Recent scans</h2>
-              <Link to="/reports" className="text-xs text-accent hover:text-accent-hover">View reports</Link>
+              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Scan timeline</h2>
+              <Link to="/reports" className="text-xs text-accent hover:text-accent-hover">All scans &rarr;</Link>
             </div>
-            <div className="space-y-2">
-              {report.recent_scans.slice(0, 6).map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg bg-surface-2 px-3 py-2 text-xs">
-                  <div className="min-w-0"><p className="text-text-secondary truncate">{item.subnet}</p><p className="text-muted">{item.started_at?.slice(0, 16).replace('T', ' ') || 'Unknown time'}</p></div>
-                  <div className="flex items-center gap-3 shrink-0"><span className="text-muted tabular-nums">{item.device_count} devices</span><Badge label={item.status} dot /></div>
-                </div>
-              ))}
-              {report.recent_scans.length === 0 && <p className="text-xs text-muted">No scans recorded yet.</p>}
-            </div>
+            <ScanTimeline scans={report.recent_scans} />
           </Card>
           <Card>
-            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">What needs attention?</h2>
-            <div className="space-y-3 text-sm">
-              <div className={`flex items-start gap-3 rounded-lg p-3 ${down > 0 ? 'bg-red-500/10' : 'bg-surface-2'}`}><span className={down > 0 ? 'text-red-300' : 'text-green-300'}>{down > 0 ? '!' : 'OK'}</span><div><strong className="text-text-primary">Interface status</strong><p className="text-xs text-muted mt-0.5">{down > 0 ? `${down} interface${down === 1 ? '' : 's'} reported down.` : 'No interfaces are currently marked down.'}</p></div></div>
-              <div className={`flex items-start gap-3 rounded-lg p-3 ${report.stale_devices_90d > 0 ? 'bg-amber-500/10' : 'bg-surface-2'}`}><span className={report.stale_devices_90d > 0 ? 'text-amber-300' : 'text-green-300'}>{report.stale_devices_90d > 0 ? '!' : 'OK'}</span><div><strong className="text-text-primary">Device freshness</strong><p className="text-xs text-muted mt-0.5">{report.stale_devices_90d > 0 ? `${report.stale_devices_90d} devices need a recent discovery check.` : 'All devices are within the freshness threshold.'}</p></div></div>
-              <div className="flex items-start gap-3 rounded-lg p-3 bg-surface-2"><span className="text-accent">i</span><div><strong className="text-text-primary">Need deeper analysis?</strong><p className="text-xs text-muted mt-0.5">Use Topology for relationships, Inventory for device detail, or Grafana for historical metrics.</p></div></div>
+            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Alerts</h2>
+            {alerts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <svg className="w-8 h-8 text-green-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p className="text-sm text-text-secondary font-medium">All clear</p>
+                <p className="text-xs text-muted mt-0.5">No alerts at this time.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {alerts.map((alert, i) => <AlertItem key={i} {...alert} />)}
+              </div>
+            )}
+          </Card>
+          <Card>
+            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Config coverage</h2>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-text-secondary">Devices with configs</span>
+                  <span className="text-muted tabular-nums">{report.config_coverage.devices_with_config} / {report.total_devices}</span>
+                </div>
+                <div className="h-3 rounded-full bg-surface-3 overflow-hidden">
+                  <div className="h-full rounded-full bg-green-500 transition-all duration-500" style={{ width: `${report.total_devices > 0 ? (report.config_coverage.devices_with_config / report.total_devices) * 100 : 0}%` }} />
+                </div>
+              </div>
+              {Object.entries(report.config_coverage.by_device_type || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([type, count]) => (
+                <div key={type}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-text-secondary capitalize">{type}</span>
+                    <span className="text-muted tabular-nums">{count}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
+                    <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${Math.min(100, (count / (report.by_device_type[type] || 1)) * 100)}%` }} />
+                  </div>
+                </div>
+              ))}
+              {Object.keys(report.config_coverage.by_device_type || {}).length === 0 && <p className="text-xs text-muted">No configs collected yet.</p>}
+              <Link to="/configs" className="inline-block text-xs text-accent hover:text-accent-hover">Collect configs &rarr;</Link>
             </div>
           </Card>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function ScanTrend({ scans }: { scans: ScanHistoryEntry[] }) {
+  const points = [...scans].reverse().slice(-12)
+  if (points.length < 2) return <p className="text-xs text-muted py-8">Run more scans to see the device-count trend.</p>
+  const max = Math.max(...points.map((scan) => scan.device_count), 1)
+  const min = Math.min(...points.map((scan) => scan.device_count), 0)
+  const range = Math.max(max - min, 1)
+  const coords = points.map((scan, index) => ({
+    scan,
+    x: (index / (points.length - 1)) * 100,
+    y: 90 - ((scan.device_count - min) / range) * 78,
+  }))
+  const line = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
+  const area = `M ${coords[0].x} 90 ${coords.map((p) => `L ${p.x} ${p.y}`).join(' ')} L ${coords[coords.length - 1].x} 90 Z`
+  return (
+    <div className="relative h-44">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+        <path d="M 0 90 L 100 90" stroke="rgb(var(--border))" strokeWidth="0.5" strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
+        <path d="M 0 45 L 100 45" stroke="rgb(var(--border))" strokeWidth="0.3" strokeDasharray="2 4" vectorEffect="non-scaling-stroke" />
+        <path d={area} fill="rgb(var(--accent))" opacity="0.12" />
+        <path d={line} fill="none" stroke="rgb(var(--accent))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        {coords.map((point) => (
+          <Tooltip key={point.scan.id} content={`${point.scan.subnet}: ${point.scan.device_count} devices`} position="top">
+            <circle cx={point.x} cy={point.y} r="3" fill="rgb(var(--surface-1))" stroke="rgb(var(--accent))" strokeWidth="1.5" className="cursor-pointer hover:r-4 transition-all" vectorEffect="non-scaling-stroke" />
+          </Tooltip>
+        ))}
+      </svg>
+      <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px] text-muted">
+        <span>{points[0].started_at?.slice(5, 10) || ''}</span>
+        <span>{points[points.length - 1].started_at?.slice(5, 10) || ''}</span>
       </div>
     </div>
   )
