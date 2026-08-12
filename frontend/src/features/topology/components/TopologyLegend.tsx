@@ -40,7 +40,7 @@ export default function TopologyLegend({ presentTypes }: Props) {
   if (types.length === 0) return null
 
   return (
-    <div className="absolute bottom-4 left-4 z-10 w-60 rounded-xl border border-border bg-surface-1/95 backdrop-blur shadow-lg text-xs">
+    <div className="absolute bottom-4 left-4 z-10 w-60 rounded-2xl border border-border/40 bg-surface-1/80 backdrop-blur-2xl shadow-lg text-xs">
       <button
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between px-3 py-2 text-text-primary font-semibold hover:bg-surface-2 transition-colors rounded-t-xl"

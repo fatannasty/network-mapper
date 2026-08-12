@@ -271,7 +271,7 @@ export default function DeviceInventory() {
                     <button
                       key={d.ip}
                       onClick={() => openDevice(d.ip)}
-                      className={`text-left rounded-xl border-2 p-3 transition-all hover:scale-[1.02] cursor-pointer ${
+                      className={`text-left rounded-2xl border-2 backdrop-blur p-3 transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer ${
                         nodeColors[type] || nodeColors.unknown
                       } ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-surface-0' : ''}`}
                     >
