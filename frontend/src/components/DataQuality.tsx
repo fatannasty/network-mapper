@@ -110,8 +110,8 @@ export default function DataQuality() {
           description="Site attribution, interfaces, link validation, and config coverage."
         />
 
-        {error && <div className="bg-red-900/40 border border-red-800 rounded-lg p-4 text-sm text-red-300">{error}</div>}
-        {notice && <div className="bg-green-900/40 border border-green-800 rounded-lg p-4 text-sm text-green-300">{notice}</div>}
+        {error && <div className="bg-red-900/40 backdrop-blur border border-red-800/50 rounded-xl p-4 text-sm text-red-300">{error}</div>}
+        {notice && <div className="bg-green-900/40 backdrop-blur border border-green-800/50 rounded-xl p-4 text-sm text-green-300">{notice}</div>}
 
         {/* DoD Gates */}
         <Card>
@@ -150,7 +150,7 @@ export default function DataQuality() {
           {mappings.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {mappings.map((m) => (
-                <span key={m.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface-3 border border-border rounded-lg text-xs">
+                <span key={m.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface-3/60 backdrop-blur border border-border/40 rounded-xl text-xs">
                   <span className="font-mono font-medium">{m.prefix}</span>
                   <span className="text-muted">→</span>
                   <span>{m.site}</span>
@@ -182,7 +182,7 @@ export default function DataQuality() {
           {credentials.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {credentials.map((c) => (
-                <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface-3 border border-border rounded-lg text-xs">
+                <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface-3/60 backdrop-blur border border-border/40 rounded-xl text-xs">
                   <span className="font-medium">{c.name}</span>
                   <Badge label={c.credential_type} />
                   {c.site && <span className="text-muted">{c.site}</span>}

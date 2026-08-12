@@ -387,7 +387,7 @@ export default function OperationsDashboard() {
           {health.state !== 'healthy' && <Link className="text-xs font-semibold underline shrink-0" to="/quality">Review details &rarr;</Link>}
         </div>
 
-        {error && <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">Refresh warning: {error}</div>}
+        <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 backdrop-blur">Refresh warning: {error}</div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label={hasFilters ? 'Filtered devices' : 'Devices'} value={filteredDevices} sub={hasFilters ? 'matching filters' : 'known network devices'} accent="blue" tooltip="Total known devices in inventory. Click to open Inventory." href="/inventory" sparkData={scanHistoryValues} sparkColor="#3b82f6" />
@@ -408,8 +408,8 @@ export default function OperationsDashboard() {
             <div className="text-3xl font-bold text-text-primary tabular-nums">{scanAge(scan)}</div>
             <p className="text-xs text-muted mt-1 truncate">{scan?.subnet || 'No scan recorded'}</p>
             <div className="grid grid-cols-2 gap-3 mt-5 text-xs">
-              <div className="bg-surface-3/50 rounded-lg p-3"><span className="text-muted block">Devices found</span><strong className="text-text-primary text-lg">{scan?.device_count ?? 0}</strong></div>
-              <div className="bg-surface-3/50 rounded-lg p-3"><span className="text-muted block">Links found</span><strong className="text-text-primary text-lg">{scan?.links ?? 0}</strong></div>
+              <div className="bg-surface-3/50 backdrop-blur rounded-xl p-3"><span className="text-muted block">Devices found</span><strong className="text-text-primary text-lg">{scan?.device_count ?? 0}</strong></div>
+              <div className="bg-surface-3/50 backdrop-blur rounded-xl p-3"><span className="text-muted block">Links found</span><strong className="text-text-primary text-lg">{scan?.links ?? 0}</strong></div>
             </div>
           </Card>
           <Card>
