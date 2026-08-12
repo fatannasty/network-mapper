@@ -31,8 +31,8 @@ export default function TopologyGroupDetail({ type, nodes, devices, onClose, onV
   }, [devices, nodes, search, type])
 
   return (
-    <aside className="w-96 bg-surface-1 border-l border-border overflow-hidden shrink-0 flex flex-col">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
+    <aside className="w-96 bg-surface-1/80 backdrop-blur-2xl border-l border-border/30 overflow-hidden shrink-0 flex flex-col">
+      <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-text-primary">{friendlyType(type)} devices</h2>
           <p className="text-xs text-muted mt-0.5">Select a device to view its connections.</p>
@@ -41,7 +41,7 @@ export default function TopologyGroupDetail({ type, nodes, devices, onClose, onV
           Close
         </Button>
       </div>
-      <div className="p-3 border-b border-border space-y-2">
+      <div className="p-3 border-b border-border/30 space-y-2">
         <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a device..." className="w-full" />
         <p className="text-[11px] text-muted">{members.length} matching devices</p>
       </div>
@@ -50,7 +50,7 @@ export default function TopologyGroupDetail({ type, nodes, devices, onClose, onV
           <button
             key={item.ip}
             onClick={() => onViewConnections(item.ip)}
-            className="w-full text-left rounded-lg px-3 py-2 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
+            className="w-full text-left rounded-xl px-3 py-2.5 hover:bg-surface-2/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-all duration-150"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-text-primary truncate">{shortName(item.hostname) || item.ip}</span>
