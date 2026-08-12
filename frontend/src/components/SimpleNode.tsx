@@ -14,17 +14,17 @@ export type SimpleNodeData = {
 }
 
 const nodeColor: Record<string, string> = {
-  switch: 'border-sky-400 bg-sky-950',
-  'core-switch': 'border-violet-400 bg-violet-950',
-  router: 'border-amber-400 bg-amber-950',
-  firewall: 'border-red-400 bg-red-950',
-  accesspoint: 'border-emerald-400 bg-emerald-950',
-  'access-point': 'border-emerald-400 bg-emerald-950',
-  'sd-wan': 'border-green-400 bg-green-950',
-  'velocloud-edge': 'border-teal-400 bg-teal-950',
-  'wireless-controller': 'border-cyan-400 bg-cyan-950',
-  'load-balancer': 'border-pink-400 bg-pink-950',
-  unknown: 'border-gray-500 bg-gray-800',
+  switch: 'border-sky-400/80 bg-sky-950/70',
+  'core-switch': 'border-violet-400/80 bg-violet-950/70',
+  router: 'border-amber-400/80 bg-amber-950/70',
+  firewall: 'border-red-400/80 bg-red-950/70',
+  accesspoint: 'border-emerald-400/80 bg-emerald-950/70',
+  'access-point': 'border-emerald-400/80 bg-emerald-950/70',
+  'sd-wan': 'border-green-400/80 bg-green-950/70',
+  'velocloud-edge': 'border-teal-400/80 bg-teal-950/70',
+  'wireless-controller': 'border-cyan-400/80 bg-cyan-950/70',
+  'load-balancer': 'border-pink-400/80 bg-pink-950/70',
+  unknown: 'border-gray-500/80 bg-gray-800/70',
 }
 
 const iconBg: Record<string, string> = {
@@ -49,7 +49,7 @@ export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
 
   return (
     <div
-      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border-2 ${nodeColor[type] || nodeColor.unknown}
+      className={`flex items-center gap-2.5 px-3 py-2 rounded-2xl border-2 backdrop-blur ${nodeColor[type] || nodeColor.unknown}
         text-white shadow-lg cursor-pointer select-none ${d.focus ? 'ring-2 ring-white/90 ring-offset-2 ring-offset-surface-0' : ''}`}
     >
       <Handle id="target" type="target" position={Position.Left} className="!bg-gray-500" />

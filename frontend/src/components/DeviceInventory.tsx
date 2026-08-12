@@ -147,7 +147,7 @@ export default function DeviceInventory() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="px-5 pt-3 bg-surface-1 border-b border-border shrink-0">
+      <div className="px-5 pt-3 bg-surface-1/50 backdrop-blur-2xl border-b border-border/30 shrink-0">
         <div className="flex items-center gap-3 pb-3">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search hostname, IP, model..." className="w-64" />
           <div className="flex-1" />
@@ -160,10 +160,10 @@ export default function DeviceInventory() {
           <div className="flex items-center gap-1 flex-wrap pb-3">
             <button
               onClick={() => setTypeFilter('')}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-3 py-1 rounded-xl text-xs font-medium transition-all duration-150 ${
                 !typeFilter
-                  ? 'bg-accent text-white'
-                  : 'bg-surface-2 text-muted hover:text-text-secondary hover:bg-surface-3'
+                  ? 'bg-accent text-white shadow-sm shadow-accent/30'
+                  : 'bg-surface-2/70 backdrop-blur text-muted hover:text-text-secondary hover:bg-surface-3/80 border border-border/30'
               }`}
             >
               All
@@ -172,10 +172,10 @@ export default function DeviceInventory() {
               <button
                 key={t}
                 onClick={() => setTypeFilter(typeFilter === t ? '' : t)}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors capitalize ${
+                className={`px-3 py-1 rounded-xl text-xs font-medium transition-all duration-150 capitalize ${
                   typeFilter === t
-                    ? 'bg-accent text-white'
-                    : 'bg-surface-2 text-muted hover:text-text-secondary hover:bg-surface-3'
+                    ? 'bg-accent text-white shadow-sm shadow-accent/30'
+                    : 'bg-surface-2/70 backdrop-blur text-muted hover:text-text-secondary hover:bg-surface-3/80 border border-border/30'
                 }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full inline-block mr-1.5 ${typeFilter === t ? 'bg-white/60' : 'bg-muted'}`} />
