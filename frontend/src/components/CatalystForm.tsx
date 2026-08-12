@@ -17,11 +17,76 @@ function errDetail(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** Build a flat list of sites sorted by full hierarchy path. */
-function buildSiteList(sites: SiteInfo[]): SiteInfo[] {
-  return [...sites]
-    .filter((s) => s.hierarchy || s.name)
-    .sort((a, b) => (a.hierarchy || a.name).localeCompare(b.hierarchy || b.name))
+interface LocationEntry { name: string; site_id: string; full_path: string }
+interface CityGroup { name: string; site_id: string; locations: LocationEntry[] }
+interface StateGroup { name: string; site_id: string; cities: CityGroup[] }
+
+function parseSiteTree(sites: SiteInfo[]): StateGroup[] {
+  const states = new Map<string, StateGroup>()
+
+  for (const s of sites) {
+    const hier = (s.hierarchy || s.name || '').replace(/^\/+|\/+$/g, '')
+    const parts = hier.split('/').map((p) => p.trim()).filter(Boolean)
+
+    // Expect at least Global/United States/State
+    if (parts.length < 3) continue
+
+    const stateName = parts[2]
+    let stateGrp = states.get(stateName)
+    if (!stateGrp) {
+      stateGrp = { name: stateName, site_id: '', cities: [] }
+      states.set(stateName, stateGrp)
+    }
+
+    if (parts.length === 3) {
+      // State-level site
+      if (!stateGrp.site_id) stateGrp.site_id = s.site_id
+      continue
+    }
+
+    const cityName = parts[3]
+    let cityGrp = stateGrp.cities.find((c) => c.name === cityName)
+    if (!cityGrp) {
+      // Try to find the city-level site_id
+      const cityHier = parts.slice(0, 4).join('/')
+      const citySite = sites.find((x) => (x.hierarchy || x.name).replace(/^\/+|\/+$/g, '') === cityHier)
+      cityGrp = { name: cityName, site_id: citySite?.site_id || '', locations: [] }
+      stateGrp.cities.push(cityGrp)
+    }
+
+    if (parts.length >= 5) {
+      const locationName = parts.slice(4).join(' / ')
+      const existing = cityGrp.locations.find((l) => l.site_id === s.site_id)
+      if (!existing) {
+        cityGrp.locations.push({
+          name: locationName,
+          site_id: s.site_id,
+          full_path: hier,
+        })
+      }
+    } else if (parts.length === 4 && !cityGrp.site_id) {
+      // City-level site (no sub-location)
+      cityGrp.site_id = s.site_id
+    }
+  }
+
+  // Sort everything
+  const result = Array.from(states.values())
+    .filter((s) => s.name)
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  for (const state of result) {
+    if (!state.site_id) {
+      const match = sites.find((s) => (s.hierarchy || '').includes(`/${state.name}`) && !s.hierarchy.includes(`/${state.name}/`))
+      if (match) state.site_id = match.site_id
+    }
+    state.cities.sort((a, b) => a.name.localeCompare(b.name))
+    for (const city of state.cities) {
+      city.locations.sort((a, b) => a.name.localeCompare(b.name))
+    }
+  }
+
+  return result
 }
 
 const STORAGE_KEY = 'catalyst.savedUrls'
@@ -59,17 +124,31 @@ export default function CatalystForm() {
 
   const [sites, setSites] = useState<SiteInfo[]>([])
   const [loadingSites, setLoadingSites] = useState(false)
-  const [selectedSiteId, setSelectedSiteId] = useState('')
+  const [selectedState, setSelectedState] = useState('')
+  const [selectedCity, setSelectedCity] = useState('')
+  const [selectedLocation, setSelectedLocation] = useState('')
   const [siteText, setSiteText] = useState('')
   const [skipEnrichment, setSkipEnrichment] = useState(false)
   const navigate = useNavigate()
 
-  const siteList = useMemo(() => buildSiteList(sites), [sites])
+  const siteTree = useMemo(() => parseSiteTree(sites), [sites])
 
-  const selectedSite = useMemo(() => {
-    if (!selectedSiteId) return null
-    return siteList.find((s) => s.site_id === selectedSiteId) ?? null
-  }, [selectedSiteId, siteList])
+  const stateOptions = siteTree
+  const cityOptions = selectedState
+    ? (siteTree.find((s) => s.name === selectedState)?.cities || [])
+    : []
+  const locationOptions = selectedState && selectedCity
+    ? (cityOptions.find((c) => c.name === selectedCity)?.locations || [])
+    : []
+
+  const selectedSiteId = selectedLocation
+    || cityOptions.find((c) => c.name === selectedCity)?.site_id
+    || stateOptions.find((s) => s.name === selectedState)?.site_id
+    || ''
+
+  const selectedSite = selectedSiteId
+    ? sites.find((s) => s.site_id === selectedSiteId) || null
+    : null
 
   const siteFilter = selectedSite
     ? (selectedSite.hierarchy || selectedSite.name)
@@ -88,8 +167,16 @@ export default function CatalystForm() {
   }
 
   useEffect(() => {
-    setSites([]); setSelectedSiteId(''); setSiteText(''); setSkipEnrichment(false)
+    setSites([]); setSelectedState(''); setSelectedCity(''); setSelectedLocation(''); setSiteText(''); setSkipEnrichment(false)
   }, [baseUrl])
+
+  useEffect(() => {
+    setSelectedCity(''); setSelectedLocation('')
+  }, [selectedState])
+
+  useEffect(() => {
+    setSelectedLocation('')
+  }, [selectedCity])
 
   const handleSaveUrl = () => {
     const url = baseUrl.trim()
@@ -113,7 +200,7 @@ export default function CatalystForm() {
     try {
       const data = await importFromCatalyst(
         baseUrl, username, password,
-        siteFilter || undefined, selectedSite?.site_id || undefined,
+        siteFilter || undefined, selectedSiteId || undefined,
         undefined, skipEnrichment)
       setResult(data)
     } catch (err: unknown) {
@@ -246,18 +333,50 @@ export default function CatalystForm() {
             </div>
 
             {sites.length > 0 ? (
-              <Select
-                value={selectedSiteId}
-                onChange={(e) => setSelectedSiteId(e.target.value)}
-                className="w-full"
-              >
-                <option value="">All sites</option>
-                {siteList.map((s) => (
-                  <option key={s.site_id} value={s.site_id}>
-                    {s.hierarchy || s.name}
-                  </option>
-                ))}
-              </Select>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Select
+                    value={selectedState}
+                    onChange={(e) => setSelectedState(e.target.value)}
+                    className="w-full"
+                  >
+                    <option value="">All States</option>
+                    {stateOptions.map((g) => (
+                      <option key={g.name} value={g.name}>{g.name}</option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <Select
+                    value={selectedCity}
+                    onChange={(e) => setSelectedCity(e.target.value)}
+                    disabled={!selectedState}
+                    className="w-full disabled:opacity-50"
+                  >
+                    <option value="">
+                      {selectedState ? `All ${selectedState} cities` : 'State first'}
+                    </option>
+                    {cityOptions.map((c) => (
+                      <option key={c.name} value={c.name}>{c.name}</option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <Select
+                    value={selectedLocation}
+                    onChange={(e) => setSelectedLocation(e.target.value)}
+                    disabled={!selectedCity || locationOptions.length === 0}
+                    className="w-full disabled:opacity-50"
+                  >
+                    <option value="">
+                      {selectedCity ? (locationOptions.length > 0 ? `All ${selectedCity} locations` : 'No sub-locations') : 'City first'}
+                    </option>
+                    {locationOptions.map((l) => (
+                      <option key={l.site_id} value={l.site_id}>{l.name}</option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
             ) : (
               <Input
                 value={siteText}
@@ -266,9 +385,9 @@ export default function CatalystForm() {
                 placeholder="Type site name or hostname pattern"
               />
             )}
-            <p className="text-gray-600 text-[11px] mt-0.5">
+            <p className="text-gray-600 text-[11px] mt-1">
               {sites.length > 0
-                ? `Pick a site from the hierarchy (e.g. Delaware/Wilmington/15 South Poplar St). Choosing a site imports all sub-sites.`
+                ? `Pick a state, city, and location. Choosing a higher level imports all sites under it.`
                 : `Click "Load Sites" to fetch from Catalyst Center, or type a hostname pattern.`}
             </p>
           </div>
@@ -287,7 +406,7 @@ export default function CatalystForm() {
             Site imports already have topology from Catalyst; use this for faster results.
           </p>
 
-          {selectedSite && (
+          {selectedSiteId && (
             <Button
               type="button"
               variant="secondary"
@@ -297,7 +416,7 @@ export default function CatalystForm() {
                 setMembershipDebug(null)
                 setError('')
                 try {
-                  const data = await debugSiteMembership(baseUrl, username, password, selectedSite.site_id)
+                  const data = await debugSiteMembership(baseUrl, username, password, selectedSiteId)
                   setMembershipDebug(JSON.stringify(data, null, 2))
                 } catch (err: unknown) {
                   setMembershipDebug(null)
