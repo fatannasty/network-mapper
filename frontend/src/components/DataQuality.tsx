@@ -19,19 +19,19 @@ function fmtError(err: unknown): string {
 function ResultTable({ summary }: { summary: BackfillSummary }) {
   if (!summary) return null
   return (
-    <div className="overflow-auto max-h-64 mt-2 rounded-lg border border-border">
+    <div className="overflow-auto max-h-64 mt-2 rounded-xl border border-border/40 backdrop-blur">
       <table className="w-full text-sm">
-        <thead className="sticky top-0 bg-surface-2">
+        <thead className="sticky top-0 bg-surface-2/80 backdrop-blur-xl">
           <tr className="text-left text-muted text-[11px] uppercase tracking-wider">
-            <th className="px-3 py-2 font-medium">Host</th>
-            <th className="px-3 py-2 font-medium">Type</th>
-            <th className="px-3 py-2 font-medium text-right">Count</th>
-            <th className="px-3 py-2 font-medium">Error</th>
+            <th className="px-3 py-2.5 font-medium">Host</th>
+            <th className="px-3 py-2.5 font-medium">Type</th>
+            <th className="px-3 py-2.5 font-medium text-right">Count</th>
+            <th className="px-3 py-2.5 font-medium">Error</th>
           </tr>
         </thead>
         <tbody>
           {summary.results.slice(0, 200).map((r, i) => (
-            <tr key={i} className="border-t border-border hover:bg-surface-3/50 transition-colors">
+            <tr key={i} className="border-t border-border/30 hover:bg-surface-3/50 transition-colors">
               <td className="px-3 py-1.5">
                 <span className="font-mono text-xs">{r.ip}</span>
                 {r.hostname && <span className="text-muted ml-2 text-xs">{r.hostname}</span>}
