@@ -209,7 +209,7 @@ function KpiCard({ label, value, sub, accent, tooltip, href, sparkData, sparkCol
   }
   return (
     <Tooltip content={tooltip} position="bottom">
-      <Link to={href} className={`block bg-surface-2 border border-border border-l-4 ${colors[accent]} rounded-xl p-4 hover:bg-surface-3 transition-colors group`}>
+      <Link to={href} className={`block bg-surface-2/80 backdrop-blur border border-border/40 border-l-4 ${colors[accent]} rounded-2xl p-4 hover:shadow-lg hover:border-border/60 hover:-translate-y-px transition-all duration-200 group`}>
         <div className="flex items-start justify-between gap-2">
           <div>
             <div className="text-xs font-medium text-muted uppercase tracking-wider mb-1">{label}</div>
@@ -547,7 +547,7 @@ export default function OperationsDashboard() {
           </div>
           <div className="overflow-auto max-h-80">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-surface-2 z-10">
+              <thead className="sticky top-0 bg-surface-2/80 backdrop-blur-xl z-10">
                 <tr className="text-left text-muted text-[11px] uppercase tracking-wider">
                   <th className="px-5 py-2 font-medium">Scan</th>
                   <th className="px-5 py-2 font-medium">Status</th>
