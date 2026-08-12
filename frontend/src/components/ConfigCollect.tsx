@@ -37,13 +37,13 @@ export default function ConfigCollect() {
             <Input value={sitePattern} onChange={(e) => setSitePattern(e.target.value)} className="w-full" placeholder="e.g. Sanford, Miami, or empty for all" />
           </div>
 
-          <label className="flex items-center gap-2 bg-surface-3 border border-border rounded-lg px-4 py-3 cursor-pointer">
+          <label className="flex items-center gap-2 bg-surface-2/60 backdrop-blur border border-border/40 rounded-xl px-4 py-3 cursor-pointer transition-all duration-150 hover:bg-surface-2/80">
             <input type="checkbox" checked={useCatalyst} onChange={(e) => setUseCatalyst(e.target.checked)} className="accent-accent" />
             <span className="text-sm">Use Catalyst Center config API</span>
           </label>
 
           {useCatalyst ? (
-            <div className="space-y-3 border border-accent/30 bg-accent/5 rounded-xl p-4">
+            <div className="space-y-3 border border-accent/30 bg-accent/5 backdrop-blur rounded-xl p-4">
               <Input value={catUrl} onChange={(e) => setCatUrl(e.target.value)} className="w-full" placeholder="Catalyst Center URL" />
               <div className="grid grid-cols-2 gap-3">
                 <Input value={catUsername} onChange={(e) => setCatUsername(e.target.value)} placeholder="Username" />
@@ -65,7 +65,7 @@ export default function ConfigCollect() {
           {error && <div className="bg-red-900/40 border border-red-800 rounded-lg p-4 text-sm text-red-300">{error}</div>}
 
           {result && (
-            <div className="bg-surface-2 border border-border rounded-xl p-4 space-y-2">
+            <div className="bg-surface-2/60 backdrop-blur border border-border/40 rounded-2xl p-4 space-y-2">
               <p className="text-sm text-green-400">{result.success} of {result.total} collected ({result.failed} failed)</p>
               <div className="max-h-72 overflow-auto space-y-1.5">
                 {result.results.map((r, i) => (
