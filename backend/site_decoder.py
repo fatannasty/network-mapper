@@ -137,7 +137,8 @@ OVERRIDES = {
     "LA-YARD": "Los Angeles, CA",       # "LA Yard" APs
     "AMYDBA": "Baltimore, MD", "AMSTBA": "Baltimore, MD",
     "REA": "Reading, PA", "LOR": "Lorton, VA", "NOL": "New Orleans, LA",
-    "STL": "St. Louis, MO", "BOS": "Boston, MA", "SEA": "Seattle, WA",
+    "STL": "St. Louis, MO",     "BOS": "Boston, MA", "SEA": "Seattle, WA",
+    "AMT1MASS": "Massachusetts, MA",
     "SEAWAY": "Seattle, WA", "SEAWAS": "Seattle, WA",
     "LAX": "Los Angeles, CA", "LAXCAY": "Los Angeles, CA", "LOSCAY": "Los Angeles, CA",
     "LAXCAS": "Los Angeles, CA", "LOSCAS": "Los Angeles, CA",
