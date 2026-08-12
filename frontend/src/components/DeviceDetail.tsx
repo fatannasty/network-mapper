@@ -152,7 +152,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
                     <span className="text-muted text-[11px] font-mono">{conn.ip}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-surface-3 text-muted">
+                    <span className="px-1.5 py-0.5 rounded-lg text-[10px] font-bold uppercase bg-surface-3/60 backdrop-blur text-muted">
                       {conn.protocol}
                     </span>
                     {conn.iface && (
@@ -226,7 +226,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
                     const scanId = d.last_scan_id || device.last_scan_id
                     navigate(scanId ? `/topology?scan_id=${scanId}&device=${encodeURIComponent(d.ip)}` : `/topology`)
                   }}
-                  className="w-full flex items-center justify-between gap-2 bg-surface-2 rounded px-3 py-1.5 text-xs hover:bg-surface-3 transition-colors text-left"
+                  className="w-full flex items-center justify-between gap-2 bg-surface-2/60 backdrop-blur-xl rounded-xl px-3 py-1.5 text-xs hover:bg-surface-3/60 border border-border/30 transition-all duration-150 text-left"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${d.hasTopology ? 'bg-green-400' : 'bg-gray-600'}`} />

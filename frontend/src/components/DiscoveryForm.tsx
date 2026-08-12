@@ -181,7 +181,7 @@ export default function DiscoveryForm() {
                     key={cred.id}
                     type="button"
                     onClick={() => applyCredentials(cred)}
-                    className="px-2 py-1 bg-surface-2 border border-border rounded text-xs text-text-secondary hover:bg-surface-3 transition-colors"
+                    className="px-2 py-1 bg-surface-2/70 backdrop-blur border border-border/40 rounded-xl text-xs text-text-secondary hover:bg-surface-3/60 transition-all duration-150"
                     title={cred.credential_type === 'snmpv3' ? `SNMPv3 user: ${cred.username}` : `Community: ${cred.snmp_community}`}
                   >
                     {cred.name}
