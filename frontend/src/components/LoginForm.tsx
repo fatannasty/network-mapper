@@ -32,7 +32,7 @@ export default function LoginForm({ onSuccess }: Props) {
       <div className="relative z-10 w-full max-w-md px-4">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src="/amtrak-logo.png" alt="Amtrak" className="h-12 mb-4" />
+          <img src="/amtrak-logo.png" alt="Amtrak" className="h-16 mb-4" />
           <p className="text-sm text-muted">Network Discovery & Topology Platform</p>
         </div>
 
