@@ -7,10 +7,10 @@ interface Props {
 
 export default function Sidebar({ onLogout, collapsed }: Props) {
   return (
-    <aside className={`flex flex-col bg-surface-1 border-r border-border shrink-0 transition-all duration-200
+    <aside className={`flex flex-col bg-surface-1/70 backdrop-blur-xl border-r border-border/60 shrink-0 transition-all duration-200
       ${collapsed ? 'w-14' : 'w-56'}`} aria-label="Sidebar">
       {/* Logo */}
-      <div className="px-4 py-4 border-b border-border">
+      <div className="px-4 py-4 border-b border-border/60">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center shrink-0 shadow-sm shadow-accent/30">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">

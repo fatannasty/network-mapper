@@ -1,26 +1,17 @@
 interface Props {
-  /** Pixels width; "auto" fills parent */
-  width?: string | number
-  /** Height in pixels */
-  height?: number
   className?: string
-  /** Rounded variant */
-  rounded?: 'sm' | 'md' | 'lg' | 'full'
+  lines?: number
 }
 
-const radii: Record<string, string> = {
-  sm: 'rounded-sm',
-  md: 'rounded',
-  lg: 'rounded-lg',
-  full: 'rounded-full',
-}
-
-export default function Skeleton({ width = 'auto', height = 16, className = '', rounded = 'md' }: Props) {
+export default function Skeleton({ className = 'h-4 w-full', lines = 1 }: Props) {
+  if (lines === 1) {
+    return <div className={`animate-pulse rounded-lg bg-surface-3/60 ${className}`} />
+  }
   return (
-    <div
-      className={`animate-pulse bg-surface-3 ${radii[rounded]} ${className}`}
-      style={{ width, height }}
-      aria-hidden="true"
-    />
+    <div className="space-y-2">
+      {Array.from({ length: lines }).map((_, i) => (
+        <div key={i} className={`animate-pulse rounded-lg bg-surface-3/60 ${className}`} />
+      ))}
+    </div>
   )
 }

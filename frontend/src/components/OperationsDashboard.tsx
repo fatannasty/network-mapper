@@ -9,6 +9,40 @@ import PageState from './ui/PageState'
 import Select from './ui/Select'
 import Tooltip from './ui/Tooltip'
 import GaugeBar from './ui/GaugeBar'
+import Skeleton from './ui/Skeleton'
+
+function DashboardSkeleton() {
+  return (
+    <div className="h-full overflow-auto">
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <Skeleton className="h-7 w-56 mb-2" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <div className="flex gap-3">
+            <Skeleton className="h-8 w-36" />
+            <Skeleton className="h-8 w-20" />
+          </div>
+        </div>
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-14 w-full" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
+        </div>
+        <div className="grid lg:grid-cols-3 gap-4">
+          <Skeleton className="h-48" />
+          <Skeleton className="h-48" />
+          <Skeleton className="h-48" />
+        </div>
+        <div className="grid lg:grid-cols-2 gap-4">
+          <Skeleton className="h-56" />
+          <Skeleton className="h-56" />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 type Health = 'healthy' | 'warning' | 'critical'
 
@@ -74,10 +108,10 @@ function healthFor(report: Report): { state: Health; title: string; message: str
   return { state: 'healthy', title: 'Network appears healthy', message: 'No current outage indicators were found in the latest data.' }
 }
 
-const healthColors: Record<Health, { bg: string; border: string; text: string; dot: string }> = {
-  healthy: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-300', dot: 'bg-green-400' },
-  warning: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-300', dot: 'bg-amber-400' },
-  critical: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-300', dot: 'bg-red-400' },
+const healthColors: Record<Health, { bg: string; border: string; text: string; dot: string; glow: string }> = {
+  healthy: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-300', dot: 'bg-green-400', glow: 'shadow-green-500/50' },
+  warning: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-300', dot: 'bg-amber-400', glow: 'shadow-amber-500/50' },
+  critical: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-300', dot: 'bg-red-400', glow: 'shadow-red-500/50' },
 }
 
 const healthIcon: Record<Health, string[]> = {
@@ -260,7 +294,7 @@ export default function OperationsDashboard() {
     return () => window.clearInterval(timer)
   }, [refresh, refreshMs])
 
-  if (loading) return <PageState type="loading" title="Loading operations dashboard..." className="h-full" />
+  if (loading) return <DashboardSkeleton />
   if (error && !report) {
     return <PageState type="error" title="Dashboard unavailable" message={error} className="h-full" action={<Button variant="danger" size="sm" onClick={() => void refresh(true)}>Retry</Button>} />
   }
@@ -336,7 +370,10 @@ export default function OperationsDashboard() {
 
         <div className={`rounded-xl border px-4 py-3 flex items-center justify-between gap-4 ${hc.bg} ${hc.border} ${hc.text}`}>
           <div className="flex items-center gap-3">
-            <span className={`w-3 h-3 rounded-full ${hc.dot} animate-pulse`} />
+            <div className="relative">
+              <span className={`w-3 h-3 rounded-full ${hc.dot} animate-pulse`} />
+              <span className={`absolute inset-0 w-3 h-3 rounded-full ${hc.dot} ${hc.glow} shadow-lg animate-ping opacity-75`} />
+            </div>
             <div>
               <div className="flex items-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
