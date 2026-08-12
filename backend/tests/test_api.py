@@ -82,7 +82,10 @@ def test_topology_with_seeded_data():
 
 def test_topology_scan_not_found():
     resp = admin.get("/api/topology", params={"scan_id": "nonexistent"})
-    assert resp.status_code == 404
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "nodes" in data
+    assert "links" in data
 
 
 def test_topology_excludes_velocloud_lan_inference_links():

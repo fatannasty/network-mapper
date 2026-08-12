@@ -556,12 +556,15 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
     if scan_id:
         job = db.get(ScanJob, scan_id)
         if job is None:
-            raise HTTPException(status_code=404, detail="scan not found")
+            # Stale scan_id (e.g. from a replaced import) — fall back to latest.
+            jobs = repositories.list_scan_jobs(db, limit=1)
+            job = jobs[0] if jobs else None
     else:
         jobs = repositories.list_scan_jobs(db, limit=1)
-        if not jobs:
-            return {"scan_id": None, "nodes": [], "links": [], "scan_meta": None}
-        job = jobs[0]
+        job = jobs[0] if jobs else None
+
+    if job is None:
+        return {"scan_id": None, "nodes": [], "links": [], "scan_meta": None}
 
     if site:
         # Site-focused topology: all devices at this site plus their
@@ -600,7 +603,7 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
     elif focus:
         focus_dev = db.query(Device).filter(Device.ip == focus).first()
         if focus_dev is None:
-            raise HTTPException(status_code=404, detail="device not found")
+            return {"scan_id": job.id if job else None, "nodes": [], "links": [], "scan_meta": None, "focus": focus}
 
         # Direct links touching the focused device, across every scan.
         direct = [l for l in repositories.list_links(db, limit=50000)
