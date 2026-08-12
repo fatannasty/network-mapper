@@ -195,10 +195,10 @@ export default function DeviceInventory() {
             onChange={(id) => setActiveTab(id as 'devices' | 'connections')}
           />
           {activeTab === 'devices' && (
-            <div className="flex items-center gap-0.5 bg-surface-2 rounded-lg p-0.5">
+            <div className="flex items-center gap-0.5 bg-surface-2/70 backdrop-blur rounded-xl p-0.5">
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'}`}
+                className={`p-1.5 rounded-lg transition-all duration-150 ${viewMode === 'list' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'}`}
                 title="List view"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
@@ -207,7 +207,7 @@ export default function DeviceInventory() {
               </button>
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'}`}
+                className={`p-1.5 rounded-lg transition-all duration-150 ${viewMode === 'grid' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'}`}
                 title="Card view"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>

@@ -18,7 +18,7 @@ export function ThemeSwitcher({ variant = 'menu' }: Props) {
     return (
       <button
         onClick={() => setTheme(next.id)}
-        className="flex items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-text-primary hover:bg-surface-2 transition-colors"
+        className="flex items-center justify-center w-9 h-9 rounded-xl text-muted hover:text-text-primary hover:bg-surface-2/60 transition-all duration-150"
         title={`Theme: ${current.label} — click for ${next.label}`}
         aria-label={`Switch theme from ${current.label} to ${next.label}`}
       >
@@ -32,7 +32,7 @@ export function ThemeSwitcher({ variant = 'menu' }: Props) {
   return (
     <button
       onClick={() => setTheme(next.id)}
-      className="flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-sm text-muted hover:text-text-secondary hover:bg-surface-2 transition-colors"
+      className="flex items-center gap-2 w-full px-3 py-1.5 rounded-xl text-sm text-muted hover:text-text-secondary hover:bg-surface-2/60 transition-all duration-150"
       title={`Theme: ${current.label}  —  click for ${next.label}`}
     >
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
