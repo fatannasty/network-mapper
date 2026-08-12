@@ -124,7 +124,7 @@ export default function MerakiForm() {
                 View Topology
               </Button>
               {result.debug && (
-                <pre className="text-xs text-muted bg-surface-2 p-2 rounded max-h-60 overflow-auto whitespace-pre-wrap">
+                <pre className="text-xs text-muted bg-surface-2/60 backdrop-blur p-2 rounded-xl max-h-60 overflow-auto whitespace-pre-wrap border border-border/30">
                   {JSON.stringify(result.debug, null, 2)}
                 </pre>
               )}
