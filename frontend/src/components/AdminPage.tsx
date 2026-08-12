@@ -272,7 +272,7 @@ export default function AdminPage() {
                 <button
                   key={link.href}
                   onClick={() => navigate(link.href)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-2 hover:bg-surface-3 transition-colors text-left text-sm"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-surface-2/70 backdrop-blur hover:bg-surface-3/80 border border-border/30 transition-all duration-150 text-left text-sm hover:border-border/50"
                 >
                   <span className="text-base">{link.icon}</span>
                   <span className="text-text-primary">{link.label}</span>
@@ -292,7 +292,7 @@ export default function AdminPage() {
             ) : (
               <div className="space-y-1 max-h-80 overflow-y-auto">
                 {activity.slice(0, 15).map((event, i) => (
-                  <div key={i} className="flex items-start gap-3 px-3 py-2 rounded-lg bg-surface-2 text-xs">
+                  <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-surface-2/60 backdrop-blur text-xs border border-border/30">
                     <span className={`w-2 h-2 mt-1 rounded-full shrink-0 ${event.status === 'completed' ? 'bg-green-400' : 'bg-red-400'}`} />
                     <div className="min-w-0 flex-1">
                       <p className="text-text-primary">{event.action}</p>
