@@ -109,6 +109,14 @@ DESCR_RULES = [
     (("catalyst 2960",), "access-switch", "Cisco"),
     (("nexus",), "core-switch", "Cisco"),
     (("ios", "xe"), "switch", "Cisco"),  # generic Cisco IOS-XE fallback
+    # ── F5 / load balancers ──
+    (("f5",), "load-balancer", "F5 Networks"),
+    (("bigip",), "load-balancer", "F5 Networks"),
+    (("ltm",), "load-balancer", "F5 Networks"),
+    # ── Printers ──
+    (("xerox",), "printer", "Xerox"),
+    (("hp laserjet",), "printer", "Hewlett Packard"),
+    (("hp color laserjet",), "printer", "Hewlett Packard"),
     # ── Aruba ──
     (("arubaos", "ap"), "accesspoint", "Aruba Networks"),
     (("arubaos-switch",), "switch", "Aruba Networks"),
@@ -136,6 +144,12 @@ HOSTNAME_RULES = [
     (("router",), "router"),
     (("fw",), "firewall"),
     (("firewall",), "firewall"),
+    # F5 load balancers
+    (("f5",), "load-balancer"),
+    (("ltm",), "load-balancer"),
+    # Printers
+    (("xerox",), "printer"),
+    (("laserjet",), "printer"),
 ]
 
 
@@ -203,6 +217,10 @@ def classify_from_platform(platform_id: str = "", family: str = "",
         cls.device_type = "router"; cls.confidence = 4
     elif any(k in pid for k in ("asa", "ftd")):
         cls.device_type = "firewall"; cls.confidence = 4
+    elif any(k in pid for k in ("f5", "bigip", "ltm", "ltm-")):
+        cls.device_type = "load-balancer"; cls.confidence = 4
+    elif any(k in pid for k in ("vmx-m", "vmx-s", "vmx-n")):
+        cls.device_type = "unknown"; cls.confidence = 4
     elif "meraki" in fam or "meraki" in pid or "meraki" in dt:
         if "ms" in pid or "switch" in fam:
             cls.device_type = "switch"
