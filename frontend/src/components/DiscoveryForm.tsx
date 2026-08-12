@@ -201,13 +201,13 @@ export default function DiscoveryForm() {
           </Button>
 
           {error && (
-            <div className="bg-red-900/50 border border-red-800 rounded p-4">
+            <div className="bg-red-950/60 backdrop-blur border border-red-800/50 rounded-xl p-4">
               <p className="text-red-300">{error}</p>
             </div>
           )}
 
           {result && (
-            <div className="bg-surface-2 border border-border rounded p-4 space-y-3">
+            <div className="bg-surface-2/60 backdrop-blur border border-border/40 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-green-400 font-medium text-sm">Scan Complete</span>
                 <Button

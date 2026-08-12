@@ -477,13 +477,13 @@ export default function CatalystForm() {
           </Button>
 
           {testResult && (
-            <div className={`rounded p-3 text-xs ${testResult.startsWith('Connected') ? 'bg-green-900/50 border border-green-800 text-green-300' : 'bg-red-900/50 border border-red-800 text-red-300'}`}>
+            <div className={`rounded-xl p-3 text-xs backdrop-blur ${testResult.startsWith('Connected') ? 'bg-green-900/50 border border-green-800/50 text-green-300' : 'bg-red-900/50 border border-red-800/50 text-red-300'}`}>
               {testResult}
             </div>
           )}
 
           {error && (
-            <div className="bg-red-900/50 border border-red-800 rounded p-4">
+            <div className="bg-red-950/60 backdrop-blur border border-red-800/50 rounded-xl p-4">
               <p className="text-red-300 text-sm">{error}</p>
             </div>
           )}
