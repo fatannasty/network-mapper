@@ -318,7 +318,7 @@ export default function OperationsDashboard() {
   if (down > 0) alerts.push({ severity: 'critical', title: 'Interfaces down', message: `${down} interface${down === 1 ? '' : 's'} reported down.`, href: '/dashboard' })
   if (scan?.status !== 'completed') alerts.push({ severity: 'critical', title: 'Latest scan failed', message: `Scan "${scan?.subnet || 'unknown'}" did not complete.`, href: '/dashboard' })
   if (report.stale_devices_90d > 0) alerts.push({ severity: 'warning', title: 'Stale devices', message: `${report.stale_devices_90d} devices not seen in 90 days.`, href: '/quality' })
-  if (!scan?.finished_at || Date.now() - new Date(scan.finished_at).getTime() > 60 * 60 * 1000) alerts.push({ severity: 'info', title: 'Data may be stale', message: 'Latest discovery is more than one hour old.', href: '/discover' })
+  if (!scan?.finished_at || Date.now() - new Date(scan.finished_at).getTime() > 60 * 60 * 1000) alerts.push({ severity: 'info', title: 'Data may be stale', message: 'Latest discovery is more than one hour old.', href: '/ingest' })
 
   return (
     <div className="h-full overflow-auto">
@@ -347,8 +347,8 @@ export default function OperationsDashboard() {
         <Card padding={false}>
           <div className="flex flex-wrap items-center gap-2 px-4 py-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted mr-1">Quick actions</span>
-            <Link to="/discover" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">Run Discovery</Link>
-            <Link to="/catalyst" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">Import Catalyst</Link>
+            <Link to="/ingest" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">Run Discovery</Link>
+            <Link to="/ingest?tab=catalyst" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">Import Catalyst</Link>
             <Link to="/topology" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">View Topology</Link>
             <Link to="/configs" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">Collect Configs</Link>
             <div className="flex-1" />

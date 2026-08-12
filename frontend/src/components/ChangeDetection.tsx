@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getScans, getChanges, type ChangeResult, type ScanInfo } from '../api'
-import PageHeader from './ui/PageHeader'
 import Select from './ui/Select'
 import Button from './ui/Button'
 
@@ -34,13 +33,8 @@ export default function ChangeDetection() {
   }, [scanA, scanB])
 
   return (
-    <div className="h-full overflow-auto p-6 flex justify-center">
+    <div className="flex justify-center">
       <div className="w-full max-w-3xl">
-        <PageHeader
-          title="Change Detection"
-          description="Compare two scans to see what devices and links were added or removed."
-        />
-
         <div className="flex items-end gap-3 mb-6">
           <div className="flex-1">
             <label className="block text-muted text-xs mb-1">Baseline (before)</label>

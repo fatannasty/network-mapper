@@ -262,8 +262,8 @@ export default function AdminPage() {
             <h3 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Quick Links</h3>
             <div className="space-y-2">
               {[
-                { label: 'Run Discovery', href: '/discover', icon: '🔍' },
-                { label: 'Import Catalyst', href: '/catalyst', icon: '📡' },
+                { label: 'Run Discovery', href: '/ingest', icon: '🔍' },
+                { label: 'Import Catalyst', href: '/ingest?tab=catalyst', icon: '📡' },
                 { label: 'Collect Configs', href: '/configs', icon: '⚙️' },
                 { label: 'View Inventory', href: '/inventory', icon: '📋' },
                 { label: 'View Topology', href: '/topology', icon: '🔗' },

@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { testVeloCloud, importFromVeloCloud } from '../api'
-import PageHeader from './ui/PageHeader'
 import Input from './ui/Input'
 import Button from './ui/Button'
 import Card from './ui/Card'
@@ -51,12 +50,8 @@ export default function VeloCloudForm() {
   const canSubmit = authMode === 'token' ? !!token : (!!username && !!password)
 
   return (
-    <div className="h-full overflow-auto p-6 flex justify-center">
+    <div className="flex justify-center">
       <div className="w-full max-w-lg">
-        <PageHeader
-          title="Import from VeloCloud Orchestra"
-          description="Pull SD-WAN edges and link data from VeloCloud Orchestrator."
-        />
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-muted text-sm mb-1">Orchestrator URL</label>

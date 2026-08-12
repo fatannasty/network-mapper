@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react'
 import { collectConfigs, collectConfigsCatalyst, type CollectResult } from '../api'
 import Input from './ui/Input'
 import Button from './ui/Button'
-import PageHeader from './ui/PageHeader'
 
 export default function ConfigCollect() {
   const [sitePattern, setSitePattern] = useState('')
@@ -28,9 +27,8 @@ export default function ConfigCollect() {
   }
 
   return (
-    <div className="h-full overflow-auto p-6 flex justify-center">
+    <div className="flex justify-center">
       <div className="w-full max-w-lg space-y-6">
-        <PageHeader title="Collect Configs" description="Pull running-configs via Catalyst API or direct SSH." />
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs text-muted mb-1.5">Site pattern <span className="text-muted/50">(hostname substring)</span></label>

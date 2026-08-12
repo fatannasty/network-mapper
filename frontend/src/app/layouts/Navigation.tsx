@@ -10,8 +10,7 @@ interface Props {
 export default function Navigation({ collapsed, children }: Props) {
   const { pathname } = useLocation()
 
-  const isActive = (to: string) =>
-    pathname === to || (to === '/topology' && pathname === '/')
+  const isActive = (to: string) => pathname === to
 
   return (
     <nav className="flex-1 overflow-y-auto py-3 px-2" aria-label="Main navigation">

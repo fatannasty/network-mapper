@@ -1,7 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { discover, getCredentials, type ScanResult, type Credential } from '../api'
-import PageHeader from './ui/PageHeader'
 import Input from './ui/Input'
 import Button from './ui/Button'
 
@@ -63,12 +62,8 @@ export default function DiscoveryForm() {
   }
 
   return (
-    <div className="h-full overflow-auto p-6 flex justify-center">
+    <div className="flex justify-center">
       <div className="w-full max-w-lg">
-        <PageHeader
-          title="Discover Network"
-          description="SNMP scan a subnet to discover devices and topology links."
-        />
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-muted text-sm mb-1">Subnet (CIDR)</label>
