@@ -8,7 +8,7 @@ interface CardProps {
 
 export default function Card({ children, className = '', padding = true }: CardProps) {
   return (
-    <div className={`bg-surface-1/80 backdrop-blur border border-border/50 rounded-xl shadow-card transition-all duration-200 hover:shadow-lg hover:border-border hover:-translate-y-px ${padding ? 'p-5' : ''} ${className}`}>
+    <div className={`bg-surface-1/80 backdrop-blur-xl border border-border/40 rounded-2xl shadow-card transition-all duration-200 hover:shadow-lg hover:border-border/60 hover:-translate-y-px ${padding ? 'p-5' : ''} ${className}`}>
       {children}
     </div>
   )

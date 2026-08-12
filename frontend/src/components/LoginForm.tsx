@@ -23,7 +23,7 @@ export default function LoginForm({ onSuccess }: Props) {
         src="/login-bg.jpg"
         alt=""
         aria-hidden="true"
-        className="absolute inset-0 w-full h-full object-cover opacity-40 dark:opacity-25"
+        className="absolute inset-0 w-full h-full object-cover opacity-35 dark:opacity-20"
       />
       {/* Gradient overlays for readability */}
       <div className="absolute inset-0 bg-gradient-to-t from-surface-0 via-surface-0/80 to-surface-0/40" />
@@ -42,7 +42,7 @@ export default function LoginForm({ onSuccess }: Props) {
           className="bg-surface-1/80 backdrop-blur-xl p-8 rounded-2xl shadow-xl border border-border/40"
         >
           {error && (
-            <div className="bg-red-950/50 border border-red-800/50 rounded-lg px-4 py-2.5 mb-4 text-sm text-red-300 backdrop-blur">
+            <div className="bg-red-950/50 border border-red-800/50 rounded-xl px-4 py-2.5 mb-4 text-sm text-red-300 backdrop-blur">
               {error}
             </div>
           )}

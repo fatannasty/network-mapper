@@ -8,7 +8,6 @@
 @import "./styles/theme.css";
 
 @theme {
-  /* Surface hierarchy — driven by CSS variables so .dark / .noc can flip them */
   --color-surface-0: rgb(var(--surface-0));
   --color-surface-1: rgb(var(--surface-1));
   --color-surface-2: rgb(var(--surface-2));
@@ -20,7 +19,6 @@
   --color-accent-hover: rgb(var(--accent-hover));
   --color-accent-subtle: rgb(var(--accent-subtle));
 
-  /* Semantic tokens */
   --color-bg: rgb(var(--bg));
   --color-fg: rgb(var(--fg));
   --color-text-primary: rgb(var(--text-primary));
@@ -30,7 +28,6 @@
   --color-warning: rgb(var(--warning));
   --color-info: rgb(var(--info));
 
-  /* Elevation */
   --shadow-card: var(--shadow-card);
   --shadow-popover: var(--shadow-popover);
   --shadow-modal: var(--shadow-modal);
@@ -43,9 +40,9 @@ body {
   margin: 0;
   min-height: 100%;
   background:
-    radial-gradient(800px 400px at 20% 10%, rgb(var(--accent) / 0.06), transparent 60%),
-    radial-gradient(600px 300px at 80% 90%, rgb(var(--info) / 0.04), transparent 50%),
-    radial-gradient(1200px 600px at 50% -10%, rgb(var(--accent) / 0.08), transparent 70%),
+    radial-gradient(900px 450px at 15% 8%, rgb(var(--accent) / 0.07), transparent 60%),
+    radial-gradient(700px 350px at 85% 85%, rgb(var(--info) / 0.05), transparent 55%),
+    radial-gradient(1400px 700px at 50% -5%, rgb(var(--accent) / 0.09), transparent 65%),
     rgb(var(--surface-0));
   color: rgb(var(--fg));
   font-family: var(--font-sans);
@@ -67,7 +64,6 @@ html, body, #root {
 ::-webkit-scrollbar-thumb { background: rgb(var(--border-hover)); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgb(var(--muted)); }
 
-/* Respect user motion preferences — UX Priority 7 */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -79,19 +75,22 @@ html, body, #root {
   .animate-spin { animation: none !important; }
 }
 
-/* Ensure clickable elements have pointer cursor — UX checklist */
 button, a, [role="button"], [role="tab"], [role="option"] {
   cursor: pointer;
 }
 
-/* Error announcements for screen readers — UX Priority 8 */
 [role="alert"] {
   contain: layout;
 }
 
-/* Focus ring for keyboard navigation — UX Priority 1 */
 :focus-visible {
   outline: 2px solid rgb(var(--accent));
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* Glow keyframes for status indicators */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 4px rgb(var(--success) / 0.3); }
+  50% { box-shadow: 0 0 12px rgb(var(--success) / 0.6); }
 }

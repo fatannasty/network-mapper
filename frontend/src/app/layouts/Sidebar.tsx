@@ -7,14 +7,14 @@ interface Props {
 
 export default function Sidebar({ onLogout, collapsed }: Props) {
   return (
-    <aside className={`flex flex-col bg-surface-1/50 backdrop-blur-2xl border-r border-border/40 shrink-0 transition-all duration-300 ease-out
+    <aside className={`flex flex-col bg-surface-1/60 backdrop-blur-2xl border-r border-border/30 shrink-0 transition-all duration-300 ease-out
       ${collapsed ? 'w-14' : 'w-56'}`} aria-label="Sidebar">
       {/* Logo */}
-      <div className="px-3 py-3 border-b border-border/40">
+      <div className="px-3 py-3 border-b border-border/30">
         <div className="flex items-center gap-2.5">
           {collapsed ? (
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#003A70] to-[#C8102E] flex items-center justify-center shrink-0 shadow-sm">
-              <span className="text-white text-xs font-bold">A</span>
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#003A70] to-[#C8102E] flex items-center justify-center shrink-0 shadow-md shadow-accent/20">
+              <span className="text-white text-sm font-bold">A</span>
             </div>
           ) : (
             <img src="/amtrak-logo.png" alt="Amtrak" className="h-9 w-auto" />
@@ -25,7 +25,7 @@ export default function Sidebar({ onLogout, collapsed }: Props) {
       <Navigation collapsed={collapsed} />
 
       {/* Footer */}
-      <div className="p-3 border-t border-border/40">
+      <div className="p-3 border-t border-border/30">
         <button
           onClick={onLogout}
           className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm text-muted hover:text-text-secondary hover:bg-surface-2/60 transition-all duration-150 ${collapsed ? 'justify-center' : ''}`}
@@ -36,7 +36,7 @@ export default function Sidebar({ onLogout, collapsed }: Props) {
           {!collapsed && 'Sign out'}
         </button>
         {!collapsed && (
-          <div className="px-3 mt-3 pt-3 border-t border-border/40 text-[10px] text-muted/50 font-mono">
+          <div className="px-3 mt-3 pt-3 border-t border-border/30 text-[10px] text-muted/50 font-mono">
             Network Mapper v0.2.0
           </div>
         )}

@@ -10,15 +10,15 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: ReactNode
 }
 
-const base = `inline-flex items-center justify-center font-medium rounded-lg
-  transition-all duration-150 active:scale-[0.97] select-none
+const base = `inline-flex items-center justify-center font-medium rounded-xl
+  transition-all duration-200 active:scale-[0.97] select-none
   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0
   disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100`
 
 const variantClasses: Record<Variant, string> = {
   primary: 'bg-accent hover:bg-accent-hover text-white shadow-sm hover:shadow-md',
-  secondary: 'bg-surface-2/80 hover:bg-surface-3/80 text-text-primary border border-border/60 shadow-sm hover:border-border',
-  danger: 'bg-red-950/60 hover:bg-red-950/80 text-red-300 border border-red-800/60',
+  secondary: 'bg-surface-2/80 hover:bg-surface-3/80 text-text-primary border border-border/50 shadow-sm hover:border-border hover:shadow-md',
+  danger: 'bg-red-950/60 hover:bg-red-950/80 text-red-300 border border-red-800/50 hover:border-red-700/60',
   ghost: 'text-muted hover:text-text-primary hover:bg-surface-2/60',
 }
 

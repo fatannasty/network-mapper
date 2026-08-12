@@ -27,7 +27,7 @@ export default function Navigation({ collapsed, children }: Props) {
             key={item.to}
             to={item.to}
             title={collapsed ? item.label : undefined}
-            className={`relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5 ${
+            className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 mb-0.5 ${
               active
                 ? 'bg-accent/15 text-accent shadow-sm shadow-accent/10'
                 : 'text-muted hover:text-text-primary hover:bg-surface-2/50'

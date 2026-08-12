@@ -14,7 +14,7 @@ export default function Header({ onLogout, collapsed, onToggleCollapse }: Props)
   const title = pageTitleForPath(pathname)
 
   return (
-    <header className="flex items-center gap-3 h-14 px-4 border-b border-border/40 bg-surface-1/40 backdrop-blur-2xl shrink-0 z-20">
+    <header className="flex items-center gap-3 h-14 px-4 border-b border-border/30 bg-surface-1/50 backdrop-blur-2xl shrink-0 z-20">
       <button
         onClick={onToggleCollapse}
         className="flex items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-text-primary hover:bg-surface-2/60 transition-all duration-150"

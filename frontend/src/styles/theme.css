@@ -1,15 +1,15 @@
-/* Light theme — cool slate, easy on the eyes */
+/* Light theme — warm slate, easy on the eyes */
 :root {
-  --bg: 248 250 252;
-  --fg: 15 23 42;
-  --surface-0: 248 250 252;
+  --bg: 250 252 255;
+  --fg: 8 12 20;
+  --surface-0: 250 252 255;
   --surface-1: 255 255 255;
-  --surface-2: 241 245 249;
-  --surface-3: 226 232 240;
+  --surface-2: 240 244 249;
+  --surface-3: 220 228 240;
 
-  --border: 226 232 240;
-  --border-hover: 203 213 225;
-  --muted: 100 116 139;
+  --border: 210 220 235;
+  --border-hover: 180 195 220;
+  --muted: 90 110 140;
   --accent: 37 99 235;
   --accent-hover: 29 78 216;
   --accent-subtle: 219 234 254;
@@ -19,7 +19,7 @@
   --info: 14 165 233;
 
   --text-primary: var(--fg);
-  --text-secondary: 51 65 85;
+  --text-secondary: 55 70 95;
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -34,7 +34,7 @@
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.08);
   --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.08);
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.04);
   --shadow-popover: 0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 8px 16px -4px rgba(15, 23, 42, 0.08);
   --shadow-modal: 0 10px 20px -5px rgba(15, 23, 42, 0.1), 0 24px 48px -8px rgba(15, 23, 42, 0.14);
 
@@ -47,44 +47,44 @@
   --chart-7: 250 204 21;
   --chart-8: 16 185 129;
 
-  --topo-bg: 248 250 252;
+  --topo-bg: 250 252 255;
   --topo-node-fill: 255 255 255;
-  --topo-node-border: 148 163 184;
+  --topo-node-border: 180 195 220;
   --topo-node-selected: 59 130 246;
-  --topo-edge: 148 163 184;
+  --topo-edge: 180 195 220;
   --topo-edge-active: 37 99 235;
-  --topo-dot: 148 163 184;
+  --topo-dot: 180 195 220;
 }
 
-/* Dark theme — cinematic dark with blue undertone, NOC-grade */
+/* Dark theme — cinematic dark with ambient glow */
 .dark {
-  --bg: 3 7 18;
-  --fg: 226 232 240;
-  --surface-0: 3 7 18;
-  --surface-1: 12 18 32;
-  --surface-2: 22 30 48;
-  --surface-3: 36 48 70;
+  --bg: 2 5 15;
+  --fg: 228 234 242;
+  --surface-0: 2 5 15;
+  --surface-1: 10 15 28;
+  --surface-2: 18 26 42;
+  --surface-3: 30 42 65;
 
-  --border: 30 42 64;
-  --border-hover: 50 62 88;
-  --muted: 120 140 170;
+  --border: 28 40 62;
+  --border-hover: 48 62 88;
+  --muted: 110 132 165;
   --accent: 59 130 246;
   --accent-hover: 96 165 250;
-  --accent-subtle: 29 78 216 / 0.3;
-  --danger: 252 100 100;
+  --accent-subtle: 29 78 216;
+  --danger: 248 100 100;
   --success: 52 211 153;
   --warning: 250 204 21;
   --info: 56 189 248;
 
   --text-primary: var(--fg);
-  --text-secondary: 186 196 212;
+  --text-secondary: 172 185 205;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.6);
   --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.7);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35);
   --shadow-popover: 0 4px 8px -2px rgba(0, 0, 0, 0.5), 0 12px 24px -4px rgba(0, 0, 0, 0.6);
   --shadow-modal: 0 12px 24px -6px rgba(0, 0, 0, 0.55), 0 32px 64px -12px rgba(0, 0, 0, 0.7);
 
@@ -93,30 +93,30 @@
   --chart-3: 250 204 21;
   --chart-4: 168 85 247;
   --chart-5: 56 189 248;
-  --chart-6: 252 100 100;
+  --chart-6: 248 100 100;
   --chart-7: 253 224 71;
   --chart-8: 52 211 153;
 
-  --topo-bg: 12 18 32;
-  --topo-node-fill: 22 30 48;
-  --topo-node-border: 50 62 88;
+  --topo-bg: 10 15 28;
+  --topo-node-fill: 18 26 42;
+  --topo-node-border: 48 62 88;
   --topo-node-selected: 59 130 246;
-  --topo-edge: 50 62 88;
+  --topo-edge: 48 62 88;
   --topo-edge-active: 59 130 246;
-  --topo-dot: 50 62 88;
+  --topo-dot: 48 62 88;
 }
 
-/* NOC — ultra-deep black with blue undertone, high contrast */
+/* NOC — ultra-deep black with ambient glow, high contrast */
 .noc {
   --bg: 0 0 0;
-  --fg: 224 230 240;
+  --fg: 228 234 242;
   --surface-0: 2 4 12;
   --surface-1: 8 12 22;
   --surface-2: 18 24 40;
   --surface-3: 30 40 60;
 
   --border: 24 32 52;
-  --border-hover: 40 52 78;
+  --border-hover: 42 56 80;
   --muted: 110 125 150;
   --accent: 56 189 248;
   --accent-hover: 125 211 252;
@@ -129,15 +129,15 @@
   --text-primary: var(--fg);
   --text-secondary: 170 180 200;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.55);
   --shadow-popover: 0 4px 8px -2px rgba(0, 0, 0, 0.7), 0 12px 24px -4px rgba(0, 0, 0, 0.7);
   --shadow-modal: 0 12px 24px -6px rgba(0, 0, 0, 0.7), 0 32px 64px -12px rgba(0, 0, 0, 0.85);
 
   --topo-bg: 0 0 0;
   --topo-node-fill: 12 18 32;
-  --topo-node-border: 40 52 78;
+  --topo-node-border: 42 56 80;
   --topo-node-selected: 56 189 248;
-  --topo-edge: 40 52 78;
+  --topo-edge: 42 56 80;
   --topo-edge-active: 56 189 248;
-  --topo-dot: 40 52 78;
+  --topo-dot: 42 56 80;
 }

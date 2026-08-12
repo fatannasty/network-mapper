@@ -345,12 +345,12 @@ export default function OperationsDashboard() {
         />
 
         <Card padding={false}>
-          <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted mr-1">Quick actions</span>
-            <Link to="/discover" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">Run Discovery</Link>
-            <Link to="/catalyst" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">Import Catalyst</Link>
-            <Link to="/topology" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">View Topology</Link>
-            <Link to="/configs" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary transition-colors">Collect Configs</Link>
+            <Link to="/discover" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">Run Discovery</Link>
+            <Link to="/catalyst" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">Import Catalyst</Link>
+            <Link to="/topology" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">View Topology</Link>
+            <Link to="/configs" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">Collect Configs</Link>
             <div className="flex-1" />
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-muted">Type</span>
@@ -368,7 +368,7 @@ export default function OperationsDashboard() {
           </div>
         </Card>
 
-        <div className={`rounded-xl border px-4 py-3 flex items-center justify-between gap-4 ${hc.bg} ${hc.border} ${hc.text}`}>
+        <div className={`rounded-2xl border px-4 py-3.5 flex items-center justify-between gap-4 backdrop-blur-xl ${hc.bg} ${hc.border} ${hc.text}`}>
           <div className="flex items-center gap-3">
             <div className="relative">
               <span className={`w-3 h-3 rounded-full ${hc.dot} animate-pulse`} />
