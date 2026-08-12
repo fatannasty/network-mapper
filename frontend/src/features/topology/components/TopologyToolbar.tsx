@@ -121,11 +121,11 @@ export default function TopologyToolbar({
 
       <div className="flex-1" />
 
-      <div className="flex items-center gap-1 bg-surface-2 rounded p-0.5">
+      <div className="flex items-center gap-1 bg-surface-2/70 backdrop-blur rounded-xl p-0.5">
         <button
           onClick={() => onLayoutModeChange('tree')}
-          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-            layoutMode === 'tree' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${
+            layoutMode === 'tree' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'
           }`}
           title="Hierarchical tree layout"
         >
@@ -133,8 +133,8 @@ export default function TopologyToolbar({
         </button>
         <button
           onClick={() => onLayoutModeChange('radial')}
-          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-            layoutMode === 'radial' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${
+            layoutMode === 'radial' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'
           }`}
           title="Concentric rings by distance from core"
         >
@@ -142,8 +142,8 @@ export default function TopologyToolbar({
         </button>
         <button
           onClick={() => onLayoutModeChange('circle')}
-          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-            layoutMode === 'circle' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${
+            layoutMode === 'circle' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'
           }`}
           title="Single ring layout"
         >
@@ -166,7 +166,7 @@ export default function TopologyToolbar({
             <select
               value={protocolFilter}
               onChange={(e) => onProtocolFilterChange(e.target.value as ProtocolFilter)}
-              className="px-3 py-1 bg-surface-2 border border-border rounded text-text-secondary text-xs focus:outline-none focus:border-accent"
+              className="px-3 py-1 bg-surface-2/70 backdrop-blur border border-border/40 rounded-xl text-text-secondary text-xs focus:outline-none focus:border-accent transition-all duration-150"
             >
               <option value="all">All Links</option>
               <option value="lldp">LLDP Only</option>
@@ -180,26 +180,26 @@ export default function TopologyToolbar({
             value={pathSource}
             onChange={(e) => onPathSourceChange(e.target.value)}
             placeholder="Source IP"
-            className="w-32 px-2 py-1 bg-surface-2 border border-border rounded text-text-secondary text-xs focus:outline-none focus:border-accent"
+            className="w-32 px-2 py-1 bg-surface-2/70 backdrop-blur border border-border/40 rounded-xl text-text-secondary text-xs focus:outline-none focus:border-accent transition-all duration-150"
           />
           <span className="text-muted text-xs">&rarr;</span>
           <input
             value={pathTarget}
             onChange={(e) => onPathTargetChange(e.target.value)}
             placeholder="Target IP"
-            className="w-32 px-2 py-1 bg-surface-2 border border-border rounded text-text-secondary text-xs focus:outline-none focus:border-accent"
+            className="w-32 px-2 py-1 bg-surface-2/70 backdrop-blur border border-border/40 rounded-xl text-text-secondary text-xs focus:outline-none focus:border-accent transition-all duration-150"
           />
           <button
             onClick={onRunPath}
             disabled={!pathSource || !pathTarget}
-            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded text-xs transition-colors"
+            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs transition-all duration-150 shadow-sm hover:shadow-md"
           >
             Find Path
           </button>
           {pathResult && (
             <button
               onClick={onClearPath}
-              className="px-3 py-1 bg-surface-3 hover:bg-gray-600 text-text-secondary rounded text-xs transition-colors"
+              className="px-3 py-1 bg-surface-3/80 hover:bg-surface-3 text-text-secondary rounded-xl text-xs transition-all duration-150 border border-border/30"
             >
               Clear Path
             </button>
