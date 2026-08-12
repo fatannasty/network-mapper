@@ -49,9 +49,9 @@ export default function Modal({ open, onClose, title, children, size = 'max-w-md
       aria-modal="true"
       aria-label={title}
     >
-      <div className={`bg-surface-1 border border-border rounded-xl shadow-xl w-full ${size} max-h-[90vh] overflow-auto`}>
+      <div className={`bg-surface-1/90 backdrop-blur-2xl border border-border/40 rounded-2xl shadow-xl w-full ${size} max-h-[90vh] overflow-auto`}>
         {title && (
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
             <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
             <button
               onClick={onClose}

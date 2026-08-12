@@ -43,7 +43,7 @@ export default function TopologyLegend({ presentTypes }: Props) {
     <div className="absolute bottom-4 left-4 z-10 w-60 rounded-2xl border border-border/40 bg-surface-1/80 backdrop-blur-2xl shadow-lg text-xs">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-3 py-2 text-text-primary font-semibold hover:bg-surface-2 transition-colors rounded-t-xl"
+        className="w-full flex items-center justify-between px-3 py-2 text-text-primary font-semibold hover:bg-surface-2/60 transition-all duration-150 rounded-t-2xl"
       >
         <span>Legend</span>
         <span className="text-muted">{open ? '\u2212' : '+'}</span>
