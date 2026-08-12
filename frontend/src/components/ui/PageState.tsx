@@ -11,7 +11,11 @@ interface Props {
 export default function PageState({ type, title, message, action, className = '' }: Props) {
   const isError = type === 'error'
   return (
-    <div className={`flex items-center justify-center ${className}`}>
+    <div
+      className={`flex items-center justify-center ${className}`}
+      role={isError ? 'alert' : type === 'loading' ? 'status' : undefined}
+      aria-live={isError ? 'assertive' : type === 'loading' ? 'polite' : undefined}
+    >
       <div className="text-center">
         {type === 'loading' && (
           <div className="h-8 w-8 border-[3px] border-accent/30 border-t-accent rounded-full animate-spin mx-auto mb-3" />
