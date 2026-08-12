@@ -55,7 +55,7 @@ export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
       <Handle id="target" type="target" position={Position.Left} className="!bg-gray-500" />
       <Handle id="source" type="source" position={Position.Right} className="!bg-gray-500" />
 
-      <span className={`w-9 h-9 shrink-0 rounded-lg flex items-center justify-center ${iconBg[type] || iconBg.unknown}`}>
+      <span className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center ${iconBg[type] || iconBg.unknown}`}>
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
           {icons.map((d2, i) => <path key={i} d={d2} />)}
         </svg>

@@ -198,7 +198,7 @@ export default function DeviceInventory() {
             <div className="flex items-center gap-0.5 bg-surface-2/70 backdrop-blur rounded-xl p-0.5">
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-lg transition-all duration-150 ${viewMode === 'list' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'}`}
+                className={`p-1.5 rounded-xl transition-all duration-150 ${viewMode === 'list' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'}`}
                 title="List view"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
@@ -207,7 +207,7 @@ export default function DeviceInventory() {
               </button>
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-lg transition-all duration-150 ${viewMode === 'grid' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'}`}
+                className={`p-1.5 rounded-xl transition-all duration-150 ${viewMode === 'grid' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'}`}
                 title="Card view"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
@@ -276,7 +276,7 @@ export default function DeviceInventory() {
                       } ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-surface-0' : ''}`}
                     >
                       <div className="flex items-center gap-2 mb-2">
-                        <span className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center ${iconBg[type] || iconBg.unknown}`}>
+                        <span className={`w-8 h-8 shrink-0 rounded-xl flex items-center justify-center ${iconBg[type] || iconBg.unknown}`}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
                             {icons.map((icon, i) => <path key={i} d={icon} />)}
                           </svg>

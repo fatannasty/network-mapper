@@ -124,7 +124,7 @@ export default function TopologyToolbar({
       <div className="flex items-center gap-1 bg-surface-2/70 backdrop-blur rounded-xl p-0.5">
         <button
           onClick={() => onLayoutModeChange('tree')}
-          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${
+          className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all duration-150 ${
             layoutMode === 'tree' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'
           }`}
           title="Hierarchical tree layout"
@@ -133,7 +133,7 @@ export default function TopologyToolbar({
         </button>
         <button
           onClick={() => onLayoutModeChange('radial')}
-          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${
+          className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all duration-150 ${
             layoutMode === 'radial' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'
           }`}
           title="Concentric rings by distance from core"
@@ -142,7 +142,7 @@ export default function TopologyToolbar({
         </button>
         <button
           onClick={() => onLayoutModeChange('circle')}
-          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${
+          className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all duration-150 ${
             layoutMode === 'circle' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'
           }`}
           title="Single ring layout"
