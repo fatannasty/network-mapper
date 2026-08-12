@@ -231,7 +231,7 @@ function AlertItem({ severity, title, message, href }: { severity: 'critical' | 
     info: 'bg-blue-500/10 border-blue-500/30 text-blue-300',
   }
   return (
-    <Link to={href} className={`flex items-start gap-3 rounded-lg border px-3 py-3 ${colors[severity]} hover:opacity-90 transition-opacity`}>
+    <Link to={href} className={`flex items-start gap-3 rounded-xl border px-3 py-3 ${colors[severity]} hover:opacity-90 transition-opacity`}>
       <Badge label={severity} />
       <div className="min-w-0">
         <p className="text-sm font-medium">{title}</p>

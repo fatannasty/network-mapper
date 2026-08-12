@@ -22,7 +22,7 @@ export default function Tooltip({ content, children, position = 'top' }: Props) 
         role="tooltip"
         className={`pointer-events-none absolute z-50 opacity-0 group-hover:opacity-100
           transition-opacity duration-150 ${positionClasses[position]}
-          px-2.5 py-1.5 rounded-lg text-xs font-medium
+          px-2.5 py-1.5 rounded-xl text-xs font-medium
           bg-gray-800 text-white shadow-lg whitespace-nowrap
           dark:bg-gray-200 dark:text-gray-900`}
       >
