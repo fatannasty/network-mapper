@@ -100,7 +100,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
         )}
 
         {/* Type description */}
-        <div className="bg-surface-2 rounded-lg px-3 py-2.5">
+        <div className="bg-surface-2/60 backdrop-blur-xl rounded-xl px-3 py-2.5">
           <p className="text-xs text-text-secondary leading-relaxed">
             <span className="text-text-primary font-semibold">{type}:</span>{' '}
             {typeDescription(device.device_type)}
@@ -130,7 +130,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
           </div>
 
           {connectedDevices.length === 0 ? (
-            <div className="bg-surface-2 rounded-lg px-3 py-3 text-center">
+            <div className="bg-surface-2/60 backdrop-blur-xl rounded-xl px-3 py-3 text-center">
               <svg className="w-8 h-8 text-muted/40 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
@@ -145,7 +145,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
                 <button
                   key={conn.ip}
                   onClick={() => navigate(`/topology?scan_id=${device.last_scan_id || ''}&device=${encodeURIComponent(conn.ip)}`)}
-                  className="w-full bg-surface-2 rounded-lg px-3 py-2 text-left hover:bg-surface-3 transition-colors group"
+                  className="w-full bg-surface-2/60 backdrop-blur-xl rounded-xl px-3 py-2 text-left hover:bg-surface-3/60 border border-border/30 transition-all duration-150 group"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-text-primary text-xs font-medium truncate">{conn.hostname}</span>
@@ -166,7 +166,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
         </div>
 
         {/* Topology status */}
-        <div className="bg-surface-2 rounded-lg px-3 py-2">
+        <div className="bg-surface-2/60 backdrop-blur-xl rounded-xl px-3 py-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted">Topology status</span>
             <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${connectedDevices.length > 0 ? 'text-green-400' : 'text-amber-400'}`}>
