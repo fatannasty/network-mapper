@@ -50,8 +50,8 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
   }, [device.site, device.ip, allDevices, allLinks])
 
   return (
-    <div className="w-80 bg-surface-1 border-l border-border overflow-y-auto shrink-0">
-      <div className="sticky top-0 bg-surface-1 border-b border-border px-4 py-3 flex items-center justify-between gap-2 z-10">
+    <div className="w-80 bg-surface-1/80 backdrop-blur-2xl border-l border-border/30 overflow-y-auto shrink-0">
+      <div className="sticky top-0 bg-surface-1/80 backdrop-blur-2xl border-b border-border/30 px-4 py-3 flex items-center justify-between gap-2 z-10">
         <div className="min-w-0">
           <h3 className="font-semibold text-text-primary text-sm truncate">{name}</h3>
           <p className="text-muted text-[11px] capitalize">{type}</p>

@@ -196,8 +196,8 @@ export default function AdminPage() {
         </Card>
 
         {/* User Accounts */}
-        <Card padding={false}>
-          <div className="px-5 py-4 border-b border-border">
+          <Card padding={false}>
+          <div className="px-5 py-4 border-b border-border/30">
             <h3 className="text-sm font-semibold text-text-primary uppercase tracking-wide">User Accounts</h3>
           </div>
           <div className="overflow-auto">

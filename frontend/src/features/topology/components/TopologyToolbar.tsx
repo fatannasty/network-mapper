@@ -54,8 +54,8 @@ export default function TopologyToolbar({
   onClearPath,
 }: Props) {
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-surface-1 border-b border-border shrink-0 text-sm">
-      <div className="flex items-center gap-0.5 bg-surface-2 rounded-lg p-0.5">
+    <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-1/50 backdrop-blur-2xl border-b border-border/30 shrink-0 text-sm">
+      <div className="flex items-center gap-0.5 bg-surface-2/70 backdrop-blur rounded-xl p-0.5">
         <button
           onClick={() => onSimplifiedChange(true)}
           className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
