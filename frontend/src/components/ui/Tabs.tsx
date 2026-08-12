@@ -13,7 +13,7 @@ interface Props {
 
 export default function Tabs({ tabs, active, onChange }: Props) {
   return (
-    <div className="flex border-b border-border" role="tablist">
+    <div className="flex border-b border-border/40" role="tablist">
       {tabs.map((tab) => {
         const isActive = tab.id === active
         return (
@@ -23,7 +23,7 @@ export default function Tabs({ tabs, active, onChange }: Props) {
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium
-              transition-colors border-b-2 -mb-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent rounded-t-md
+              transition-all duration-200 border-b-2 -mb-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent rounded-t-xl
               ${isActive
                 ? 'text-accent border-accent'
                 : 'text-muted hover:text-text-secondary border-transparent'
@@ -44,7 +44,7 @@ export default function Tabs({ tabs, active, onChange }: Props) {
           </button>
         )
       })}
-      <div className="flex-1 border-b border-border" />
+      <div className="flex-1 border-b border-border/40" />
     </div>
   )
 }
