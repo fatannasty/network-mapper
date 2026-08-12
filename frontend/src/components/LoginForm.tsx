@@ -18,40 +18,56 @@ export default function LoginForm({ onSuccess }: Props) {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Ambient background effects */}
+      {/* Cinematic background */}
       <div className="absolute inset-0 bg-surface-0" />
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-accent/8 blur-3xl" />
-      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full bg-blue-500/5 blur-3xl" />
+      {/* Amtrak brand accent orbs */}
+      <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-[120px]" style={{ background: 'rgba(0, 58, 112, 0.15)' }} />
+      <div className="absolute bottom-[-15%] right-[-5%] w-[500px] h-[500px] rounded-full blur-[100px]" style={{ background: 'rgba(200, 16, 46, 0.1)' }} />
+      <div className="absolute top-[30%] right-[20%] w-[300px] h-[300px] rounded-full blur-[80px]" style={{ background: 'rgba(0, 58, 112, 0.08)' }} />
+      {/* Subtle grid pattern */}
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
+          backgroundSize: '60px 60px',
+        }}
+      />
 
-      <form
-        onSubmit={handleSubmit}
-        className="relative z-10 bg-surface-1/60 backdrop-blur-2xl p-8 rounded-2xl shadow-xl w-96 border border-border/40"
-      >
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-blue-400 flex items-center justify-center shadow-lg shadow-accent/30">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
-          </div>
-          <h1 className="text-xl font-bold text-text-primary">Network Mapper</h1>
+      <div className="relative z-10 w-full max-w-md px-4">
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <img src="/amtrak-logo.svg" alt="Amtrak" className="h-12 mb-4" />
+          <p className="text-sm text-muted">Network Discovery & Topology Platform</p>
         </div>
-        {error && (
-          <div className="bg-red-950/50 border border-red-800/50 rounded-lg px-4 py-2.5 mb-4 text-sm text-red-300 backdrop-blur">
-            {error}
+
+        {/* Login card */}
+        <form
+          onSubmit={handleSubmit}
+          className="bg-surface-1/60 backdrop-blur-2xl p-8 rounded-2xl shadow-xl border border-border/40"
+        >
+          {error && (
+            <div className="bg-red-950/50 border border-red-800/50 rounded-lg px-4 py-2.5 mb-4 text-sm text-red-300 backdrop-blur">
+              {error}
+            </div>
+          )}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs text-muted mb-1.5">Username</label>
+              <Input value={username} onChange={(e) => setUsername(e.target.value)} className="w-full" autoFocus />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1.5">Password</label>
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full" />
+            </div>
+            <Button type="submit" className="w-full">Sign In</Button>
           </div>
-        )}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs text-muted mb-1.5">Username</label>
-            <Input value={username} onChange={(e) => setUsername(e.target.value)} className="w-full" autoFocus />
-          </div>
-          <div>
-            <label className="block text-xs text-muted mb-1.5">Password</label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full" />
-          </div>
-          <Button type="submit" className="w-full">Sign In</Button>
-        </div>
-      </form>
+        </form>
+
+        {/* Footer */}
+        <p className="text-center text-[11px] text-muted/50 mt-6">
+          Amtrak IT Infrastructure &middot; Network Operations
+        </p>
+      </div>
     </div>
   )
 }

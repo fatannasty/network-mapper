@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" fill="none">
+  <rect width="200" height="60" rx="8" fill="transparent"/>
+  <!-- Amtrak wordmark -->
+  <text x="10" y="42" font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif" font-size="32" font-weight="700" letter-spacing="-0.02em">
+    <tspan fill="#003A70">Am</tspan><tspan fill="#C8102E">trak</tspan>
+  </text>
+  <!-- Rail line accent -->
+  <rect x="10" y="48" width="60" height="2.5" rx="1.25" fill="#003A70"/>
+  <rect x="74" y="48" width="20" height="2.5" rx="1.25" fill="#C8102E"/>
+</svg>

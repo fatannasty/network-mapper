@@ -30,6 +30,10 @@ export default function Header({ onLogout, collapsed, onToggleCollapse }: Props)
       </button>
 
       <nav className="flex items-center gap-2 text-sm min-w-0" aria-label="Breadcrumb">
+        <span className="text-muted/60 font-medium" style={{ color: '#003A70' }}>Amtrak</span>
+        <svg className="w-3 h-3 text-muted/30 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
         <span className="text-muted/60">Network Mapper</span>
         <svg className="w-3 h-3 text-muted/30 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />

@@ -10,17 +10,14 @@ export default function Sidebar({ onLogout, collapsed }: Props) {
     <aside className={`flex flex-col bg-surface-1/50 backdrop-blur-2xl border-r border-border/40 shrink-0 transition-all duration-300 ease-out
       ${collapsed ? 'w-14' : 'w-56'}`} aria-label="Sidebar">
       {/* Logo */}
-      <div className="px-4 py-4 border-b border-border/40">
+      <div className="px-3 py-3 border-b border-border/40">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-accent to-blue-400 flex items-center justify-center shrink-0 shadow-sm shadow-accent/30">
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
-          </div>
-          {!collapsed && (
-            <span className="text-sm font-bold tracking-tight text-text-primary">
-              Network<span className="text-accent">Mapper</span>
-            </span>
+          {collapsed ? (
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#003A70] to-[#C8102E] flex items-center justify-center shrink-0 shadow-sm">
+              <span className="text-white text-xs font-bold">A</span>
+            </div>
+          ) : (
+            <img src="/amtrak-logo.svg" alt="Amtrak" className="h-7 w-auto" />
           )}
         </div>
       </div>
@@ -40,7 +37,7 @@ export default function Sidebar({ onLogout, collapsed }: Props) {
         </button>
         {!collapsed && (
           <div className="px-3 mt-3 pt-3 border-t border-border/40 text-[10px] text-muted/50 font-mono">
-            Network Mapper v0.1.0
+            Network Mapper v0.2.0
           </div>
         )}
       </div>
