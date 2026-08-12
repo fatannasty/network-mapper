@@ -295,7 +295,7 @@ export default function TopologyView() {
       />
 
       {focusIp && (
-        <div className="flex items-center justify-between gap-3 px-4 py-2 bg-accent-subtle border-b border-accent/30 text-xs">
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-accent-subtle/40 backdrop-blur border-b border-accent/20 text-xs">
           <span className="text-text-secondary">
             Showing direct connections for{' '}
             <strong className="text-text-primary">
@@ -310,8 +310,8 @@ export default function TopologyView() {
       )}
 
       {pathResult && !showSimple && (
-        <div className={`px-4 py-2 border-b text-xs ${
-          pathResult.error ? 'bg-red-900/30 border-red-800 text-red-300' : 'bg-green-900/30 border-green-800 text-green-300'
+        <div className={`px-4 py-2.5 border-b text-xs backdrop-blur ${
+          pathResult.error ? 'bg-red-900/30 border-red-800/50 text-red-300' : 'bg-green-900/30 border-green-800/50 text-green-300'
         }`}>
           {pathResult.error ? (
             <span>{pathResult.error}</span>

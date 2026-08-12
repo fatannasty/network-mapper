@@ -169,7 +169,7 @@ export default function DataQuality() {
           </p>
           <form onSubmit={handleAddCredential} className="grid md:grid-cols-3 gap-2 mb-4">
             <Input value={credName} onChange={(e) => setCredName(e.target.value)} placeholder="Name" />
-            <select value={credType} onChange={(e) => setCredType(e.target.value)} className="px-3 py-2 bg-surface-3 border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent">
+            <select value={credType} onChange={(e) => setCredType(e.target.value)} className="px-3 py-2 bg-surface-2/50 backdrop-blur border border-border/40 rounded-xl text-sm text-text-primary focus:outline-none focus:border-accent transition-all duration-200">
               <option value="snmp">SNMP</option>
               <option value="ssh">SSH</option>
             </select>
