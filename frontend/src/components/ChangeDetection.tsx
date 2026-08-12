@@ -92,7 +92,7 @@ export default function ChangeDetection() {
           <div className="space-y-6">
             {/* Summary */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-surface-2 border border-border rounded p-4">
+              <div className="bg-surface-2/60 backdrop-blur border border-border/40 rounded-xl p-4">
                 <span className="text-muted text-xs block mb-1">Baseline</span>
                 <p className="text-text-primary text-sm">{result.scan_a.subnet}</p>
                 <p className="text-muted text-xs">
@@ -109,7 +109,7 @@ export default function ChangeDetection() {
                   View Topology
                 </Button>
               </div>
-              <div className="bg-surface-2 border border-border rounded p-4">
+              <div className="bg-surface-2/60 backdrop-blur border border-border/40 rounded-xl p-4">
                 <span className="text-muted text-xs block mb-1">Current</span>
                 <p className="text-text-primary text-sm">{result.scan_b.subnet}</p>
                 <p className="text-muted text-xs">

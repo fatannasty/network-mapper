@@ -202,7 +202,7 @@ export default function AdminPage() {
           </div>
           <div className="overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-surface-2 z-10">
+              <thead className="sticky top-0 bg-surface-2/80 backdrop-blur-xl z-10">
                 <tr className="text-left text-muted text-[11px] uppercase tracking-wider">
                   <th className="px-5 py-2 font-medium">Username</th>
                   <th className="px-5 py-2 font-medium">Role</th>
