@@ -5,10 +5,11 @@ import { getTopology, getDevices, findPath, getScans } from '../../../api'
 export type ProtocolFilter = 'all' | 'lldp' | 'cdp'
 export type LayoutMode = 'tree' | 'free' | 'circle' | 'radial'
 
-export function useTopology(scanId?: string, focus?: string) {
+export function useTopology(scanId?: string, focus?: string, site?: string) {
   const [topology, setTopology] = useState<TopologyData | null>(null)
   const [devices, setDevices] = useState<Device[]>([])
   const [scans, setScans] = useState<ScanInfo[]>([])
+  const [sites, setSites] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all')
@@ -28,7 +29,7 @@ export function useTopology(scanId?: string, focus?: string) {
     setError('')
     try {
       const [topo, devResp] = await Promise.all([
-        getTopology(scanId, focus),
+        getTopology(scanId, focus, site),
         getDevices({ limit: '5000' }),
       ])
       setTopology(topo)
@@ -38,12 +39,22 @@ export function useTopology(scanId?: string, focus?: string) {
     } finally {
       setLoading(false)
     }
-  }, [scanId, focus])
+  }, [scanId, focus, site])
 
   useEffect(() => { fetchData() }, [fetchData])
 
   useEffect(() => {
     getScans(100).then((r) => setScans(r.scans || [])).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    getDevices({ limit: '5000' }).then((r) => {
+      const siteSet = new Set<string>()
+      for (const d of r.devices || []) {
+        if (d.site) siteSet.add(d.site)
+      }
+      setSites([...siteSet].sort())
+    }).catch(() => {})
   }, [])
 
   const filteredLinks = useMemo(() => {
@@ -87,6 +98,7 @@ export function useTopology(scanId?: string, focus?: string) {
     devices,
     deviceByIp,
     scans,
+    sites,
     scanId,
     focus,
     loading,

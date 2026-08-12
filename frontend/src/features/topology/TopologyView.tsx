@@ -25,12 +25,14 @@ export default function TopologyView() {
   const [searchParams, setSearchParams] = useSearchParams()
   const scanId = searchParams.get('scan_id') || undefined
   const focusIp = searchParams.get('device') || undefined
+  const siteFilter = searchParams.get('site') || undefined
 
   const {
     topology,
     devices,
     deviceByIp,
     scans,
+    sites,
     loading,
     error,
     protocolFilter,
@@ -47,7 +49,7 @@ export default function TopologyView() {
     filteredLinks,
     runPath,
     fetchData,
-  } = useTopology(scanId, focusIp)
+  } = useTopology(scanId, focusIp, siteFilter)
 
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
   const [simplified, setSimplified] = useState(true)
@@ -268,6 +270,11 @@ export default function TopologyView() {
         scans={scans}
         scanId={scanId}
         onScanChange={handleScanChange}
+        site={siteFilter}
+        onSiteChange={(v) => {
+          setSearchParams(v ? { ...Object.fromEntries(searchParams), site: v } : (() => { const p = new URLSearchParams(searchParams); p.delete('site'); return p.toString() ? Object.fromEntries(p) : {} })(), { replace: true })
+        }}
+        sites={sites}
         simplified={showSimple}
         onSimplifiedChange={setSimplified}
         protocolFilter={protocolFilter}

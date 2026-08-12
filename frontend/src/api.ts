@@ -222,10 +222,11 @@ export async function importFromMeraki(baseUrl: string, apiKey: string) {
   return r.data as { scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> }
 }
 
-export async function getTopology(scanId?: string, focus?: string) {
+export async function getTopology(scanId?: string, focus?: string, site?: string) {
   const params: Record<string, string> = {}
   if (scanId) params.scan_id = scanId
   if (focus) params.focus = focus
+  if (site) params.site = site
   const r = await api.get('/api/topology', { params })
   return r.data as TopologyData
 }

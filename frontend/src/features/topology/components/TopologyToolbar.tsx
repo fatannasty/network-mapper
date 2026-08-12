@@ -7,6 +7,9 @@ interface Props {
   scans: ScanInfo[]
   scanId?: string
   onScanChange: (id: string) => void
+  site?: string
+  onSiteChange: (site: string) => void
+  sites: string[]
   simplified: boolean
   onSimplifiedChange: (v: boolean) => void
   protocolFilter: ProtocolFilter
@@ -33,6 +36,9 @@ export default function TopologyToolbar({
   scans,
   scanId,
   onScanChange,
+  site,
+  onSiteChange,
+  sites,
   simplified,
   onSimplifiedChange,
   protocolFilter,
@@ -81,6 +87,20 @@ export default function TopologyToolbar({
           </option>
         ))}
       </Select>
+
+      {sites.length > 0 && (
+        <Select
+          value={site || ''}
+          onChange={(e) => onSiteChange(e.target.value)}
+          className="max-w-52 text-xs"
+          aria-label="Filter by site"
+        >
+          <option value="">All sites</option>
+          {sites.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </Select>
+      )}
 
       <span className="text-muted">
         {topology?.nodes.length ?? 0} devices

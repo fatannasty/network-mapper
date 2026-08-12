@@ -544,10 +544,12 @@ def inventory_report_export(report: str = Query(...), db: Session = Depends(get_
 
 @app.get("/api/topology", dependencies=[Depends(authenticated)])
 def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Query(None),
+                 site: Optional[str] = Query(None),
                  db: Session = Depends(get_db)):
     """Topology for a scan. With `focus=<ip>`, only that device and its
     direct neighbors (across every scan) are returned so the view stays
-    focused on a single device's connections."""
+    focused on a single device's connections. With `site=<name>`, all
+    devices at that site and their inter-connections are returned."""
     from models import Device, ScanJob
     from models import Link as LinkModel
 
@@ -561,7 +563,41 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
             return {"scan_id": None, "nodes": [], "links": [], "scan_meta": None}
         job = jobs[0]
 
-    if focus:
+    if site:
+        # Site-focused topology: all devices at this site plus their
+        # connections across every scan.
+        devices = db.query(Device).filter(Device.site == site).all()
+        site_ips = {d.ip for d in devices}
+        if site_ips:
+            touched = db.query(LinkModel).filter(
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                (LinkModel.endpoint_a.in_(site_ips)) | (LinkModel.endpoint_b.in_(site_ips)),
+            ).all()
+            neighbor_ips = set()
+            for l in touched:
+                neighbor_ips.add(l.endpoint_a)
+                neighbor_ips.add(l.endpoint_b)
+            known = set(site_ips)
+            for ip in neighbor_ips:
+                if ip not in known:
+                    d = db.query(Device).filter(Device.ip == ip).first()
+                    if d:
+                        devices.append(d)
+                        known.add(ip)
+            extra_links = db.query(LinkModel).filter(
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                LinkModel.endpoint_a.in_(known) & LinkModel.endpoint_b.in_(known),
+            ).all()
+            links: list[dict] = []
+            link_keys: set[tuple] = set()
+            for l in extra_links:
+                key = (l.endpoint_a, l.endpoint_b, l.interface_a, l.interface_b)
+                if key not in link_keys:
+                    link_keys.add(key)
+                    links.append(l)
+        else:
+            links = []
+    elif focus:
         focus_dev = db.query(Device).filter(Device.ip == focus).first()
         if focus_dev is None:
             raise HTTPException(status_code=404, detail="device not found")
