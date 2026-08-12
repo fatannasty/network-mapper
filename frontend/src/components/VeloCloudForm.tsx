@@ -68,7 +68,7 @@ export default function VeloCloudForm() {
             />
           </div>
 
-          <div className="flex items-center gap-2 bg-surface-2 rounded-xl p-1 w-fit">
+          <div className="flex items-center gap-2 bg-surface-2/70 backdrop-blur border border-border/30 rounded-xl p-1 w-fit">
             <button
               type="button"
               onClick={() => setAuthMode('token')}

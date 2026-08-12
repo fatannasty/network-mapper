@@ -274,7 +274,7 @@ export default function CatalystForm() {
                   <span
                     key={u}
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
-                      u === baseUrl ? 'bg-blue-600 text-white' : 'bg-surface-3 text-text-secondary'
+                      u === baseUrl ? 'bg-blue-600 text-white' : 'bg-surface-3/60 backdrop-blur border border-border/30 text-text-secondary'
                     }`}
                   >
                     <button
@@ -506,7 +506,7 @@ export default function CatalystForm() {
                 View Topology
               </Button>
               {result.debug && (
-                <pre className="text-xs text-muted bg-surface-2 p-2 rounded max-h-60 overflow-auto whitespace-pre-wrap">
+                <pre className="text-xs text-muted bg-surface-2/60 backdrop-blur p-2 rounded-xl max-h-60 overflow-auto whitespace-pre-wrap border border-border/30">
                   {JSON.stringify(result.debug, null, 2)}
                 </pre>
               )}

@@ -39,7 +39,7 @@ const sizes = {
 export default function Badge({ label, className = '', dot, size = 'sm' }: Props) {
   const color = colors[label] || colors.unknown
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-lg font-medium border backdrop-blur transition-all duration-200 ${sizes[size]} ${color} ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-xl font-medium border backdrop-blur transition-all duration-200 ${sizes[size]} ${color} ${className}`}>
       {dot && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-90 shadow-sm shadow-current/40" />}
       {label}
     </span>

@@ -112,7 +112,7 @@ export default function DiscoveryForm() {
               value={communitiesText}
               onChange={(e) => setCommunitiesText(e.target.value)}
               rows={4}
-              className="w-full px-3 py-2 bg-surface-2 border border-border rounded text-text-primary focus:outline-none focus:border-accent font-mono text-sm resize-y"
+              className="w-full px-3 py-2 bg-surface-2/50 backdrop-blur border border-border/40 rounded-xl text-sm text-text-primary placeholder:text-muted/60 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all duration-150 font-mono text-sm resize-y"
               placeholder="public&#10;private&#10;cisco"
             />
           </div>
@@ -153,21 +153,21 @@ export default function DiscoveryForm() {
                 placeholder="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded text-text-primary focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-surface-2/50 backdrop-blur border border-border/40 rounded-xl text-sm text-text-primary placeholder:text-muted/60 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all duration-150"
               />
               <input
                 type="password"
                 placeholder="Auth password"
                 value={authPass}
                 onChange={(e) => setAuthPass(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded text-text-primary focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-surface-2/50 backdrop-blur border border-border/40 rounded-xl text-sm text-text-primary placeholder:text-muted/60 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all duration-150"
               />
               <input
                 type="password"
                 placeholder="Privacy password (optional)"
                 value={privPass}
                 onChange={(e) => setPrivPass(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-2 border border-border rounded text-text-primary focus:outline-none focus:border-accent"
+                className="w-full px-3 py-2 bg-surface-2/50 backdrop-blur border border-border/40 rounded-xl text-sm text-text-primary placeholder:text-muted/60 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all duration-150"
               />
             </div>
           )}

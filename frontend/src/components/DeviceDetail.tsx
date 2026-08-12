@@ -152,7 +152,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
                     <span className="text-muted text-[11px] font-mono">{conn.ip}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="px-1.5 py-0.5 rounded-lg text-[10px] font-bold uppercase bg-surface-3/60 backdrop-blur text-muted">
+                    <span className="px-1.5 py-0.5 rounded-xl text-[10px] font-bold uppercase bg-surface-3/60 backdrop-blur text-muted">
                       {conn.protocol}
                     </span>
                     {conn.iface && (
@@ -288,7 +288,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
                   <span className="text-muted block mb-1">Link protocols</span>
                   <div className="flex flex-wrap gap-1">
                     {[...new Set(connectedLinks.map((l) => l.protocol))].map((proto) => (
-                      <span key={proto} className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-surface-3 text-muted">
+                      <span key={proto} className="px-1.5 py-0.5 rounded-xl text-[10px] font-bold uppercase bg-surface-3/60 backdrop-blur border border-border/30 text-muted">
                         {proto}
                       </span>
                     ))}

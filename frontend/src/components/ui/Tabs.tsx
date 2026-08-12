@@ -37,7 +37,7 @@ export default function Tabs({ tabs, active, onChange }: Props) {
             {tab.label}
             {tab.count !== undefined && (
               <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium
-                ${isActive ? 'bg-accent-subtle text-accent' : 'bg-surface-3 text-muted'}`}>
+                ${isActive ? 'bg-accent-subtle text-accent' : 'bg-surface-3/60 backdrop-blur text-muted'}`}>
                 {tab.count}
               </span>
             )}

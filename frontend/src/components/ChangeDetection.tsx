@@ -129,7 +129,7 @@ export default function ChangeDetection() {
             </div>
 
             {/* Device changes */}
-            <div className="bg-surface-2 border border-border rounded p-4">
+            <div className="bg-surface-2/60 backdrop-blur border border-border/40 rounded-xl p-4">
               <h3 className="text-sm font-semibold text-text-primary mb-3">Device Changes</h3>
 
               {result.devices.added.length > 0 && (
@@ -191,7 +191,7 @@ export default function ChangeDetection() {
             </div>
 
             {/* Link changes */}
-            <div className="bg-surface-2 border border-border rounded p-4">
+            <div className="bg-surface-2/60 backdrop-blur border border-border/40 rounded-xl p-4">
               <h3 className="text-sm font-semibold text-text-primary mb-3">Link Changes</h3>
 
               {result.links.added.length > 0 && (

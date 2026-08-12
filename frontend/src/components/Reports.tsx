@@ -113,7 +113,7 @@ export default function Reports() {
                   <span key={s} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
                     s === 'up' ? 'bg-green-900/40 text-green-300'
                     : s === 'down' ? 'bg-red-900/40 text-red-300'
-                    : 'bg-surface-3 text-muted'
+                    : 'bg-surface-3/60 backdrop-blur border border-border/30 text-muted'
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${s === 'up' ? 'bg-green-400' : s === 'down' ? 'bg-red-400' : 'bg-gray-500'}`} />
                     {s}: {c}
@@ -177,7 +177,7 @@ export default function Reports() {
           </div>
           <div className="overflow-auto max-h-80">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-surface-2">
+              <thead className="sticky top-0 bg-surface-2/80 backdrop-blur-xl z-10">
                 <tr className="text-left text-muted text-[11px] uppercase tracking-wider">
                   <th className="px-5 py-2 font-medium">Scan</th>
                   <th className="px-5 py-2 font-medium">Status</th>
