@@ -18,20 +18,16 @@ export default function LoginForm({ onSuccess }: Props) {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Cinematic background */}
-      <div className="absolute inset-0 bg-surface-0" />
-      {/* Amtrak brand accent orbs */}
-      <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-[120px]" style={{ background: 'rgba(0, 58, 112, 0.15)' }} />
-      <div className="absolute bottom-[-15%] right-[-5%] w-[500px] h-[500px] rounded-full blur-[100px]" style={{ background: 'rgba(200, 16, 46, 0.1)' }} />
-      <div className="absolute top-[30%] right-[20%] w-[300px] h-[300px] rounded-full blur-[80px]" style={{ background: 'rgba(0, 58, 112, 0.08)' }} />
-      {/* Subtle grid pattern */}
-      <div
-        className="absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-          backgroundSize: '60px 60px',
-        }}
+      {/* Train background image */}
+      <img
+        src="/login-bg.jpg"
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 w-full h-full object-cover opacity-40 dark:opacity-25"
       />
+      {/* Gradient overlays for readability */}
+      <div className="absolute inset-0 bg-gradient-to-t from-surface-0 via-surface-0/80 to-surface-0/40" />
+      <div className="absolute inset-0 bg-gradient-to-r from-surface-0/60 to-transparent" />
 
       <div className="relative z-10 w-full max-w-md px-4">
         {/* Logo */}
@@ -43,7 +39,7 @@ export default function LoginForm({ onSuccess }: Props) {
         {/* Login card */}
         <form
           onSubmit={handleSubmit}
-          className="bg-surface-1/60 backdrop-blur-2xl p-8 rounded-2xl shadow-xl border border-border/40"
+          className="bg-surface-1/80 backdrop-blur-xl p-8 rounded-2xl shadow-xl border border-border/40"
         >
           {error && (
             <div className="bg-red-950/50 border border-red-800/50 rounded-lg px-4 py-2.5 mb-4 text-sm text-red-300 backdrop-blur">
