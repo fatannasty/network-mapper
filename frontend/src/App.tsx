@@ -12,6 +12,7 @@ import DeviceInventory from './components/DeviceInventory'
 import ChangeDetection from './components/ChangeDetection'
 import DataQuality from './components/DataQuality'
 import OperationsDashboard from './components/OperationsDashboard'
+import AdminPage from './components/AdminPage'
 import { setToken } from './api'
 
 export default function App() {
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/changes" element={<ChangeDetection />} />
           <Route path="/reports" element={<Navigate to="/dashboard" replace />} />
           <Route path="/quality" element={<DataQuality />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppShell>

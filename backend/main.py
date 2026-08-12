@@ -326,6 +326,73 @@ def auth_delete_user(user_id: int, db: Session = Depends(get_db)):
     return {"deleted": True}
 
 
+class UserUpdateRequest(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+@app.patch("/api/auth/users/{user_id}", dependencies=[Depends(admin)])
+def auth_update_user(user_id: int, req: UserUpdateRequest, db: Session = Depends(get_db)):
+    from models import User as UserModel
+    user = db.get(UserModel, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    if req.username is not None:
+        existing = db.query(UserModel).filter(UserModel.username == req.username, UserModel.id != user_id).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="username already exists")
+        user.username = req.username
+    if req.password:
+        user.password_hash = hash_password(req.password)
+    if req.role and req.role in ROLES:
+        user.role = req.role
+    if req.is_active is not None:
+        user.is_active = req.is_active
+    db.commit()
+    db.refresh(user)
+    return user.to_dict()
+
+
+@app.get("/api/admin/activity", dependencies=[Depends(admin)])
+def admin_activity(db: Session = Depends(get_db)):
+    """Return recent system activity from scan history."""
+    scans = repositories.list_scan_jobs(db, limit=20)
+    activity = []
+    for s in scans:
+        activity.append({
+            "type": "scan",
+            "action": f"Scan completed: {s.subnet}",
+            "timestamp": s.finished_at.isoformat() if s.finished_at else s.started_at.isoformat() if s.started_at else None,
+            "status": s.status,
+            "details": {"device_count": s.device_count, "scan_kind": s.scan_kind},
+        })
+    return {"activity": activity}
+
+
+@app.get("/api/admin/status", dependencies=[Depends(admin)])
+def admin_status(db: Session = Depends(get_db)):
+    """Return system status overview."""
+    from models import Device, Interface, Link, ScanJob
+    import os
+
+    db_size = os.path.getsize("network_mapper.db") if os.path.exists("network_mapper.db") else 0
+    latest_scan = repositories.list_scan_jobs(db, limit=1)
+    stale_devices = repositories.stale_devices(db, days=90)
+
+    return {
+        "database_size_bytes": db_size,
+        "total_devices": db.query(func.count(Device.id)).scalar() or 0,
+        "total_links": db.query(func.count(Link.id)).scalar() or 0,
+        "total_interfaces": db.query(func.count(Interface.id)).scalar() or 0,
+        "total_scans": db.query(func.count(ScanJob.id)).scalar() or 0,
+        "stale_devices_90d": stale_devices,
+        "latest_scan": latest_scan[0].to_dict() if latest_scan else None,
+        "scan_success_rate": 100.0 if not stale_devices else max(0, 100.0 - (stale_devices / max(db.query(func.count(Device.id)).scalar() or 1, 1)) * 100),
+    }
+
+
 # ── Discovery ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/discover", response_model=DiscoverResponse, dependencies=[Depends(operator)])

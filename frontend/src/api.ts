@@ -245,6 +245,45 @@ export async function getScans(limit = 20) {
   return r.data
 }
 
+export async function getUsers() {
+  const r = await api.get('/api/auth/users')
+  return r.data as { count: number; users: { id: number; username: string; role: string; is_active: boolean; created_at: string | null }[] }
+}
+
+export async function createUser(username: string, password: string, role: string) {
+  const r = await api.post('/api/auth/users', { username, password, role })
+  return r.data
+}
+
+export async function updateUser(userId: number, data: { username?: string; password?: string; role?: string; is_active?: boolean }) {
+  const r = await api.patch(`/api/auth/users/${userId}`, data)
+  return r.data
+}
+
+export async function deleteUser(userId: number) {
+  const r = await api.delete(`/api/auth/users/${userId}`)
+  return r.data
+}
+
+export async function getAdminActivity() {
+  const r = await api.get('/api/admin/activity')
+  return r.data as { activity: { type: string; action: string; timestamp: string | null; status: string; details: Record<string, unknown> }[] }
+}
+
+export async function getAdminStatus() {
+  const r = await api.get('/api/admin/status')
+  return r.data as {
+    database_size_bytes: number
+    total_devices: number
+    total_links: number
+    total_interfaces: number
+    total_scans: number
+    stale_devices_90d: number
+    latest_scan: Record<string, unknown> | null
+    scan_success_rate: number
+  }
+}
+
 // ── Sprint 9: Configuration Collection ───────────────────────────────────────
 
 export interface ConfigEntry {
