@@ -17,7 +17,7 @@ export default function Sidebar({ onLogout, collapsed }: Props) {
               <span className="text-white text-xs font-bold">A</span>
             </div>
           ) : (
-            <img src="/amtrak-logo.svg" alt="Amtrak" className="h-7 w-auto" />
+            <img src="/amtrak-logo.png" alt="Amtrak" className="h-7 w-auto" />
           )}
         </div>
       </div>
