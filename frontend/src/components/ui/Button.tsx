@@ -11,15 +11,15 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base = `inline-flex items-center justify-center font-medium rounded-lg
-  transition-all duration-150 active:scale-[0.98] select-none
-  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1
+  transition-all duration-150 active:scale-[0.97] select-none
+  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0
   disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100`
 
 const variantClasses: Record<Variant, string> = {
   primary: 'bg-accent hover:bg-accent-hover text-white shadow-sm hover:shadow-md',
-  secondary: 'bg-surface-2 hover:bg-surface-3 text-text-primary border border-border shadow-sm',
-  danger: 'bg-red-900/40 hover:bg-red-900/60 text-red-300 border border-red-800',
-  ghost: 'text-muted hover:text-text-secondary hover:bg-surface-2',
+  secondary: 'bg-surface-2/80 hover:bg-surface-3/80 text-text-primary border border-border/60 shadow-sm hover:border-border',
+  danger: 'bg-red-950/60 hover:bg-red-950/80 text-red-300 border border-red-800/60',
+  ghost: 'text-muted hover:text-text-primary hover:bg-surface-2/60',
 }
 
 const sizeClasses: Record<Size, string> = {

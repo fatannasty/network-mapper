@@ -14,10 +14,10 @@ export default function Header({ onLogout, collapsed, onToggleCollapse }: Props)
   const title = pageTitleForPath(pathname)
 
   return (
-    <header className="flex items-center gap-3 h-14 px-3 border-b border-border/60 bg-surface-1/60 backdrop-blur-xl shrink-0 z-20">
+    <header className="flex items-center gap-3 h-14 px-4 border-b border-border/40 bg-surface-1/40 backdrop-blur-2xl shrink-0 z-20">
       <button
         onClick={onToggleCollapse}
-        className="flex items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-text-primary hover:bg-surface-2 transition-colors"
+        className="flex items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-text-primary hover:bg-surface-2/60 transition-all duration-150"
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
         <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -30,11 +30,11 @@ export default function Header({ onLogout, collapsed, onToggleCollapse }: Props)
       </button>
 
       <nav className="flex items-center gap-2 text-sm min-w-0" aria-label="Breadcrumb">
-        <span className="text-muted">Network Mapper</span>
-        <svg className="w-3.5 h-3.5 text-muted/50 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+        <span className="text-muted/60">Network Mapper</span>
+        <svg className="w-3 h-3 text-muted/30 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
-        <span className="font-medium text-text-primary truncate">{title}</span>
+        <span className="font-semibold text-text-primary truncate">{title}</span>
       </nav>
 
       <div className="flex-1" />
