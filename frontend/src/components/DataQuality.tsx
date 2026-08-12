@@ -202,7 +202,7 @@ export default function DataQuality() {
               { title: 'Link validation', desc: 'SNMP LLDP/CDP on core-switch and router.', runKey: 'links', action: async () => setLinkSummary(await backfillLinks()), summary: linkSummary, count: linkSummary?.neighbors_discovered },
               { title: 'Classify blanks', desc: 'AP hostnames → accesspoint; port 9100 → printer.', runKey: 'blanks', action: async () => { const r = await classifyBlanks(); setNotice(`Classified ${r.changed} devices`) }, count: undefined },
             ].map((job) => (
-              <div key={job.runKey} className="bg-surface-3 rounded-lg p-4 border border-border">
+              <div key={job.runKey} className="bg-surface-3/60 backdrop-blur rounded-xl p-4 border border-border/40">
                 <h4 className="text-sm font-medium text-text-primary mb-1">{job.title}</h4>
                 <p className="text-xs text-muted mb-3">{job.desc}</p>
                 <Button size="sm" className="w-full" onClick={() => run(job.runKey, job.action)} disabled={running !== ''}>

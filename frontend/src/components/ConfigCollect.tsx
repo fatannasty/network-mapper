@@ -62,17 +62,17 @@ export default function ConfigCollect() {
             {loading ? 'Collecting...' : 'Collect Configs'}
           </Button>
 
-          {error && <div className="bg-red-900/40 border border-red-800 rounded-lg p-4 text-sm text-red-300">{error}</div>}
+          {error && <div className="bg-red-900/40 backdrop-blur border border-red-800/50 rounded-xl p-4 text-sm text-red-300">{error}</div>}
 
           {result && (
             <div className="bg-surface-2/60 backdrop-blur border border-border/40 rounded-2xl p-4 space-y-2">
               <p className="text-sm text-green-400">{result.success} of {result.total} collected ({result.failed} failed)</p>
               <div className="max-h-72 overflow-auto space-y-1.5">
                 {result.results.map((r, i) => (
-                  <div key={i} className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs ${
-                    r.status === 'ok' ? 'bg-green-900/20 text-green-300'
-                    : r.status === 'skipped' ? 'bg-surface-3 text-muted'
-                    : 'bg-red-900/20 text-red-300'
+                  <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs border ${
+                    r.status === 'ok' ? 'bg-green-900/20 text-green-300 border-green-800/40'
+                    : r.status === 'skipped' ? 'bg-surface-3/50 text-muted border-border/30'
+                    : 'bg-red-900/20 text-red-300 border-red-800/40'
                   }`}>
                     <span>{r.hostname || r.ip}{r.status === 'ok' && r.config_id ? ` — #${r.config_id}` : ''}</span>
                     <span>{r.status === 'ok' ? '✓' : r.status}</span>
