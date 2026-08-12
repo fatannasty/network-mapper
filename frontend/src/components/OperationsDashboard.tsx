@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getReport, exportReport, type Report, type ScanHistoryEntry } from '../api'
 import Badge from './ui/Badge'
@@ -25,7 +25,6 @@ function DashboardSkeleton() {
             <Skeleton className="h-8 w-20" />
           </div>
         </div>
-        <Skeleton className="h-12 w-full" />
         <Skeleton className="h-14 w-full" />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
@@ -59,6 +58,8 @@ const typeColors: Record<string, string> = {
   'load-balancer': '#f472b6',
   unknown: '#6b7280',
 }
+
+const siteColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#f43f5e', '#84cc16', '#6366f1', '#14b8a6']
 
 function interfaceDownCount(report: Report): number {
   return Object.entries(report.interface_status)
@@ -135,7 +136,7 @@ function Sparkline({ values, color = 'currentColor', width = 80, height = 28 }: 
   )
 }
 
-function DonutChart({ data, size = 140, strokeWidth = 22 }: { data: Record<string, number>; size?: number; strokeWidth?: number }) {
+function DonutChart({ data, size = 120, strokeWidth = 20, colorFor }: { data: Record<string, number>; size?: number; strokeWidth?: number; colorFor: (key: string) => string }) {
   const entries = Object.entries(data).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])
   const total = entries.reduce((sum, [, v]) => sum + v, 0)
   if (total === 0) return <p className="text-xs text-muted">No data.</p>
@@ -143,7 +144,7 @@ function DonutChart({ data, size = 140, strokeWidth = 22 }: { data: Record<strin
   const circumference = 2 * Math.PI * radius
   let offset = 0
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-5">
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">
           <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgb(var(--surface-3))" strokeWidth={strokeWidth} />
@@ -151,14 +152,14 @@ function DonutChart({ data, size = 140, strokeWidth = 22 }: { data: Record<strin
             const pct = value / total
             const dash = circumference * pct
             const gap = circumference - dash
-            const el = (
+            return (
               <Tooltip key={key} content={`${key}: ${value.toLocaleString()} (${(pct * 100).toFixed(1)}%)`} position="top">
                 <circle
                   cx={size / 2}
                   cy={size / 2}
                   r={radius}
                   fill="none"
-                  stroke={typeColors[key] || typeColors.unknown}
+                  stroke={colorFor(key)}
                   strokeWidth={strokeWidth}
                   strokeDasharray={`${dash} ${gap}`}
                   strokeDashoffset={-offset}
@@ -168,19 +169,17 @@ function DonutChart({ data, size = 140, strokeWidth = 22 }: { data: Record<strin
                 </circle>
               </Tooltip>
             )
-            offset += dash
-            return el
           })}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-xl font-bold text-text-primary tabular-nums">{total.toLocaleString()}</span>
+          <span className="text-lg font-bold text-text-primary tabular-nums">{total.toLocaleString()}</span>
           <span className="text-[10px] text-muted uppercase">total</span>
         </div>
       </div>
       <div className="space-y-1 min-w-0">
         {entries.slice(0, 6).map(([key, value]) => (
           <div key={key} className="flex items-center gap-2 text-xs">
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: typeColors[key] || typeColors.unknown }} />
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorFor(key) }} />
             <span className="text-text-secondary capitalize truncate">{key}</span>
             <span className="ml-auto text-muted tabular-nums shrink-0">{value.toLocaleString()}</span>
           </div>
@@ -189,6 +188,43 @@ function DonutChart({ data, size = 140, strokeWidth = 22 }: { data: Record<strin
       </div>
     </div>
   )
+}
+
+function DistributionCard({ report }: { report: Report }) {
+  const [dimension, setDimension] = useState<'type' | 'site' | 'vendor'>('type')
+  const data = dimension === 'type' ? report.by_device_type
+    : dimension === 'site' ? report.by_site
+    : report.by_vendor
+  const colorFor = (key: string) => dimension === 'type'
+    ? (typeColors[key] || typeColors.unknown)
+    : siteColors[Math.abs(hashString(key)) % siteColors.length]
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Devices by</h2>
+        <div className="flex items-center gap-0.5 bg-surface-2/70 backdrop-blur rounded-xl p-0.5">
+          {(['type', 'site', 'vendor'] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => setDimension(d)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition-all duration-150 ${
+                dimension === d ? 'bg-accent/15 text-accent' : 'text-muted hover:text-text-secondary'
+              }`}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+      </div>
+      <DonutChart data={data} colorFor={colorFor} />
+    </Card>
+  )
+}
+
+function hashString(input: string): number {
+  let hash = 0
+  for (let i = 0; i < input.length; i++) hash = (hash * 31 + input.charCodeAt(i)) | 0
+  return Math.abs(hash)
 }
 
 function KpiCard({ label, value, sub, accent, tooltip, href, sparkData, sparkColor }: {
@@ -242,23 +278,88 @@ function AlertItem({ severity, title, message, href }: { severity: 'critical' | 
   )
 }
 
-function ScanTimeline({ scans }: { scans: ScanHistoryEntry[] }) {
-  const visible = scans.slice(0, 8)
-  if (visible.length === 0) return <p className="text-xs text-muted">No scans recorded yet.</p>
+function ExportMenu() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('keydown', keyHandler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('keydown', keyHandler)
+    }
+  }, [open])
+
+  const items = [
+    { label: 'Export Devices', key: 'devices' as const },
+    { label: 'Export Links', key: 'links' as const },
+    { label: 'Export Configs', key: 'configs' as const },
+    { label: 'Export Scans', key: 'scans' as const },
+  ]
+
   return (
-    <div className="space-y-0">
-      {visible.map((scan, index) => (
-        <Link key={scan.id} to={`/topology?scan_id=${scan.id}`} className="flex items-start gap-3 group">
-          <div className="flex flex-col items-center">
-            <div className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${scan.status === 'completed' ? 'bg-green-400' : 'bg-red-400'}`} />
-            {index < visible.length - 1 && <div className="w-px h-8 bg-border" />}
-          </div>
-          <div className="pb-3 min-w-0">
-            <p className="text-xs font-medium text-text-primary truncate group-hover:text-accent transition-colors">{scan.subnet}</p>
-            <p className="text-[11px] text-muted">{scan.device_count} devices &middot; {scan.started_at?.slice(0, 16).replace('T', ' ') || 'Unknown'}</p>
-          </div>
-        </Link>
-      ))}
+    <div className="relative" ref={ref}>
+      <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <svg className="w-3.5 h-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        Export
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-48 bg-surface-1/90 backdrop-blur-2xl border border-border/40 rounded-2xl shadow-popover p-1.5 z-50">
+          {items.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => { setOpen(false); void exportReport(item.key) }}
+              className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-sm text-muted hover:text-text-secondary hover:bg-surface-2/60 transition-all duration-150"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ScanTrend({ scans }: { scans: ScanHistoryEntry[] }) {
+  const points = [...scans].reverse().slice(-12)
+  if (points.length < 2) return <p className="text-xs text-muted py-8">Run more scans to see the device-count trend.</p>
+  const max = Math.max(...points.map((scan) => scan.device_count), 1)
+  const min = Math.min(...points.map((scan) => scan.device_count), 0)
+  const range = Math.max(max - min, 1)
+  const coords = points.map((scan, index) => ({
+    scan,
+    x: (index / (points.length - 1)) * 100,
+    y: 90 - ((scan.device_count - min) / range) * 78,
+  }))
+  const line = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
+  const area = `M ${coords[0].x} 90 ${coords.map((p) => `L ${p.x} ${p.y}`).join(' ')} L ${coords[coords.length - 1].x} 90 Z`
+  return (
+    <div className="relative h-44">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+        <path d="M 0 90 L 100 90" stroke="rgb(var(--border))" strokeWidth="0.5" strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
+        <path d="M 0 45 L 100 45" stroke="rgb(var(--border))" strokeWidth="0.3" strokeDasharray="2 4" vectorEffect="non-scaling-stroke" />
+        <path d={area} fill="rgb(var(--accent))" opacity="0.12" />
+        <path d={line} fill="none" stroke="rgb(var(--accent))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        {coords.map((point) => (
+          <Tooltip key={point.scan.id} content={`${point.scan.subnet}: ${point.scan.device_count} devices`} position="top">
+            <circle cx={point.x} cy={point.y} r="3" fill="rgb(var(--surface-1))" stroke="rgb(var(--accent))" strokeWidth="1.5" className="cursor-pointer hover:r-4 transition-all" vectorEffect="non-scaling-stroke" />
+          </Tooltip>
+        ))}
+      </svg>
+      <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px] text-muted">
+        <span>{points[0].started_at?.slice(5, 10) || ''}</span>
+        <span>{points[points.length - 1].started_at?.slice(5, 10) || ''}</span>
+      </div>
     </div>
   )
 }
@@ -269,8 +370,6 @@ export default function OperationsDashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
-  const [typeFilter, setTypeFilter] = useState('')
-  const [siteFilter, setSiteFilter] = useState('')
   const [refreshMs, setRefreshMs] = useState(30_000)
 
   const refresh = useCallback(async (initial = false) => {
@@ -303,14 +402,6 @@ export default function OperationsDashboard() {
   const health = healthFor(report)
   const down = interfaceDownCount(report)
   const scan = latestScan(report)
-  const filteredDevices = siteFilter
-    ? report.by_site[siteFilter] || 0
-    : typeFilter
-      ? report.by_device_type[typeFilter] || 0
-      : report.total_devices
-  const visibleTypes = typeFilter ? { [typeFilter]: report.by_device_type[typeFilter] || 0 } : report.by_device_type
-  const visibleSites = siteFilter ? { [siteFilter]: report.by_site[siteFilter] || 0 } : report.by_site
-  const hasFilters = Boolean(typeFilter || siteFilter)
   const scanHistoryValues = [...report.scan_history].reverse().map((s) => s.device_count)
   const hc = healthColors[health.state]
 
@@ -337,36 +428,10 @@ export default function OperationsDashboard() {
               <span className="text-xs text-muted whitespace-nowrap">{refreshing ? 'Refreshing...' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString()}` : 'Waiting for data'}</span>
               <Button variant="secondary" size="sm" onClick={() => void refresh()} disabled={refreshing}>Refresh</Button>
               <div className="h-5 w-px bg-border" />
-              <Tooltip content="Export inventory data as CSV" position="bottom">
-                <Button variant="ghost" size="sm" onClick={() => void exportReport('devices')}>Export</Button>
-              </Tooltip>
+              <ExportMenu />
             </div>
           }
         />
-
-        <Card padding={false}>
-          <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted mr-1">Quick actions</span>
-            <Link to="/ingest" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">Run Discovery</Link>
-            <Link to="/ingest?tab=catalyst" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">Import Catalyst</Link>
-            <Link to="/topology" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">View Topology</Link>
-            <Link to="/configs" className="px-3 py-1.5 rounded-xl text-xs font-medium bg-surface-2/70 backdrop-blur text-text-secondary hover:bg-surface-3/80 hover:text-text-primary border border-border/30 transition-all duration-150">Collect Configs</Link>
-            <div className="flex-1" />
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-muted">Type</span>
-              <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="min-w-36 text-xs">
-                <option value="">All types</option>
-                {Object.keys(report.by_device_type).filter(Boolean).sort().map((t) => <option key={t} value={t}>{t}</option>)}
-              </Select>
-              <span className="text-[11px] text-muted">Site</span>
-              <Select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} className="min-w-40 text-xs">
-                <option value="">All sites</option>
-                {Object.keys(report.by_site).filter(Boolean).sort().map((s) => <option key={s} value={s}>{s}</option>)}
-              </Select>
-              {hasFilters && <Button variant="ghost" size="sm" onClick={() => { setTypeFilter(''); setSiteFilter('') }}>Clear</Button>}
-            </div>
-          </div>
-        </Card>
 
         <div className={`rounded-2xl border px-4 py-3.5 flex items-center justify-between gap-4 backdrop-blur-xl ${hc.bg} ${hc.border} ${hc.text}`}>
           <div className="flex items-center gap-3">
@@ -387,76 +452,20 @@ export default function OperationsDashboard() {
           {health.state !== 'healthy' && <Link className="text-xs font-semibold underline shrink-0" to="/quality">Review details &rarr;</Link>}
         </div>
 
-        <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 backdrop-blur">Refresh warning: {error}</div>
+        {error && <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 backdrop-blur">Refresh warning: {error}</div>}
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label={hasFilters ? 'Filtered devices' : 'Devices'} value={filteredDevices} sub={hasFilters ? 'matching filters' : 'known network devices'} accent="blue" tooltip="Total known devices in inventory. Click to open Inventory." href="/inventory" sparkData={scanHistoryValues} sparkColor="#3b82f6" />
+          <KpiCard label="Devices" value={report.total_devices} sub="known network devices" accent="blue" tooltip="Total known devices in inventory. Click to open Inventory." href="/inventory" sparkData={scanHistoryValues} sparkColor="#3b82f6" />
           <KpiCard label="Connections" value={report.total_links} sub="topology links" accent="green" tooltip="Total topology links. Click to open Topology." href="/topology" />
           <KpiCard label="Interfaces down" value={down} sub="current persisted status" accent={down > 0 ? 'red' : 'green'} tooltip="Interfaces reporting operational down. Click to open Quality." href="/quality" />
           <KpiCard label="Stale devices" value={report.stale_devices_90d} sub="not seen in 90 days" accent={report.stale_devices_90d > 0 ? 'amber' : 'green'} tooltip="Devices missing from recent scans. Click to open Quality." href="/quality" />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-4">
-          <Card>
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Latest scan</h2>
-                <p className="text-xs text-muted mt-1">How fresh is the network view?</p>
-              </div>
-              <Badge label={scan?.status || 'unknown'} dot />
-            </div>
-            <div className="text-3xl font-bold text-text-primary tabular-nums">{scanAge(scan)}</div>
-            <p className="text-xs text-muted mt-1 truncate">{scan?.subnet || 'No scan recorded'}</p>
-            <div className="grid grid-cols-2 gap-3 mt-5 text-xs">
-              <div className="bg-surface-3/50 backdrop-blur rounded-xl p-3"><span className="text-muted block">Devices found</span><strong className="text-text-primary text-lg">{scan?.device_count ?? 0}</strong></div>
-              <div className="bg-surface-3/50 backdrop-blur rounded-xl p-3"><span className="text-muted block">Links found</span><strong className="text-text-primary text-lg">{scan?.links ?? 0}</strong></div>
-            </div>
-          </Card>
-          <Card>
-            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Devices by type</h2>
-            <DonutChart data={visibleTypes} />
-          </Card>
-          <Card>
-            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Devices by site</h2>
-            <DonutChart data={visibleSites} />
-          </Card>
-        </div>
-
-        <div className="grid lg:grid-cols-2 gap-4">
-          <Card>
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div><h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Discovery trend</h2><p className="text-xs text-muted mt-1">Devices found in recent scans</p></div>
-              <Tooltip content="Hover a point for scan name and device count."><span className="text-xs text-muted cursor-help">What is this?</span></Tooltip>
-            </div>
-            <ScanTrend scans={report.recent_scans} />
-          </Card>
+          <DistributionCard report={report} />
           <Card>
             <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Interfaces by status</h2>
-            <DonutChart data={report.interface_status} />
-          </Card>
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-4">
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Scan timeline</h2>
-              <span className="text-[11px] text-muted">{report.recent_scans.length} recent</span>
-            </div>
-            <ScanTimeline scans={report.recent_scans} />
-          </Card>
-          <Card>
-            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Alerts</h2>
-            {alerts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <svg className="w-8 h-8 text-green-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <p className="text-sm text-text-secondary font-medium">All clear</p>
-                <p className="text-xs text-muted mt-0.5">No alerts at this time.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {alerts.map((alert, i) => <AlertItem key={i} {...alert} />)}
-              </div>
-            )}
+            <DonutChart data={report.interface_status} colorFor={(key) => key === 'up' ? '#34d399' : key === 'down' ? '#f87171' : '#6b7280'} />
           </Card>
           <Card>
             <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Config coverage</h2>
@@ -487,6 +496,30 @@ export default function OperationsDashboard() {
           </Card>
         </div>
 
+        <div className="grid lg:grid-cols-2 gap-4">
+          <Card>
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div><h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Discovery trend</h2><p className="text-xs text-muted mt-1">Devices found in recent scans</p></div>
+              <span className="text-[11px] text-muted">{scanAge(scan)}</span>
+            </div>
+            <ScanTrend scans={report.recent_scans} />
+          </Card>
+          <Card>
+            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Alerts</h2>
+            {alerts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <svg className="w-8 h-8 text-green-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p className="text-sm text-text-secondary font-medium">All clear</p>
+                <p className="text-xs text-muted mt-0.5">No alerts at this time.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {alerts.map((alert, i) => <AlertItem key={i} {...alert} />)}
+              </div>
+            )}
+          </Card>
+        </div>
+
         {report.dod_gates && Object.keys(report.dod_gates).length > 0 && (
           <Card>
             <div className="flex items-center justify-between mb-4">
@@ -507,38 +540,6 @@ export default function OperationsDashboard() {
             </div>
           </Card>
         )}
-
-        <div className="grid lg:grid-cols-2 gap-4">
-          <Card>
-            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Devices by vendor</h2>
-            <div className="space-y-2">
-              {Object.entries(report.by_vendor).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, v]) => {
-                const max = Math.max(...Object.values(report.by_vendor), 1)
-                return (
-                  <div key={k} className="flex items-center gap-3 text-xs">
-                    <span className="w-36 shrink-0 truncate text-muted">{k}</span>
-                    <div className="flex-1 h-2.5 bg-surface-3 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-purple-500 transition-all" style={{ width: `${(v / max) * 100}%` }} />
-                    </div>
-                    <span className="w-12 text-right text-muted tabular-nums font-medium">{v}</span>
-                  </div>
-                )
-              })}
-              {Object.keys(report.by_vendor).length === 0 && <p className="text-xs text-muted">No vendor data available.</p>}
-            </div>
-          </Card>
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Export data</h2>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Button variant="secondary" size="sm" onClick={() => void exportReport('devices')} className="w-full">Export Devices</Button>
-              <Button variant="secondary" size="sm" onClick={() => void exportReport('links')} className="w-full">Export Links</Button>
-              <Button variant="secondary" size="sm" onClick={() => void exportReport('configs')} className="w-full">Export Configs</Button>
-              <Button variant="secondary" size="sm" onClick={() => void exportReport('scans')} className="w-full">Export Scans</Button>
-            </div>
-          </Card>
-        </div>
 
         <Card padding={false}>
           <div className="p-5 pb-3 flex items-center justify-between">
@@ -575,40 +576,6 @@ export default function OperationsDashboard() {
             </table>
           </div>
         </Card>
-      </div>
-    </div>
-  )
-}
-
-function ScanTrend({ scans }: { scans: ScanHistoryEntry[] }) {
-  const points = [...scans].reverse().slice(-12)
-  if (points.length < 2) return <p className="text-xs text-muted py-8">Run more scans to see the device-count trend.</p>
-  const max = Math.max(...points.map((scan) => scan.device_count), 1)
-  const min = Math.min(...points.map((scan) => scan.device_count), 0)
-  const range = Math.max(max - min, 1)
-  const coords = points.map((scan, index) => ({
-    scan,
-    x: (index / (points.length - 1)) * 100,
-    y: 90 - ((scan.device_count - min) / range) * 78,
-  }))
-  const line = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
-  const area = `M ${coords[0].x} 90 ${coords.map((p) => `L ${p.x} ${p.y}`).join(' ')} L ${coords[coords.length - 1].x} 90 Z`
-  return (
-    <div className="relative h-44">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
-        <path d="M 0 90 L 100 90" stroke="rgb(var(--border))" strokeWidth="0.5" strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
-        <path d="M 0 45 L 100 45" stroke="rgb(var(--border))" strokeWidth="0.3" strokeDasharray="2 4" vectorEffect="non-scaling-stroke" />
-        <path d={area} fill="rgb(var(--accent))" opacity="0.12" />
-        <path d={line} fill="none" stroke="rgb(var(--accent))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-        {coords.map((point) => (
-          <Tooltip key={point.scan.id} content={`${point.scan.subnet}: ${point.scan.device_count} devices`} position="top">
-            <circle cx={point.x} cy={point.y} r="3" fill="rgb(var(--surface-1))" stroke="rgb(var(--accent))" strokeWidth="1.5" className="cursor-pointer hover:r-4 transition-all" vectorEffect="non-scaling-stroke" />
-          </Tooltip>
-        ))}
-      </svg>
-      <div className="absolute inset-x-0 bottom-0 flex justify-between text-[10px] text-muted">
-        <span>{points[0].started_at?.slice(5, 10) || ''}</span>
-        <span>{points[points.length - 1].started_at?.slice(5, 10) || ''}</span>
       </div>
     </div>
   )
