@@ -319,7 +319,7 @@ export default function DeviceInventory() {
 
         {selectedDevice && (
           <div className="flex flex-col border-l border-border w-80 shrink-0">
-            <DeviceDetail device={selectedDevice} connectedLinks={connectedLinks} onClose={() => setSelectedIp(null)} />
+            <DeviceDetail device={selectedDevice} connectedLinks={connectedLinks} allDevices={devices} allLinks={rawLinks} onClose={() => setSelectedIp(null)} />
             <div className="p-3 border-t border-border">
               <Button
                 variant="secondary"

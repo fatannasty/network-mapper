@@ -356,6 +356,8 @@ export default function TopologyView() {
               <DeviceDetail
                 device={selectedDeviceData.device}
                 connectedLinks={selectedDeviceData.connectedLinks}
+                allDevices={devices}
+                allLinks={filteredLinks}
                 onClose={() => setSelectedDevice(null)}
               />
             )}
