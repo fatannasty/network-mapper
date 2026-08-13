@@ -28,7 +28,7 @@ CLOUD_W, CLOUD_H = 150, 56
 UNKNOWN_W, UNKNOWN_H = 100, 22
 SLOT_W = 230              # horizontal slot per device
 MAX_PER_ROW = 6           # rows wrap downward past this (uniform vertical flow)
-LEGEND_H = 110
+LEGEND_H = 130            # legend / title block height
 
 C_FRAME = "#000000"
 C_TEXT = "#000000"
@@ -639,21 +639,29 @@ def _geom_ellipse(w: float, h: float) -> str:
 
 def _connector_1d(sid: int, bx: float, by: float, ex: float, ey: float,
                   color: str, width_pt: float) -> str:
-    """Straight 1-D connector. For 1-D shapes the transform lives in the
-    BeginX/BeginY/EndX/EndY cells and Width is the connector length; the
-    geometry's local X axis runs from Begin toward End."""
-    dist = max(((ex - bx) ** 2 + (ey - by) ** 2) ** 0.5, 0.0001)
+    """Straight 1-D connector. A 1-D shape's local coordinate frame runs from
+    (0,0) at Begin to (Width,Height) at End, so the geometry line goes to
+    (Width,Height); the transform needs the full Pin/LocPin/Begin/End cells."""
+    wdt, hgt = ex - bx, ey - by
+    w, h = abs(wdt), abs(hgt)
+    pinx, piny = (bx + ex) / 2, (by + ey) / 2
     return (
         f'<Shape ID="{sid}" Type="Shape">'
-        f'<Cell N="BeginX" V="{bx:.4f}"/><Cell N="BeginY" V="{by:.4f}"/>'
-        f'<Cell N="EndX" V="{ex:.4f}"/><Cell N="EndY" V="{ey:.4f}"/>'
-        f'<Cell N="Width" V="{dist:.4f}"/>'
+        f'<Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{piny:.4f}"/>'
+        f'<Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/>'
+        f'<Cell N="LocPinX" V="{w / 2:.4f}" F="Width*0.5"/>'
+        f'<Cell N="LocPinY" V="{h / 2:.4f}" F="Height*0.5"/>'
+        f'<Cell N="BeginX" V="{bx:.4f}" F="PinX-Width*0.5"/>'
+        f'<Cell N="BeginY" V="{by:.4f}" F="PinY-Height*0.5"/>'
+        f'<Cell N="EndX" V="{ex:.4f}" F="PinX+Width*0.5"/>'
+        f'<Cell N="EndY" V="{ey:.4f}" F="PinY+Height*0.5"/>'
         f'<Cell N="LineColor" V="{color}"/>'
         f'<Cell N="LineWeight" V="{width_pt / 72:.4f}"/>'
         '<Cell N="FillPattern" V="0"/><Cell N="OneD" V="1"/>'
         '<Section N="Geometry" IX="0">'
         '<Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>'
-        f'<Row T="LineTo" IX="2"><Cell N="X" V="{dist:.4f}" F="Width"/><Cell N="Y" V="0"/></Row>'
+        f'<Row T="LineTo" IX="2"><Cell N="X" V="{w:.4f}" F="Width*1"/>'
+        f'<Cell N="Y" V="{h:.4f}" F="Height*1"/></Row>'
         '</Section></Shape>'
     )
 
@@ -696,7 +704,7 @@ def _vsdx_text(sid: int, p: dict, H: float, ox: float = 0.0, oy: float = 0.0) ->
     """Text shape. ox/oy shift the local origin (used inside groups)."""
     size_pt = p["size"]
     w_in = max(0.3, len(p["v"]) * size_pt * 0.62 / 72)
-    h_in = size_pt * 1.4 / 72
+    h_in = size_pt * 1.6 / 72
     pinx = (p["x"] - ox) / 72
     piny = (H - p["y"] - oy) / 72 - h_in / 2
     return (f'<Shape ID="{sid}" Type="Shape">'
@@ -757,9 +765,13 @@ def render_vsdx(scene: Scene) -> bytes:
             shapes.append(
                 f'<Shape ID="{sid}" Type="Foreign">'
                 + _xform((p["x"] + p["w"] / 2) / 72, flip_y(p["y"] + p["h"] / 2), w, h)
+                + f'<Cell N="ImgWidth" V="{w:.4f}" F="Width*1"/>'
+                + f'<Cell N="ImgHeight" V="{h:.4f}" F="Height*1"/>'
+                + '<Cell N="ImgOffsetX" V="0"/><Cell N="ImgOffsetY" V="0"/>'
+                + '<Cell N="ClippingPath" V=""/>'
                 + '<Cell N="FillPattern" V="0"/><Cell N="LinePattern" V="0"/>'
                 + f'<ForeignData ForeignType="Bitmap" MappingMode="96" '
-                + f'ExtentX="{int(p["w"] * 2540)}" ExtentY="{int(p["h"] * 2540)}">'
+                + f'ExtentX="{int(w * 2540)}" ExtentY="{int(h * 2540)}">'
                 + f'<Rel xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="{rid}"/>'
                 + '</ForeignData></Shape>')
             sid += 1
@@ -830,7 +842,7 @@ def render_vsdx(scene: Scene) -> bytes:
         for p in dev_texts:
             size_pt = p["size"]
             w_in = max(0.3, len(p["v"]) * size_pt * 0.62 / 72)
-            h_in = size_pt * 1.4 / 72
+            h_in = size_pt * 1.6 / 72
             lx, ly = to_local(p["x"], p["y"] + size_pt)
             children.append(
                 f'<Shape ID="{sid}" Type="Shape">'
@@ -871,7 +883,7 @@ def render_vsdx(scene: Scene) -> bytes:
                 continue
             size_pt = 7.0
             w_in = max(0.3, len(txt) * size_pt * 0.62 / 72)
-            h_in = size_pt * 1.4 / 72
+            h_in = size_pt * 1.6 / 72
             p = {"v": txt, "size": size_pt, "bold": False, "italic": False,
                  "color": C_PORT, "align": "left"}
             shapes.append(
