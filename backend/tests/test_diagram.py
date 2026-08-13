@@ -53,7 +53,7 @@ def test_diagram_vsdx_is_valid_zip_with_visio_parts():
     assert "media/image1.png" in names  # Amtrak logo embedded
     page = z.read("pages/page1.xml").decode()
     assert "MIFLST1SWC4" in page
-    assert "TwentyFiveGigE1/0/3" in page  # port label
+    assert "25G1/0/3" in page  # abbreviated port label
 
 
 def test_diagram_docx():

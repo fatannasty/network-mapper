@@ -22,11 +22,11 @@ from xml.sax.saxutils import escape as _xml_escape
 
 MARGIN = 36
 HEADER_H = 140            # logo + title band
-LAYER_GAP = 175           # vertical distance between device layers
+LAYER_GAP = 230           # vertical distance between device layers
 GLYPH_W, GLYPH_H = 120, 26
 CLOUD_W, CLOUD_H = 150, 56
 UNKNOWN_W, UNKNOWN_H = 100, 22
-SLOT_W = 175              # horizontal slot per device
+SLOT_W = 230              # horizontal slot per device
 LEGEND_H = 110
 
 C_FRAME = "#000000"
@@ -50,11 +50,40 @@ DEFAULT_LEGEND = [
 
 ASSET_LOGO = os.path.join(os.path.dirname(__file__), "assets", "amtrak-logo.png")
 
+# Abbreviations match the app's frontend `shortenInterface` helper so port
+# labels stay short (e.g. "TwentyFiveGigE1/1/1" -> "25G1/1/1").
+_IFACE_SHORT = (
+    ("AppGigabitEthernet", "AppGi"),
+    ("TwentyFiveGigE", "25G"),
+    ("FortyGigabitEthernet", "Fo"),
+    ("HundredGigE", "100G"),
+    ("TenGigabitEthernet", "Te"),
+    ("GigabitEthernet", "Gi"),
+    ("FastEthernet", "Fa"),
+    ("Port-channel", "Po"),
+    ("Loopback", "Lo"),
+    ("Tunnel", "Tu"),
+    ("Serial", "Se"),
+    ("Bluetooth", "BT"),
+    ("Management", "Mgmt"),
+    ("Vlan", "Vl"),
+    ("Ethernet", "Eth"),
+)
+
+
+def _shorten_interface(name: str) -> str:
+    if not name:
+        return ""
+    for pfx, abbr in _IFACE_SHORT:
+        if name.startswith(pfx):
+            return abbr + name[len(pfx):]
+    return name
+
 
 def _medium_key(interface_a: str, interface_b: str) -> str:
     """Guess the physical medium from interface names (10G+ => single-mode)."""
     name = (interface_a or interface_b or "").strip().upper()
-    for pfx in ("TWE", "TE", "FO", "HU"):
+    for pfx in ("TWE", "TE", "FO", "HU", "25G", "100G"):
         if name.startswith(pfx):
             return "smf"
     for pfx in ("GI", "FA", "ETH", "ET"):
@@ -227,16 +256,9 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
             return UNKNOWN_H / 2
         return GLYPH_H / 2
 
+    # Deduplicate identical links first so attachment fan-out counts matches.
+    valid: list[dict] = []
     seen: set[tuple] = set()
-    pair_count: dict[tuple, int] = {}
-    label_slots: dict[tuple[str, str], int] = {}   # (ip, "top"|"bottom") -> count
-
-    def port_label(ip: str, x: float, y: float, side: str, text: str):
-        slot = label_slots.get((ip, side), 0)
-        label_slots[(ip, side)] = slot + 1
-        dy = slot * 8 if side == "bottom" else -slot * 8
-        scene.text(x + 5, y + dy, text, size=7, color=C_PORT, align="left")
-
     for l in links:
         a, b = l.get("source"), l.get("target")
         if a not in pos or b not in pos or a == b:
@@ -245,10 +267,36 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         if k in seen:
             continue
         seen.add(k)
-        pair = tuple(sorted((a, b)))
-        dup = pair_count.get(pair, 0)
-        pair_count[pair] = dup + 1
+        valid.append(l)
 
+    # Assign each link a spread-out attachment point on each device edge so
+    # lines leaving a core or switch don't stack on top of each other.
+    attach: dict[str, dict[str, list[int]]] = {}  # ip -> "top"|"bottom" -> link idx
+    for li, l in enumerate(valid):
+        a, b = l["source"], l["target"]
+        same = abs(pos[a][1] - pos[b][1]) < 1
+        if same:
+            attach.setdefault(a, {}).setdefault("top", []).append(li)
+            attach.setdefault(b, {}).setdefault("top", []).append(li)
+        else:
+            upper, lower = (a, b) if pos[a][1] < pos[b][1] else (b, a)
+            attach.setdefault(upper, {}).setdefault("bottom", []).append(li)
+            attach.setdefault(lower, {}).setdefault("top", []).append(li)
+
+    def attach_x(ip: str, side: str, li: int) -> float:
+        group = attach.get(ip, {}).get(side, [])
+        n = len(group)
+        cx, _ = pos[ip]
+        if n <= 1:
+            return cx
+        hw = (CLOUD_W / 2 if "router" in dt_by_ip.get(ip, "") else GLYPH_W / 2) - 12
+        idx = group.index(li)
+        step = min(14.0, 2 * hw / (n - 1))
+        return cx - hw + idx * step
+
+    pair_count: dict[tuple, int] = {}
+    for li, l in enumerate(valid):
+        a, b = l["source"], l["target"]
         x1, y1 = pos[a]
         x2, y2 = pos[b]
         h1, h2 = half_h(a), half_h(b)
@@ -257,30 +305,36 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         if color_links and med and legend_color.get(med):
             color = legend_color[med]
 
+        ia, ib = l.get("source_interface") or "", l.get("target_interface") or ""
+        ia_s, ib_s = _shorten_interface(ia), _shorten_interface(ib)
+
         same_layer = abs(y1 - y2) < 1
-        off = dup * 9
+        pair = tuple(sorted((a, b)))
+        dup = pair_count.get(pair, 0)
+        pair_count[pair] = dup + 1
+        off = dup * 10
         if same_layer:
             # channel runs above the whole label stack (stack ≈ 46pt tall)
+            sax = attach_x(a, "top", li)
+            tax = attach_x(b, "top", li)
             top = min(y1 - h1, y2 - h2) - 58 - off
-            pts = [(x1, y1 - h1), (x1, top), (x2, top), (x2, y2 - h2)]
+            pts = [(sax, y1 - h1), (sax, top), (tax, top), (tax, y2 - h2)]
+            scene.line(pts, color=color, width=1.4)
+            scene.text(sax + 4, y1 - h1 - 10, ia_s, size=7, color=C_PORT, align="left")
+            scene.text(tax + 4, y2 - h2 - 10, ib_s, size=7, color=C_PORT, align="left")
         else:
             if y1 > y2:
                 x1, y1, x2, y2 = x2, y2, x1, y1
                 h1, h2 = h2, h1
                 a, b = b, a
+                ia_s, ib_s = ib_s, ia_s
+            sax = attach_x(a, "bottom", li)
+            tax = attach_x(b, "top", li)
             mid = (y1 + y2) / 2 + off - 4
-            pts = [(x1, y1 + h1), (x1, mid), (x2, mid), (x2, y2 - h2)]
-        scene.line(pts, color=color, width=1.4)
-
-        ia, ib = l.get("source_interface") or "", l.get("target_interface") or ""
-        if same_layer:
-            port_label(a, x1, y1 - h1 - 10, "top", ia)
-            port_label(b, x2, y2 - h2 - 10, "top", ib)
-        else:
-            src_if = ia if (a, b) == (l.get("source"), l.get("target")) else ib
-            dst_if = ib if src_if == ia else ia
-            port_label(a, x1, y1 + h1 + 2, "bottom", src_if)
-            port_label(b, x2, y2 - h2 - 10, "top", dst_if)
+            pts = [(sax, y1 + h1), (sax, mid), (tax, mid), (tax, y2 - h2)]
+            scene.line(pts, color=color, width=1.4)
+            scene.text(sax + 4, y1 + h1 + 2, ia_s, size=7, color=C_PORT, align="left")
+            scene.text(tax + 4, y2 - h2 - 10, ib_s, size=7, color=C_PORT, align="left")
 
     # --- node glyphs + label stacks ---------------------------------------
     for r in order:
