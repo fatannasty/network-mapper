@@ -22,11 +22,12 @@ from xml.sax.saxutils import escape as _xml_escape
 
 MARGIN = 36
 HEADER_H = 140            # logo + title band
-LAYER_GAP = 230           # vertical distance between device layers
+LAYER_GAP = 230           # vertical distance between device rows
 GLYPH_W, GLYPH_H = 120, 26
 CLOUD_W, CLOUD_H = 150, 56
 UNKNOWN_W, UNKNOWN_H = 100, 22
 SLOT_W = 230              # horizontal slot per device
+MAX_PER_ROW = 6           # rows wrap downward past this (uniform vertical flow)
 LEGEND_H = 110
 
 C_FRAME = "#000000"
@@ -101,27 +102,34 @@ class Scene:
         self.width = width
         self.height = height
         self.prims: list[dict] = []
+        # Structured model used by the Visio renderer for editable output:
+        # each device becomes one draggable group shape; each link a glued
+        # connector that follows the devices when they are dragged.
+        self.devices: list[dict] = []
+        self.vlinks: list[dict] = []
 
-    def rect(self, x, y, w, h, fill=None, stroke=C_FRAME, sw=1.0):
+    def rect(self, x, y, w, h, fill=None, stroke=C_FRAME, sw=1.0, tag=None):
         self.prims.append({"k": "rect", "x": x, "y": y, "w": w, "h": h,
-                           "fill": fill, "stroke": stroke, "sw": sw})
+                           "fill": fill, "stroke": stroke, "sw": sw, "tag": tag})
 
-    def ellipse(self, cx, cy, rx, ry, fill=None, stroke=C_FRAME, sw=1.0):
+    def ellipse(self, cx, cy, rx, ry, fill=None, stroke=C_FRAME, sw=1.0, tag=None):
         self.prims.append({"k": "ellipse", "cx": cx, "cy": cy, "rx": rx, "ry": ry,
-                           "fill": fill, "stroke": stroke, "sw": sw})
+                           "fill": fill, "stroke": stroke, "sw": sw, "tag": tag})
 
-    def line(self, pts, color=C_LINK, width=1.2):
-        self.prims.append({"k": "line", "pts": pts, "color": color, "width": width})
+    def line(self, pts, color=C_LINK, width=1.2, tag=None):
+        self.prims.append({"k": "line", "pts": pts, "color": color,
+                           "width": width, "tag": tag})
 
     def text(self, x, y, value, size=10, bold=False, italic=False,
-             color=C_TEXT, align="center"):
+             color=C_TEXT, align="center", tag=None):
         if value:
             self.prims.append({"k": "text", "x": x, "y": y, "v": str(value),
                                "size": size, "bold": bold, "italic": italic,
-                               "color": color, "align": align})
+                               "color": color, "align": align, "tag": tag})
 
-    def image(self, x, y, w, h, path):
-        self.prims.append({"k": "image", "x": x, "y": y, "w": w, "h": h, "path": path})
+    def image(self, x, y, w, h, path, tag=None):
+        self.prims.append({"k": "image", "x": x, "y": y, "w": w, "h": h,
+                           "path": path, "tag": tag})
 
 
 # --------------------------------------------------------------------------
@@ -197,11 +205,14 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     for i, n in enumerate(layers.get(1, [])):
         core_num[n["ip"]] = i + 1
 
-    max_per_layer = max((len(v) for v in layers.values()), default=1)
-    width = max(1150, MARGIN * 2 + max_per_layer * SLOT_W)
-    n_layers = len(order)
+    # Rows wrap downward: each rank occupies ceil(count / MAX_PER_ROW) rows
+    # so wide layers flow down the sheet instead of sprawling sideways.
+    rows_per_rank = {r: max(1, -(-len(layers[r]) // MAX_PER_ROW)) for r in order}
+    total_rows = sum(rows_per_rank.values())
+    widest = min(max((len(v) for v in layers.values()), default=1), MAX_PER_ROW)
+    width = max(1150, MARGIN * 2 + widest * SLOT_W)
     content_top = MARGIN + HEADER_H
-    legend_y = content_top + n_layers * LAYER_GAP + 60
+    legend_y = content_top + total_rows * LAYER_GAP + 60
     height = legend_y + LEGEND_H + MARGIN
 
     scene = Scene(width, height)
@@ -215,15 +226,23 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     scene.text(width / 2, MARGIN + 26, title, size=26, bold=False)
 
     # --- node positions ---------------------------------------------------
-    pos: dict[str, tuple[float, float]] = {}   # ip -> glyph center (cx, cy)
-    layer_idx = {r: i for i, r in enumerate(order)}
+    rank_y: dict[int, float] = {}
+    y_cursor = content_top + 70
     for r in order:
-        group = layers[r]
-        span = len(group) * SLOT_W
-        x0 = (width - span) / 2 + SLOT_W / 2
-        gy = content_top + layer_idx[r] * LAYER_GAP + 70
+        rank_y[r] = y_cursor
+        y_cursor += rows_per_rank[r] * LAYER_GAP
+
+    pos: dict[str, tuple[float, float]] = {}   # ip -> glyph center (cx, cy)
+
+    def assign(group: list[dict], base_y: float):
         for i, n in enumerate(group):
-            pos[n["ip"]] = (x0 + i * SLOT_W, gy)
+            row, col = divmod(i, MAX_PER_ROW)
+            row_count = min(MAX_PER_ROW, len(group) - row * MAX_PER_ROW)
+            x0 = (width - row_count * SLOT_W) / 2 + SLOT_W / 2
+            pos[n["ip"]] = (x0 + col * SLOT_W, base_y + row * LAYER_GAP)
+
+    for r in order:
+        assign(layers[r], rank_y[r])
 
     # Barycenter sweeps to reduce crossings.
     rank_by_ip = {n["ip"]: rank(n) for n in nodes}
@@ -240,10 +259,7 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
                       if rank_by_ip.get(m, r) < r and m in pos]
                 return sum(xs) / len(xs) if xs else pos[n["ip"]][0]
             layers[r].sort(key=key)
-            span = len(layers[r]) * SLOT_W
-            x0 = (width - span) / 2 + SLOT_W / 2
-            for i, n in enumerate(layers[r]):
-                pos[n["ip"]] = (x0 + i * SLOT_W, pos[n["ip"]][1])
+            assign(layers[r], rank_y[r])
 
     # --- links (orthogonal elbows, port labels, medium colors) ------------
     dt_by_ip = {n["ip"]: (n.get("device_type") or "").lower() for n in nodes}
@@ -313,15 +329,19 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         dup = pair_count.get(pair, 0)
         pair_count[pair] = dup + 1
         off = dup * 10
+        scene.vlinks.append({"a": a, "b": b, "color": color, "width": 1.4,
+                             "src_if": ia_s, "dst_if": ib_s,
+                             "ax": pos[a][0], "ay": pos[a][1],
+                             "bx": pos[b][0], "by": pos[b][1]})
         if same_layer:
             # channel runs above the whole label stack (stack ≈ 46pt tall)
             sax = attach_x(a, "top", li)
             tax = attach_x(b, "top", li)
             top = min(y1 - h1, y2 - h2) - 58 - off
             pts = [(sax, y1 - h1), (sax, top), (tax, top), (tax, y2 - h2)]
-            scene.line(pts, color=color, width=1.4)
-            scene.text(sax + 4, y1 - h1 - 10, ia_s, size=7, color=C_PORT, align="left")
-            scene.text(tax + 4, y2 - h2 - 10, ib_s, size=7, color=C_PORT, align="left")
+            scene.line(pts, color=color, width=1.4, tag="link")
+            scene.text(sax + 4, y1 - h1 - 10, ia_s, size=7, color=C_PORT, align="left", tag="link")
+            scene.text(tax + 4, y2 - h2 - 10, ib_s, size=7, color=C_PORT, align="left", tag="link")
         else:
             if y1 > y2:
                 x1, y1, x2, y2 = x2, y2, x1, y1
@@ -330,11 +350,13 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
                 ia_s, ib_s = ib_s, ia_s
             sax = attach_x(a, "bottom", li)
             tax = attach_x(b, "top", li)
-            mid = (y1 + y2) / 2 + off - 4
+            # horizontal channel rides in the empty gap just above the target
+            # device's row, so long runs never cross an intermediate glyph row
+            mid = (y2 - h2) - 58 - off
             pts = [(sax, y1 + h1), (sax, mid), (tax, mid), (tax, y2 - h2)]
-            scene.line(pts, color=color, width=1.4)
-            scene.text(sax + 4, y1 + h1 + 2, ia_s, size=7, color=C_PORT, align="left")
-            scene.text(tax + 4, y2 - h2 - 10, ib_s, size=7, color=C_PORT, align="left")
+            scene.line(pts, color=color, width=1.4, tag="link")
+            scene.text(sax + 4, y1 + h1 + 2, ia_s, size=7, color=C_PORT, align="left", tag="link")
+            scene.text(tax + 4, y2 - h2 - 10, ib_s, size=7, color=C_PORT, align="left", tag="link")
 
     # --- node glyphs + label stacks ---------------------------------------
     for r in order:
@@ -344,34 +366,56 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
             model = n.get("model") or ""
             ip = n.get("ip") or ""
             dt = (n.get("device_type") or "").lower()
+            tag = ("dev", ip)
 
             if "router" in dt:
-                scene.ellipse(cx, cy, CLOUD_W / 2, CLOUD_H / 2, fill="#FFFFFF", sw=1.2)
-                scene.text(cx, cy - 20, hn, size=8, bold=True)
-                scene.text(cx, cy - 9, model, size=7.5)
-                scene.text(cx, cy + 2, ip, size=7.5)
+                scene.ellipse(cx, cy, CLOUD_W / 2, CLOUD_H / 2, fill="#FFFFFF", sw=1.2, tag=tag)
+                scene.text(cx, cy - 20, hn, size=8, bold=True, tag=tag)
+                scene.text(cx, cy - 9, model, size=7.5, tag=tag)
+                scene.text(cx, cy + 2, ip, size=7.5, tag=tag)
+                scene.devices.append({
+                    "ip": ip, "cx": cx, "cy": cy, "kind": "cloud",
+                    "labels": [(hn, 8, True, C_TEXT), (model, 7.5, False, C_TEXT),
+                               (ip, 7.5, False, C_TEXT)],
+                })
             elif dt == "unknown" and not model and not hn:
                 scene.rect(cx - UNKNOWN_W / 2, cy - UNKNOWN_H / 2, UNKNOWN_W, UNKNOWN_H,
-                           fill=C_UNKNOWN, stroke=C_GLYPH_TICK, sw=0.75)
-                scene.text(cx, cy - 5, ip, size=8)
+                           fill=C_UNKNOWN, stroke=C_GLYPH_TICK, sw=0.75, tag=tag)
+                scene.text(cx, cy - 5, ip, size=8, tag=tag)
+                scene.devices.append({
+                    "ip": ip, "cx": cx, "cy": cy, "kind": "unknown",
+                    "labels": [(ip, 8, False, C_TEXT)],
+                })
             else:
                 # label stack above the faceplate
+                labels: list[tuple] = []
                 ly = cy - GLYPH_H / 2 - 12
                 if ip:
-                    scene.text(cx, ly - 10, ip, size=8.5); ly -= 10
+                    scene.text(cx, ly - 10, ip, size=8.5, tag=tag)
+                    labels.append((ip, 8.5, False, C_TEXT)); ly -= 10
                 if model:
-                    scene.text(cx, ly - 10, model, size=8.5); ly -= 10
-                scene.text(cx, ly - 11, hn, size=9.5, bold=True); ly -= 11
+                    scene.text(cx, ly - 10, model, size=8.5, tag=tag)
+                    labels.append((model, 8.5, False, C_TEXT)); ly -= 10
+                scene.text(cx, ly - 11, hn, size=9.5, bold=True, tag=tag)
+                labels.append((hn, 9.5, True, C_TEXT)); ly -= 11
                 if n["ip"] in core_num:
-                    scene.text(cx, ly - 11, f"CORE{core_num[n['ip']]}",
-                               size=10, bold=True, color=C_CORE)
+                    core_label = f"CORE{core_num[n['ip']]}"
+                    scene.text(cx, ly - 11, core_label, size=10, bold=True,
+                               color=C_CORE, tag=tag)
+                    labels.append((core_label, 10, True, C_CORE))
+                labels.reverse()   # top-to-bottom order
                 # switch faceplate
                 gx, gy = cx - GLYPH_W / 2, cy - GLYPH_H / 2
-                scene.rect(gx, gy, GLYPH_W, GLYPH_H, fill=C_GLYPH, stroke=C_GLYPH_EDGE, sw=1.0)
+                scene.rect(gx, gy, GLYPH_W, GLYPH_H, fill=C_GLYPH, stroke=C_GLYPH_EDGE,
+                           sw=1.0, tag=tag)
                 for t in range(12):
                     tx = gx + 8 + t * (GLYPH_W - 16) / 12
-                    scene.rect(tx, gy + 6, 6, 4, fill=C_GLYPH_TICK, stroke=None, sw=0)
-                    scene.rect(tx, gy + 15, 6, 4, fill=C_GLYPH_TICK, stroke=None, sw=0)
+                    scene.rect(tx, gy + 6, 6, 4, fill=C_GLYPH_TICK, stroke=None, sw=0, tag=tag)
+                    scene.rect(tx, gy + 15, 6, 4, fill=C_GLYPH_TICK, stroke=None, sw=0, tag=tag)
+                scene.devices.append({
+                    "ip": ip, "cx": cx, "cy": cy, "kind": "switch",
+                    "labels": labels,
+                })
 
     # --- legend / title block ----------------------------------------------
     bx, bw = MARGIN / 2, width - MARGIN
@@ -564,111 +608,139 @@ def render_png(scene: Scene, scale: int = 2) -> bytes:
 
 # --------------------------------------------------------------------------
 # Visio (.vsdx) renderer — minimal Open Packaging Convention package
+#
+# Visio 2013+ XML shape geometry uses <Section N="Geometry"><Row T="MoveTo">
+# elements (not the legacy VDX <Geom>/<MoveTo> form). Each device is emitted
+# as a group shape so the glyph + label stack drags as one unit, and links
+# are glued 1-D connectors that follow the devices when they are moved.
 # --------------------------------------------------------------------------
 
-def _vdx_text_shape(sid: int, p: dict, H: float) -> str:
+def _geom_rect(w: float, h: float) -> str:
+    return (
+        '<Section N="Geometry" IX="0">'
+        '<Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>'
+        f'<Row T="LineTo" IX="2"><Cell N="X" V="{w:.4f}"/><Cell N="Y" V="0"/></Row>'
+        f'<Row T="LineTo" IX="3"><Cell N="X" V="{w:.4f}"/><Cell N="Y" V="{h:.4f}"/></Row>'
+        f'<Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="{h:.4f}"/></Row>'
+        f'<Row T="LineTo" IX="5"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>'
+        '</Section>'
+    )
+
+
+def _geom_ellipse(w: float, h: float) -> str:
+    return (
+        '<Section N="Geometry" IX="0">'
+        f'<Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="{h / 2:.4f}"/></Row>'
+        f'<Row T="Ellipse" IX="2"><Cell N="X" V="{w / 2:.4f}"/><Cell N="Y" V="{h / 2:.4f}"/>'
+        f'<Cell N="A" V="{w:.4f}"/><Cell N="B" V="{h / 2:.4f}"/></Row>'
+        '</Section>'
+    )
+
+
+def _connector_1d(sid: int, bx: float, by: float, ex: float, ey: float,
+                  color: str, width_pt: float) -> str:
+    """Straight 1-D connector. For 1-D shapes the transform lives in the
+    BeginX/BeginY/EndX/EndY cells and Width is the connector length; the
+    geometry's local X axis runs from Begin toward End."""
+    dist = max(((ex - bx) ** 2 + (ey - by) ** 2) ** 0.5, 0.0001)
+    return (
+        f'<Shape ID="{sid}" Type="Shape">'
+        f'<Cell N="BeginX" V="{bx:.4f}"/><Cell N="BeginY" V="{by:.4f}"/>'
+        f'<Cell N="EndX" V="{ex:.4f}"/><Cell N="EndY" V="{ey:.4f}"/>'
+        f'<Cell N="Width" V="{dist:.4f}"/>'
+        f'<Cell N="LineColor" V="{color}"/>'
+        f'<Cell N="LineWeight" V="{width_pt / 72:.4f}"/>'
+        '<Cell N="FillPattern" V="0"/><Cell N="OneD" V="1"/>'
+        '<Section N="Geometry" IX="0">'
+        '<Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>'
+        f'<Row T="LineTo" IX="2"><Cell N="X" V="{dist:.4f}" F="Width"/><Cell N="Y" V="0"/></Row>'
+        '</Section></Shape>'
+    )
+
+
+def _xform(pinx: float, piny: float, w: float, h: float) -> str:
+    return (f'<Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{piny:.4f}"/>'
+            f'<Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/>'
+            f'<Cell N="LocPinX" V="{w / 2:.4f}"/><Cell N="LocPinY" V="{h / 2:.4f}"/>')
+
+
+def _fill_line(fill: str | None, stroke: str | None, sw: float) -> str:
+    out = []
+    if fill:
+        out.append(f'<Cell N="FillForegnd" V="{fill}"/><Cell N="FillPattern" V="1"/>')
+    else:
+        out.append('<Cell N="FillPattern" V="0"/>')
+    if stroke:
+        out.append(f'<Cell N="LineColor" V="{stroke}"/><Cell N="LineWeight" V="{sw / 72:.4f}"/>')
+    else:
+        out.append('<Cell N="LinePattern" V="0"/>')
+    return "".join(out)
+
+
+def _char_para(p: dict) -> str:
+    size_pt = p["size"]
+    style = "0"
+    if p.get("bold") and p.get("italic"):
+        style = "3"
+    elif p.get("bold"):
+        style = "1"
+    elif p.get("italic"):
+        style = "2"
+    halign = {"left": "0", "center": "1", "right": "2"}.get(p.get("align", "center"), "1")
+    return (f'<Section N="Character"><Row IX="0"><Cell N="Color" V="{p["color"]}"/>'
+            f'<Cell N="Size" V="{size_pt / 72:.4f}"/><Cell N="Style" V="{style}"/></Row></Section>'
+            f'<Section N="Paragraph"><Row IX="0"><Cell N="HorzAlign" V="{halign}"/></Row></Section>')
+
+
+def _vsdx_text(sid: int, p: dict, H: float, ox: float = 0.0, oy: float = 0.0) -> str:
+    """Text shape. ox/oy shift the local origin (used inside groups)."""
     size_pt = p["size"]
     w_in = max(0.3, len(p["v"]) * size_pt * 0.62 / 72)
     h_in = size_pt * 1.4 / 72
-    pinx = p["x"] / 72
-    piny = (H - p["y"]) / 72 - h_in / 2
-    style = ("1" if p["bold"] else "0") if not p["italic"] else ("3" if p["bold"] else "2")
-    halign = {"left": "0", "center": "1", "right": "2"}[p["align"]]
-    # box width: for centered/right text, give the box room and align within it
-    return f'''<Shape ID="{sid}" Type="Shape" LineStyle="3" FillStyle="3" TextStyle="3">
-<Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{piny:.4f}"/>
-<Cell N="Width" V="{w_in:.4f}"/><Cell N="Height" V="{h_in:.4f}"/>
-<Cell N="LocPinX" V="{w_in / 2:.4f}"/><Cell N="LocPinY" V="{h_in / 2:.4f}"/>
-<Cell N="FillPattern" V="0"/><Cell N="LinePattern" V="0"/><Cell N="VerticalAlign" V="1"/>
-<Section N="Character"><Row IX="0"><Cell N="Color" V="{p['color']}"/><Cell N="Size" V="{size_pt / 72:.4f}"/><Cell N="Style" V="{style}"/></Row></Section>
-<Section N="Paragraph"><Row IX="0"><Cell N="HorzAlign" V="{halign}"/></Row></Section>
-<Geom IX="0"><NoFill V="1"/><NoLine V="1"/>
-<MoveTo IX="1"><X V="0"/><Y V="0"/></MoveTo>
-<LineTo IX="2"><X V="{w_in:.4f}"/><Y V="0"/></LineTo>
-<LineTo IX="3"><X V="{w_in:.4f}"/><Y V="{h_in:.4f}"/></LineTo>
-<LineTo IX="4"><X V="0"/><Y V="{h_in:.4f}"/></LineTo>
-<LineTo IX="5"><X V="0"/><Y V="0"/></LineTo>
-</Geom>
-<Text>{_xml_escape(p["v"])}</Text>
-</Shape>'''
+    pinx = (p["x"] - ox) / 72
+    piny = (H - p["y"] - oy) / 72 - h_in / 2
+    return (f'<Shape ID="{sid}" Type="Shape">'
+            + _xform(pinx, piny, w_in, h_in)
+            + '<Cell N="FillPattern" V="0"/><Cell N="LinePattern" V="0"/>'
+            + '<Cell N="VerticalAlign" V="1"/>'
+            + _char_para(p)
+            + _geom_rect(w_in, h_in)
+            + f'<Text>{_xml_escape(p["v"])}</Text></Shape>')
 
 
 def render_vsdx(scene: Scene) -> bytes:
-    """Hand-rolled minimal .vsdx: native shapes/connectors, editable in Visio."""
+    """Hand-rolled .vsdx: grouped device shapes + glued connectors."""
     H = scene.height
     shapes: list[str] = []
+    connects: list[str] = []
     rels: list[str] = []
-    sid = 1
     media: list[tuple[str, bytes]] = []
+    sid = 1
 
-    def flip_y(y_pt):
+    def flip_y(y_pt: float) -> float:
         return (H - y_pt) / 72
 
+    # --- static chrome (frame, legend, title block) from untagged prims ----
     for p in scene.prims:
+        if p.get("tag"):
+            continue
         k = p["k"]
         if k == "rect":
             w, h = p["w"] / 72, p["h"] / 72
-            pinx, piny = (p["x"] + p["w"] / 2) / 72, flip_y(p["y"] + p["h"] / 2)
-            fill = p.get("fill")
-            stroke = p.get("stroke")
-            geom_rows = (f'<MoveTo IX="1"><X V="0"/><Y V="0"/></MoveTo>'
-                         f'<LineTo IX="2"><X V="{w:.4f}"/><Y V="0"/></LineTo>'
-                         f'<LineTo IX="3"><X V="{w:.4f}"/><Y V="{h:.4f}"/></LineTo>'
-                         f'<LineTo IX="4"><X V="0"/><Y V="{h:.4f}"/></LineTo>'
-                         f'<LineTo IX="5"><X V="0"/><Y V="0"/></LineTo>')
-            cells = [f'<Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{piny:.4f}"/>',
-                     f'<Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/>',
-                     f'<Cell N="LocPinX" V="{w / 2:.4f}"/><Cell N="LocPinY" V="{h / 2:.4f}"/>']
-            if fill:
-                cells.append(f'<Cell N="FillForegnd" V="{fill}"/><Cell N="FillPattern" V="1"/>')
-            else:
-                cells.append('<Cell N="FillPattern" V="0"/>')
-            if stroke:
-                cells.append(f'<Cell N="LineColor" V="{stroke}"/><Cell N="LineWeight" V="{p["sw"] / 72:.4f}"/>')
-            else:
-                cells.append('<Cell N="LinePattern" V="0"/>')
-            shapes.append(f'<Shape ID="{sid}" Type="Shape" LineStyle="3" FillStyle="3" TextStyle="3">'
-                          + "".join(cells) + f'<Geom IX="0">{geom_rows}</Geom></Shape>')
-            sid += 1
-        elif k == "ellipse":
-            w, h = p["rx"] * 2 / 72, p["ry"] * 2 / 72
-            pinx, piny = p["cx"] / 72, flip_y(p["cy"])
-            shapes.append(
-                f'<Shape ID="{sid}" Type="Shape" LineStyle="3" FillStyle="3" TextStyle="3">'
-                f'<Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{piny:.4f}"/>'
-                f'<Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/>'
-                f'<Cell N="LocPinX" V="{w / 2:.4f}"/><Cell N="LocPinY" V="{h / 2:.4f}"/>'
-                f'<Cell N="FillForegnd" V="{p.get("fill") or "#FFFFFF"}"/><Cell N="FillPattern" V="1"/>'
-                f'<Cell N="LineColor" V="{p.get("stroke") or "#000000"}"/><Cell N="LineWeight" V="{p["sw"] / 72:.4f}"/>'
-                f'<Geom IX="0">'
-                f'<MoveTo IX="1"><X V="0"/><Y V="{h / 2:.4f}"/></MoveTo>'
-                f'<Ellipse IX="2"><X V="{w / 2:.4f}"/><Y V="{h / 2:.4f}"/>'
-                f'<A V="{w:.4f}"/><B V="{h / 2:.4f}"/></Ellipse>'
-                f'</Geom></Shape>')
+            shapes.append(f'<Shape ID="{sid}" Type="Shape">'
+                          + _xform((p["x"] + p["w"] / 2) / 72, flip_y(p["y"] + p["h"] / 2), w, h)
+                          + _fill_line(p.get("fill"), p.get("stroke"), p["sw"])
+                          + _geom_rect(w, h) + '</Shape>')
             sid += 1
         elif k == "line":
             pts = p["pts"]
-            # one straight 1-D connector per segment
             for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
-                bx, by = x1 / 72, flip_y(y1)
-                ex, ey = x2 / 72, flip_y(y2)
-                wdt, hgt = ex - bx, ey - by
-                shapes.append(
-                    f'<Shape ID="{sid}" Type="Shape" LineStyle="3" FillStyle="3" TextStyle="3">'
-                    f'<Cell N="PinX" V="{(bx + ex) / 2:.4f}"/><Cell N="PinY" V="{(by + ey) / 2:.4f}"/>'
-                    f'<Cell N="Width" V="{wdt:.4f}"/><Cell N="Height" V="{hgt:.4f}"/>'
-                    f'<Cell N="LocPinX" V="{wdt / 2:.4f}"/><Cell N="LocPinY" V="{hgt / 2:.4f}"/>'
-                    f'<Cell N="BeginX" V="{bx:.4f}"/><Cell N="BeginY" V="{by:.4f}"/>'
-                    f'<Cell N="EndX" V="{ex:.4f}"/><Cell N="EndY" V="{ey:.4f}"/>'
-                    f'<Cell N="LineColor" V="{p["color"]}"/><Cell N="LineWeight" V="{p["width"] / 72:.4f}"/>'
-                    f'<Cell N="FillPattern" V="0"/><Cell N="OneD" V="1"/>'
-                    f'<Geom IX="0"><NoFill V="1"/>'
-                    f'<MoveTo IX="1"><X V="0"/><Y V="0"/></MoveTo>'
-                    f'<LineTo IX="2"><X V="{wdt:.4f}" F="Width*1"/><Y V="{hgt:.4f}" F="Height*1"/></LineTo>'
-                    f'</Geom></Shape>')
+                shapes.append(_connector_1d(sid, x1 / 72, flip_y(y1),
+                                            x2 / 72, flip_y(y2),
+                                            p["color"], p["width"]))
                 sid += 1
         elif k == "text":
-            shapes.append(_vdx_text_shape(sid, p, H))
+            shapes.append(_vsdx_text(sid, p, H))
             sid += 1
         elif k == "image":
             try:
@@ -679,19 +751,137 @@ def render_vsdx(scene: Scene) -> bytes:
             rid = f"rId{len(media) + 1}"
             media.append((f"media/image{len(media) + 1}.png", data))
             rels.append(f'<Relationship Id="{rid}" '
-                        f'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+                        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
                         f'Target="../media/image{len(media)}.png"/>')
             w, h = p["w"] / 72, p["h"] / 72
-            pinx, piny = (p["x"] + p["w"] / 2) / 72, flip_y(p["y"] + p["h"] / 2)
             shapes.append(
-                f'<Shape ID="{sid}" Type="Foreign" LineStyle="3" FillStyle="3" TextStyle="3">'
-                f'<Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{piny:.4f}"/>'
-                f'<Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/>'
-                f'<Cell N="LocPinX" V="{w / 2:.4f}"/><Cell N="LocPinY" V="{h / 2:.4f}"/>'
-                f'<Cell N="FillPattern" V="0"/><Cell N="LinePattern" V="0"/>'
-                f'<ForeignData ForeignType="Bitmap" MappingMode="96" ExtentX="{int(p["w"] * 2540)}" ExtentY="{int(p["h"] * 2540)}">'
-                f'<Rel xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="{rid}"/>'
-                f'</ForeignData></Shape>')
+                f'<Shape ID="{sid}" Type="Foreign">'
+                + _xform((p["x"] + p["w"] / 2) / 72, flip_y(p["y"] + p["h"] / 2), w, h)
+                + '<Cell N="FillPattern" V="0"/><Cell N="LinePattern" V="0"/>'
+                + f'<ForeignData ForeignType="Bitmap" MappingMode="96" '
+                + f'ExtentX="{int(p["w"] * 2540)}" ExtentY="{int(p["h"] * 2540)}">'
+                + f'<Rel xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="{rid}"/>'
+                + '</ForeignData></Shape>')
+            sid += 1
+
+    # --- devices: one draggable group per device ---------------------------
+    dev_shape_id: dict[str, int] = {}
+    for dev in scene.devices:
+        kind = dev["kind"]
+        cx, cy = dev["cx"], dev["cy"]
+        labels = dev.get("labels", [])
+        # bounding box of the group in scene coords (y-down)
+        if kind == "cloud":
+            bw, bh = CLOUD_W, CLOUD_H
+        elif kind == "unknown":
+            bw, bh = UNKNOWN_W, UNKNOWN_H
+        else:
+            label_w = max((len(t) * s * 0.62 for t, s, _, _ in labels), default=0)
+            stack_h = sum(s * 1.25 for _, s, _, _ in labels) + 12
+            bw = max(GLYPH_W, label_w)
+            bh = GLYPH_H + stack_h
+        gx0 = cx - bw / 2            # group box top-left in scene coords
+        if kind == "switch":
+            gy0 = (cy + GLYPH_H / 2) - bh   # glyph bottom is the box bottom
+        else:
+            gy0 = cy - bh / 2
+        gw, gh = bw / 72, bh / 72
+        group_pin_x = (gx0 + bw / 2) / 72
+        group_pin_y = flip_y(gy0 + bh / 2)
+        gid = sid
+        sid += 1
+        dev_shape_id[dev["ip"]] = gid
+
+        children: list[str] = []
+
+        def to_local(x_pt: float, y_pt: float) -> tuple[float, float]:
+            # scene coords (y-down, pt) -> group-local (y-up, inches)
+            return (x_pt - gx0) / 72, (gy0 + bh - y_pt) / 72
+
+        if kind == "cloud":
+            w_in, h_in = CLOUD_W / 72, CLOUD_H / 72
+            cx_l, cy_l = to_local(cx, cy)
+            children.append(f'<Shape ID="{sid}" Type="Shape">'
+                            + _xform(cx_l, cy_l, w_in, h_in)
+                            + _fill_line("#FFFFFF", "#000000", 1.2)
+                            + _geom_ellipse(w_in, h_in) + '</Shape>')
+            sid += 1
+        elif kind == "unknown":
+            w_in, h_in = UNKNOWN_W / 72, UNKNOWN_H / 72
+            cx_l, cy_l = to_local(cx, cy)
+            children.append(f'<Shape ID="{sid}" Type="Shape">'
+                            + _xform(cx_l, cy_l, w_in, h_in)
+                            + _fill_line(C_UNKNOWN, C_GLYPH_TICK, 0.75)
+                            + _geom_rect(w_in, h_in) + '</Shape>')
+            sid += 1
+        else:
+            w_in, h_in = GLYPH_W / 72, GLYPH_H / 72
+            cx_l, cy_l = to_local(cx, cy)
+            children.append(f'<Shape ID="{sid}" Type="Shape">'
+                            + _xform(cx_l, cy_l, w_in, h_in)
+                            + _fill_line(C_GLYPH, C_GLYPH_EDGE, 1.0)
+                            + _geom_rect(w_in, h_in) + '</Shape>')
+            sid += 1
+
+        # Label texts for this device (from the tagged prims), in group-local
+        # coordinates.
+        dev_texts = [p for p in scene.prims
+                     if p.get("tag") == ("dev", dev["ip"]) and p["k"] == "text"]
+        for p in dev_texts:
+            size_pt = p["size"]
+            w_in = max(0.3, len(p["v"]) * size_pt * 0.62 / 72)
+            h_in = size_pt * 1.4 / 72
+            lx, ly = to_local(p["x"], p["y"] + size_pt)
+            children.append(
+                f'<Shape ID="{sid}" Type="Shape">'
+                + _xform(lx, ly, w_in, h_in)
+                + '<Cell N="FillPattern" V="0"/><Cell N="LinePattern" V="0"/>'
+                + '<Cell N="VerticalAlign" V="1"/>'
+                + _char_para(p)
+                + _geom_rect(w_in, h_in)
+                + f'<Text>{_xml_escape(p["v"])}</Text></Shape>')
+            sid += 1
+
+        shapes.append(
+            f'<Shape ID="{gid}" Type="Group">'
+            + _xform(group_pin_x, group_pin_y, gw, gh)
+            + '<Cell N="FillPattern" V="0"/><Cell N="LinePattern" V="0"/>'
+            + f'<Shapes>{"".join(children)}</Shapes></Shape>')
+
+    # --- links: glued straight 1-D connectors ------------------------------
+    for vl in scene.vlinks:
+        a_id = dev_shape_id.get(vl["a"])
+        b_id = dev_shape_id.get(vl["b"])
+        if not a_id or not b_id:
+            continue
+        bx, by = vl["ax"] / 72, flip_y(vl["ay"])
+        ex, ey = vl["bx"] / 72, flip_y(vl["by"])
+        cid = sid
+        sid += 1
+        shapes.append(_connector_1d(cid, bx, by, ex, ey, vl["color"], vl["width"]))
+        # glue both endpoints to the device groups (whole-shape glue)
+        connects.append(f'<Connect FromSheet="{cid}" FromPart="9" ToSheet="{a_id}" ToPart="3"/>')
+        connects.append(f'<Connect FromSheet="{cid}" FromPart="12" ToSheet="{b_id}" ToPart="3"/>')
+        # port labels as free text near the endpoints
+        for txt, px, py, anch in (
+            (vl["src_if"], vl["ax"] + 6, vl["ay"], "begin"),
+            (vl["dst_if"], vl["bx"] + 6, vl["by"], "end"),
+        ):
+            if not txt:
+                continue
+            size_pt = 7.0
+            w_in = max(0.3, len(txt) * size_pt * 0.62 / 72)
+            h_in = size_pt * 1.4 / 72
+            p = {"v": txt, "size": size_pt, "bold": False, "italic": False,
+                 "color": C_PORT, "align": "left"}
+            shapes.append(
+                f'<Shape ID="{sid}" Type="Shape">'
+                + _xform(px / 72, flip_y(py) - (0.08 if anch == "end" else -0.02), w_in, h_in)
+                + '<Cell N="FillPattern" V="0"/><Cell N="LinePattern" V="0"/>'
+                + '<Cell N="VerticalAlign" V="1"/>'
+                + _char_para(p)
+                + _geom_rect(w_in, h_in)
+                + f'<Text>{_xml_escape(txt)}</Text></Shape>')
             sid += 1
 
     w_in, h_in = scene.width / 72, scene.height / 72
@@ -741,7 +931,8 @@ def render_vsdx(scene: Scene) -> bytes:
     page1_xml = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                  '<PageContents xmlns="http://schemas.microsoft.com/office/visio/2012/main" '
                  'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xml:space="preserve">'
-                 f'<Shapes>{"".join(shapes)}</Shapes></PageContents>')
+                 f'<Shapes>{"".join(shapes)}</Shapes>'
+                 f'<Connects>{"".join(connects)}</Connects></PageContents>')
     page1_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                   '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                   + "".join(rels) + '</Relationships>')
