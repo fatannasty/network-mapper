@@ -13,6 +13,7 @@ import { normalizeType, pluralLabel } from './services/friendly'
 import TopologyToolbar from './components/TopologyToolbar'
 import TopologyCanvas from './components/TopologyCanvas'
 import TopologyGroupDetail from './components/TopologyGroupDetail'
+import ExportDiagramDialog from './components/ExportDiagramDialog'
 import DeviceDetail from '../../components/DeviceDetail'
 import { shortenInterface } from '../../components/ui/iface'
 import PageState from '../../components/ui/PageState'
@@ -54,6 +55,7 @@ export default function TopologyView() {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
   const [simplified, setSimplified] = useState(true)
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
 
   // A focused device view should always show individual devices so the
   // connections around the selected device are visible.
@@ -292,6 +294,7 @@ export default function TopologyView() {
           setPathTarget('')
           setPathResult(null)
         }}
+        onExportDiagram={() => setExportOpen(true)}
       />
 
       {focusIp && (
@@ -381,6 +384,15 @@ export default function TopologyView() {
           </>
         )}
       </div>
+
+      {topology && (
+        <ExportDiagramDialog
+          open={exportOpen}
+          onClose={() => setExportOpen(false)}
+          topology={topology}
+          defaultTitle={siteFilter ? `AMTRAK ${siteFilter.toUpperCase()}` : 'AMTRAK NETWORK DIAGRAM'}
+        />
+      )}
     </div>
   )
 }

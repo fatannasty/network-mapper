@@ -23,6 +23,7 @@ interface Props {
   pathResult: PathResult | null
   onRunPath: () => void
   onClearPath: () => void
+  onExportDiagram: () => void
 }
 
 function formatScanLabel(s: ScanInfo): string {
@@ -52,6 +53,7 @@ export default function TopologyToolbar({
   pathResult,
   onRunPath,
   onClearPath,
+  onExportDiagram,
 }: Props) {
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 bg-surface-1/50 backdrop-blur-2xl border-b border-border/30 shrink-0 text-sm">
@@ -212,6 +214,15 @@ export default function TopologyToolbar({
           No auto-discovered links &mdash; run SNMP discovery on switches with LLDP/CDP enabled
         </span>
       )}
+
+      <button
+        onClick={onExportDiagram}
+        disabled={!topology || topology.nodes.length === 0}
+        className="px-3 py-1.5 bg-surface-2/70 hover:bg-surface-3 disabled:opacity-50 border border-border/40 rounded-xl text-text-secondary text-xs font-medium transition-all duration-150"
+        title="Export as an engineering drawing (Visio, PDF, Word)"
+      >
+        Export Diagram
+      </button>
     </div>
   )
 }

@@ -564,3 +564,38 @@ export async function downloadConfigs() {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+export type DiagramFormat = 'pdf' | 'vsdx' | 'docx'
+
+export interface DiagramLegendEntry {
+  key?: string
+  label: string
+  color: string
+}
+
+export interface DiagramExportOptions {
+  format: DiagramFormat
+  nodes: TopoNode[]
+  links: TopoLink[]
+  title: string
+  drawn_by?: string
+  drawn_date?: string
+  drawing_title?: string
+  document_name?: string
+  revision?: string
+  rev_date?: string
+  rev_time?: string
+  color_links?: boolean
+  legend?: DiagramLegendEntry[]
+}
+
+export async function exportTopologyDiagram(opts: DiagramExportOptions) {
+  const r = await api.post('/api/topology/diagram', opts, { responseType: 'blob' })
+  const url = URL.createObjectURL(r.data)
+  const a = document.createElement('a')
+  const slug = opts.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'diagram'
+  a.href = url
+  a.download = `${slug}.${opts.format}`
+  a.click()
+  URL.revokeObjectURL(url)
+}

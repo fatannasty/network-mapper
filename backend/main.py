@@ -23,6 +23,7 @@ Endpoints:
     GET  /api/inventory/devices/{id}/configs - device configs (authenticated)
     POST /api/inventory/collect-config    - collect configs via SSH (operator+)
     GET  /api/topology                    - topology graph (authenticated)
+    POST /api/topology/diagram            - engineering diagram export (authenticated)
     GET  /api/topology/path               - shortest path (authenticated)
     GET  /api/topology/changes            - scan diff (authenticated)
     POST /api/catalyst/import             - Catalyst Center import (operator+)
@@ -784,6 +785,78 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
         },
         "focus": focus,
     }
+
+
+class DiagramLegendEntry(BaseModel):
+    key: str = ""
+    label: str
+    color: str = "#333333"
+
+
+class DiagramExportRequest(BaseModel):
+    """Engineering-drawing export of the topology graph the user is viewing.
+
+    `nodes`/`links` come straight from the loaded /api/topology payload so the
+    drawing matches exactly what is on screen (site focus, filters included).
+    """
+    format: str = "pdf"                       # pdf | vsdx | docx | png
+    nodes: list[dict]
+    links: list[dict]
+    title: str = "AMTRAK NETWORK DIAGRAM"
+    drawn_by: str = ""
+    drawn_date: str = ""
+    drawing_title: str = ""
+    document_name: str = ""
+    revision: str = ""
+    rev_date: str = ""
+    rev_time: str = ""
+    color_links: bool = True
+    legend: list[DiagramLegendEntry] = []
+
+
+@app.post("/api/topology/diagram", dependencies=[Depends(authenticated)])
+def api_topology_diagram(req: DiagramExportRequest):
+    """Render the topology as an Amtrak engineering drawing sheet.
+
+    PDF and Word are static renders; the Visio (.vsdx) output is built from
+    native shapes and 1-D connectors so devices and links stay editable.
+    """
+    import datetime
+    import diagram_export
+
+    fmt = req.format.lower()
+    if fmt not in ("pdf", "vsdx", "docx", "png"):
+        raise HTTPException(status_code=400, detail=f"unsupported format: {req.format}")
+    if not req.nodes:
+        raise HTTPException(status_code=400, detail="no topology nodes supplied")
+
+    now = datetime.datetime.now()
+    opts = {
+        "title": req.title,
+        "drawn_by": req.drawn_by,
+        "drawn_date": req.drawn_date or now.strftime("%m%d%Y"),
+        "drawing_title": req.drawing_title or req.title,
+        "document_name": req.document_name,
+        "revision": req.revision,
+        "rev_date": req.rev_date or now.strftime("%d %b %y"),
+        "rev_time": req.rev_time or now.strftime("%I:%M %p"),
+        "color_links": req.color_links,
+        "legend": [e.model_dump() for e in req.legend] or diagram_export.DEFAULT_LEGEND,
+    }
+    data = diagram_export.export_diagram(req.nodes, req.links, fmt, opts)
+
+    media_types = {
+        "pdf": "application/pdf",
+        "png": "image/png",
+        "vsdx": "application/vnd.ms-visio.drawing.main+xml",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    slug = "".join(c if c.isalnum() else "-" for c in req.title.lower()).strip("-") or "diagram"
+    return Response(
+        content=data,
+        media_type=media_types[fmt],
+        headers={"Content-Disposition": f'attachment; filename="{slug}.{fmt}"'},
+    )
 
 
 @app.get("/api/topology/path", dependencies=[Depends(authenticated)])
