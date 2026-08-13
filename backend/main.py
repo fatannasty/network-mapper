@@ -523,12 +523,13 @@ def inventory_report_export(report: str = Query(...), db: Session = Depends(get_
                              s["links"], s["started_at"], s["finished_at"]])
     elif report == "configs":
         filename = "configs"
-        writer.writerow(["ip", "hostname", "config_type", "collected_at", "error"])
+        writer.writerow(["ip", "hostname", "config_type", "collected_at", "collected_by", "error"])
         for c in db.query(DeviceConfig).order_by(DeviceConfig.collected_at.desc()).all():
             writer.writerow([c.device.ip if c.device else "",
                              c.device.hostname if c.device else "",
                              c.config_type,
                              c.collected_at.isoformat() if c.collected_at else "",
+                             c.collected_by or "",
                              c.error or ""])
     else:
         raise HTTPException(status_code=400,
@@ -1228,25 +1229,27 @@ class ConfigCollectRequest(BaseModel):
     device_type: str = "switch"
     site_pattern: str = ""  # matches device hostname or site field
     limit: int = 50
+    device_id: Optional[int] = None  # collect a single device only
     ssh_username: str = ""
     ssh_password: str = ""
     ssh_port: int = 22
     use_vault: bool = True  # fall back to vault SSH credentials when empty
 
 
-@app.post("/api/inventory/collect-config", dependencies=[Depends(operator)])
+@app.post("/api/inventory/collect-config")
 def inventory_collect_config(req: ConfigCollectRequest,
-                              db: Session = Depends(get_db)):
+                             user: dict = Depends(operator),
+                             db: Session = Depends(get_db)):
     import config_collector
 
-    devices = repositories.get_devices_by_type(
-        db, device_type=req.device_type, limit=req.limit)
-
-    if req.site_pattern:
-        pat = req.site_pattern.lower()
-        devices = [d for d in devices
-                   if pat in (d.hostname or "").lower()
-                   or pat in (d.site or "").lower()]
+    if req.device_id is not None:
+        devices = [repositories.get_device(db, req.device_id)]
+        if devices[0] is None:
+            raise HTTPException(status_code=404, detail="device not found")
+    else:
+        devices = repositories.get_devices_by_type(
+            db, device_type=req.device_type, limit=req.limit,
+            site_pattern=req.site_pattern)
 
     # Vault fallback: when no SSH creds are supplied, try each stored SSH
     # credential until authentication succeeds.
@@ -1268,7 +1271,8 @@ def inventory_collect_config(req: ConfigCollectRequest,
                 cfg = config_collector.collect_config(
                     ip=d.ip, username=username, password=password, port=port)
                 saved = repositories.save_device_config(
-                    db, d.id, cfg["config_text"], config_type="running")
+                    db, d.id, cfg["config_text"], config_type="running",
+                    collected_by=user["username"])
                 outcome = {
                     "device_id": d.id, "ip": d.ip, "hostname": d.hostname,
                     "status": "ok", "config_id": saved.id, "user": username,
@@ -1286,7 +1290,8 @@ def inventory_collect_config(req: ConfigCollectRequest,
             }
         if outcome["status"] == "error":
             repositories.save_device_config(
-                db, d.id, "", config_type="running", error=outcome["error"])
+                db, d.id, "", config_type="running", error=outcome["error"],
+                collected_by=user["username"])
         results.append(outcome)
 
     success = sum(1 for r in results if r["status"] == "ok")
@@ -1305,20 +1310,24 @@ class CatalystConfigCollectRequest(BaseModel):
     device_type: str = "switch"
     site_pattern: str = ""
     limit: int = 50
+    device_id: Optional[int] = None  # collect a single device only
 
 
-@app.post("/api/catalyst/collect-config", dependencies=[Depends(operator)])
+@app.post("/api/catalyst/collect-config")
 def catalyst_collect_config(req: CatalystConfigCollectRequest,
-                             db: Session = Depends(get_db)):
+                            user: dict = Depends(operator),
+                            db: Session = Depends(get_db)):
     """Collect running configs via the Catalyst config API (no per-device SSH)."""
     import catalyst
 
-    devices = repositories.get_devices_by_type(
-        db, device_type=req.device_type, limit=req.limit)
-    if req.site_pattern:
-        pat = req.site_pattern.lower()
-        devices = [d for d in devices
-                   if pat in (d.hostname or "").lower() or pat in (d.site or "").lower()]
+    if req.device_id is not None:
+        devices = [repositories.get_device(db, req.device_id)]
+        if devices[0] is None:
+            raise HTTPException(status_code=404, detail="device not found")
+    else:
+        devices = repositories.get_devices_by_type(
+            db, device_type=req.device_type, limit=req.limit,
+            site_pattern=req.site_pattern)
 
     try:
         token = catalyst.authenticate(req.base_url, req.username, req.password)
@@ -1339,23 +1348,28 @@ def catalyst_collect_config(req: CatalystConfigCollectRequest,
                 req.base_url, token, device_id)
             if cfg_text:
                 saved = repositories.save_device_config(
-                    db, d.id, cfg_text, config_type="running")
+                    db, d.id, cfg_text, config_type="running",
+                    collected_by=user["username"])
                 results.append({
                     "device_id": d.id, "ip": d.ip, "hostname": d.hostname,
                     "status": "ok", "config_id": saved.id,
+                    "collected_by": user["username"],
                 })
             else:
                 err = "Catalyst returned empty running config"
-                repositories.save_device_config(db, d.id, "", error=err)
+                repositories.save_device_config(
+                    db, d.id, "", error=err, collected_by=user["username"])
                 results.append({
                     "device_id": d.id, "ip": d.ip, "hostname": d.hostname,
                     "status": "error", "error": err,
                 })
         except catalyst.CatalystError as e:
-            repositories.save_device_config(db, d.id, "", error=str(e))
+            repositories.save_device_config(
+                db, d.id, "", error=str(e), collected_by=user["username"])
             results.append({
                 "device_id": d.id, "ip": d.ip, "hostname": d.hostname,
                 "status": "error", "error": str(e),
+                "collected_by": user["username"],
             })
 
     success = sum(1 for r in results if r["status"] == "ok")

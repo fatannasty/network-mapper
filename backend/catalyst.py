@@ -61,6 +61,9 @@ def authenticate(base_url: str, username: str, password: str,
             base = base[: -len(suffix)]
             break
 
+    if not base.startswith("http"):
+        raise CatalystError(f"Invalid Catalyst Center URL: {base_url!r}")
+
     auth_paths = [
         f"{base}/dna/system/api/v1/auth/token",
         f"{base}/api/system/v1/auth/token",

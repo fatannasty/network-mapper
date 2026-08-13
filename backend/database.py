@@ -68,6 +68,11 @@ def _run_migrations() -> None:
             "WHERE scan_kind='subnet' AND subnet LIKE 'CatC: %'"
         ))
 
+        # Sprint 13: device_configs.collected_by (audit trail — who ran the collection)
+        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(device_configs)"))}
+        if "collected_by" not in cols:
+            conn.execute(text("ALTER TABLE device_configs ADD COLUMN collected_by VARCHAR(128)"))
+
         # Sprint 13: relabel legacy Catalyst topology links from 'unknown' to 'catalyst'.
         cols = {row[1] for row in conn.execute(text("PRAGMA table_info(links)"))}
         if "protocol" in cols:

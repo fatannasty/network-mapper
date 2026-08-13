@@ -1,5 +1,8 @@
-import { useState, type FormEvent } from 'react'
-import { collectConfigs, collectConfigsCatalyst, type CollectResult } from '../api'
+import { useState, useEffect, type FormEvent } from 'react'
+import {
+  collectConfigs, collectConfigsCatalyst, apiErrorMessage,
+  getDevices, type CollectResult, type Device,
+} from '../api'
 import Input from './ui/Input'
 import Button from './ui/Button'
 
@@ -16,13 +19,30 @@ export default function ConfigCollect() {
   const [catUsername, setCatUsername] = useState('')
   const [catPassword, setCatPassword] = useState('')
 
+  const [devices, setDevices] = useState<Device[]>([])
+  const [deviceQuery, setDeviceQuery] = useState('')
+  const [deviceId, setDeviceId] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    getDevices({ limit: '5000' })
+      .then((r) => { if (!cancelled) setDevices(r.devices || []) })
+      .catch(() => { if (!cancelled) setDevices([]) })
+    return () => { cancelled = true }
+  }, [])
+
+  const deviceMatches = deviceQuery
+    ? devices.filter((d) => `${d.hostname} ${d.ip} ${d.id}`.toLowerCase().includes(deviceQuery.toLowerCase())).slice(0, 50)
+    : []
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault(); setLoading(true); setResult(null); setError('')
+    const deviceIdNum = deviceId ? Number(deviceId) : undefined
     try {
       setResult(useCatalyst
-        ? await collectConfigsCatalyst(catUrl, catUsername, catPassword, 'switch', sitePattern)
-        : await collectConfigs(sitePattern || undefined, sshUsername, sshPassword, sshPort))
-    } catch (err: unknown) { setError(err instanceof Error ? err.message : String(err)) }
+        ? await collectConfigsCatalyst(catUrl, catUsername, catPassword, 'switch', sitePattern, 50, deviceIdNum)
+        : await collectConfigs(sitePattern || undefined, sshUsername, sshPassword, sshPort, deviceIdNum))
+    } catch (err: unknown) { setError(apiErrorMessage(err)) }
     finally { setLoading(false) }
   }
 
@@ -30,9 +50,42 @@ export default function ConfigCollect() {
     <div className="flex justify-center">
       <div className="w-full max-w-lg space-y-6">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs text-muted mb-1.5">Site pattern <span className="text-muted/50">(hostname substring)</span></label>
-            <Input value={sitePattern} onChange={(e) => setSitePattern(e.target.value)} className="w-full" placeholder="e.g. Sanford, Miami, or empty for all" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-muted mb-1.5">Site pattern <span className="text-muted/50">(hostname substring)</span></label>
+              <Input value={sitePattern} onChange={(e) => setSitePattern(e.target.value)} className="w-full" placeholder="e.g. Sanford, Miami, or empty for all" />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1.5">Single device <span className="text-muted/50">(optional)</span></label>
+              <Input value={deviceQuery} onChange={(e) => { setDeviceQuery(e.target.value); setDeviceId('') }} className="w-full" placeholder="search hostname or IP" />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/40 bg-surface-2/60 backdrop-blur max-h-40 overflow-auto">
+            {deviceId ? (
+              <div className="px-3 py-2 text-xs flex items-center justify-between">
+                <span className="text-green-300">Collecting: {devices.find((d) => String(d.id) === deviceId)?.hostname || devices.find((d) => String(d.id) === deviceId)?.ip || `device #${deviceId}`}</span>
+                <button type="button" onClick={() => setDeviceId('')} className="text-muted hover:text-red-400">×</button>
+              </div>
+            ) : deviceQuery ? (
+              deviceMatches.length > 0 ? (
+                deviceMatches.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => { setDeviceId(String(d.id)); setDeviceQuery('') }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-surface-3/60 text-left"
+                  >
+                    <span>{d.hostname || d.ip}</span>
+                    <span className="text-muted font-mono">{d.ip}</span>
+                  </button>
+                ))
+              ) : (
+                <div className="px-3 py-2 text-xs text-muted">No matching devices.</div>
+              )
+            ) : (
+              <div className="px-3 py-2 text-xs text-muted">Search for a device to collect a single config (or leave empty for the site filter above).</div>
+            )}
           </div>
 
           <label className="flex items-center gap-2 bg-surface-2/60 backdrop-blur border border-border/40 rounded-xl px-4 py-3 cursor-pointer transition-all duration-150 hover:bg-surface-2/80">
@@ -72,7 +125,10 @@ export default function ConfigCollect() {
                     : r.status === 'skipped' ? 'bg-surface-3/50 text-muted border-border/30'
                     : 'bg-red-900/20 text-red-300 border-red-800/40'
                   }`}>
-                    <span>{r.hostname || r.ip}{r.status === 'ok' && r.config_id ? ` — #${r.config_id}` : ''}</span>
+                    <span className="flex flex-col">
+                      <span>{r.hostname || r.ip}{r.status === 'ok' && r.config_id ? ` — #${r.config_id}` : ''}</span>
+                      {(r.collected_by || r.user) && <span className="text-[10px] opacity-70">by {r.collected_by || r.user}</span>}
+                    </span>
                     <span>{r.status === 'ok' ? '✓' : r.status}</span>
                   </div>
                 ))}

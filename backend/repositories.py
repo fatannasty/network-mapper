@@ -544,12 +544,14 @@ def dod_gates(db: Session) -> dict:
 # ── Device Configs (Sprint 9) ─────────────────────────────────────────────────
 
 def save_device_config(db: Session, device_id: int, config_text: str,
-                        config_type: str = "running", error: str = "") -> DeviceConfig:
+                        config_type: str = "running", error: str = "",
+                        collected_by: str = "") -> DeviceConfig:
     cfg = DeviceConfig(
         device_id=device_id,
         config_text=config_text,
         config_type=config_type,
         error=error,
+        collected_by=collected_by or None,
     )
     db.add(cfg)
     db.commit()
@@ -569,7 +571,7 @@ def get_device_configs(db: Session, device_id: int,
 
 
 def get_devices_by_type(db: Session, device_type: str = "switch",
-                        limit: int = 500) -> list[Device]:
+                        limit: int = 500, site_pattern: str = "") -> list[Device]:
     from sqlalchemy import or_
 
     q = db.query(Device).filter(
@@ -585,6 +587,14 @@ def get_devices_by_type(db: Session, device_type: str = "switch",
             Device.vendor.ilike("%dell%"),
         )
     )
+    if site_pattern:
+        pat = site_pattern.lower()
+        q = q.filter(
+            or_(
+                Device.hostname.ilike(f"%{pat}%"),
+                Device.site.ilike(f"%{pat}%"),
+            )
+        )
     if limit:
         q = q.limit(limit)
     return q.all()

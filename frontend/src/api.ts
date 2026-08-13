@@ -49,6 +49,7 @@ export interface SnmpDebug {
 }
 
 export interface Device {
+  id: number
   ip: string
   hostname: string
   vendor: string
@@ -295,6 +296,7 @@ export interface ConfigEntry {
   config_type: string
   collected_at: string
   error: string | null
+  collected_by: string | null
   config_text: string
 }
 
@@ -309,6 +311,8 @@ export interface CollectResult {
     status: string
     config_id?: number
     error?: string
+    collected_by?: string
+    user?: string
   }[]
 }
 
@@ -317,12 +321,14 @@ export async function collectConfigs(
   sshUsername?: string,
   sshPassword?: string,
   sshPort?: number,
+  deviceId?: number,
 ) {
   const r = await api.post('/api/inventory/collect-config', {
     site_pattern: sitePattern || '',
     ssh_username: sshUsername || '',
     ssh_password: sshPassword || '',
     ssh_port: sshPort || 22,
+    device_id: deviceId,
   })
   return r.data as CollectResult
 }
@@ -520,13 +526,23 @@ export async function classifyBlanks(limit = 0) {
 
 export async function collectConfigsCatalyst(
   baseUrl: string, username: string, password: string,
-  deviceType = 'switch', sitePattern = '', limit = 50,
+  deviceType = 'switch', sitePattern = '', limit = 50, deviceId?: number,
 ) {
   const r = await api.post('/api/catalyst/collect-config', {
     base_url: baseUrl, username, password,
-    device_type: deviceType, site_pattern: sitePattern, limit,
+    device_type: deviceType, site_pattern: sitePattern, limit, device_id: deviceId,
   })
   return r.data as CollectResult
+}
+
+export function apiErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const d = err.response?.data as { detail?: unknown } | undefined
+    if (d && typeof d.detail === 'string') return d.detail
+    if (d && d.detail !== undefined) return JSON.stringify(d.detail).slice(0, 2000)
+    if (err.response) return `Request failed with status code ${err.response.status}`
+  }
+  return err instanceof Error ? err.message : String(err)
 }
 
 export async function exportReport(report: 'devices' | 'links' | 'scans' | 'configs') {

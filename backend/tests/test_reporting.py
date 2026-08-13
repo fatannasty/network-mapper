@@ -67,7 +67,7 @@ def test_export_configs_csv():
     _seed()
     resp = client.get("/api/inventory/report/export", params={"report": "configs"})
     assert resp.status_code == 200
-    assert resp.text.startswith("ip,hostname,config_type,collected_at,error")
+    assert resp.text.startswith("ip,hostname,config_type,collected_at,collected_by,error")
 
 
 def test_export_invalid_report_returns_400():

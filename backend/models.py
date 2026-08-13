@@ -264,6 +264,7 @@ class DeviceConfig(Base):
     config_type = Column(String(32), default="running")  # running | startup | version
     collected_at = Column(DateTime, default=_utcnow, index=True)
     error = Column(Text, nullable=True)
+    collected_by = Column(String(128), nullable=True)  # username that ran the collection
 
     device = relationship("Device", backref="configs")
 
@@ -276,6 +277,7 @@ class DeviceConfig(Base):
             "config_type": self.config_type,
             "collected_at": self.collected_at.isoformat() if self.collected_at else None,
             "error": self.error,
+            "collected_by": self.collected_by,
             "config_text": self.config_text,
         }
 
