@@ -29,7 +29,7 @@ export default function Ingest() {
     <div className="h-full flex flex-col">
       <div className="px-6 pt-6 pb-0">
         <PageHeader
-          title="Ingest"
+          title="Import"
           description="Import devices and topology into the network model from scans and vendor sources."
         />
         <Tabs tabs={TABS} active={active} onChange={onChange} />
