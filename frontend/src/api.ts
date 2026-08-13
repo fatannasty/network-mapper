@@ -554,3 +554,13 @@ export async function exportReport(report: 'devices' | 'links' | 'scans' | 'conf
   a.click()
   URL.revokeObjectURL(url)
 }
+
+export async function downloadConfigs() {
+  const r = await api.get('/api/configs/download', { responseType: 'blob' })
+  const url = URL.createObjectURL(r.data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'configs.txt'
+  a.click()
+  URL.revokeObjectURL(url)
+}

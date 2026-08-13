@@ -543,6 +543,55 @@ def inventory_report_export(report: str = Query(...), db: Session = Depends(get_
     )
 
 
+@app.get("/api/configs/download", dependencies=[Depends(authenticated)])
+def download_configs(db: Session = Depends(get_db)):
+    """Download every collected config as plain text (one block per device).
+
+    Each block is delimited by a header comment: hostname (IP), config type,
+    collection timestamp, and who collected it. Configs are ordered newest
+    first; when a device has multiple snapshots only the latest is included.
+    """
+    from models import DeviceConfig
+
+    rows = (
+        db.query(DeviceConfig)
+        .order_by(DeviceConfig.device_id, DeviceConfig.collected_at.desc())
+        .all()
+    )
+
+    latest_by_device: dict[int, DeviceConfig] = {}
+    for cfg in rows:
+        if cfg.device_id not in latest_by_device:
+            latest_by_device[cfg.device_id] = cfg
+
+    parts: list[str] = []
+    for cfg in sorted(latest_by_device.values(), key=lambda c: (c.device.hostname or "").lower() or (c.device.ip or "")):
+        hostname = cfg.device.hostname if cfg.device else ""
+        ip = cfg.device.ip if cfg.device else ""
+        when = cfg.collected_at.isoformat() if cfg.collected_at else ""
+        by = cfg.collected_by or ""
+        if cfg.error:
+            body = f"[collection failed: {cfg.error}]"
+        else:
+            body = cfg.config_text or "(empty config)"
+        parts.append(
+            "# " + "=" * 72 + "\n"
+            f"# {hostname or ip} ({ip})\n"
+            f"# config_type: {cfg.config_type}\n"
+            f"# collected_at: {when}\n"
+            f"# collected_by: {by or 'unknown'}\n"
+            + "# " + "=" * 72 + "\n\n"
+            + body.rstrip("\n") + "\n"
+        )
+
+    from fastapi.responses import Response
+    return Response(
+        content="\n".join(parts),
+        media_type="text/plain",
+        headers={"Content-Disposition": 'attachment; filename="configs.txt"'},
+    )
+
+
 @app.get("/api/topology", dependencies=[Depends(authenticated)])
 def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Query(None),
                  site: Optional[str] = Query(None),

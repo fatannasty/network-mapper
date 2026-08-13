@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getReport, exportReport, type Report, type ScanHistoryEntry } from '../api'
+import { getReport, exportReport, downloadConfigs, type Report, type ScanHistoryEntry } from '../api'
 import Badge from './ui/Badge'
 import Button from './ui/Button'
 import Card from './ui/Card'
@@ -299,10 +299,11 @@ function ExportMenu() {
   }, [open])
 
   const items = [
-    { label: 'Export Devices', key: 'devices' as const },
-    { label: 'Export Links', key: 'links' as const },
-    { label: 'Export Configs', key: 'configs' as const },
-    { label: 'Export Scans', key: 'scans' as const },
+    { label: 'Export Devices', key: 'devices', handler: () => exportReport('devices') },
+    { label: 'Export Links', key: 'links', handler: () => exportReport('links') },
+    { label: 'Export Configs (meta)', key: 'configs', handler: () => exportReport('configs') },
+    { label: 'Download Configs', key: 'configs-full', handler: () => downloadConfigs() },
+    { label: 'Export Scans', key: 'scans', handler: () => exportReport('scans') },
   ]
 
   return (
@@ -318,7 +319,7 @@ function ExportMenu() {
           {items.map((item) => (
             <button
               key={item.key}
-              onClick={() => { setOpen(false); void exportReport(item.key) }}
+              onClick={() => { setOpen(false); void item.handler() }}
               className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-sm text-muted hover:text-text-secondary hover:bg-surface-2/60 transition-all duration-150"
             >
               {item.label}
