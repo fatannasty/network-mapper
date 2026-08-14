@@ -11,9 +11,11 @@ import {
 } from '../../../api'
 
 const DEFAULT_LEGEND: DiagramLegendEntry[] = [
-  { key: 'mmf', label: 'Multi-mode Fiber', color: '#F58220' },
-  { key: 'copper', label: 'Copper', color: '#8BC34A' },
-  { key: 'smf', label: 'Single-mode Fiber', color: '#E6D200' },
+  { key: 'wan', label: 'WAN / Internet', color: '#1E88E5' },
+  { key: 'core', label: 'Core Backbone', color: '#2E7D32' },
+  { key: 'lan', label: 'LAN', color: '#7CB342' },
+  { key: 'fiber', label: 'Fiber', color: '#E6C200' },
+  { key: 'management', label: 'Management', color: '#8E24AA' },
 ]
 
 const FORMATS: { id: DiagramFormat; label: string; hint: string }[] = [
@@ -116,7 +118,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
                 onChange={(e) => setColorLinks(e.target.checked)}
                 className="accent-blue-500"
               />
-              Color-code links by medium
+              Color-code links by role
             </label>
           </div>
         </div>

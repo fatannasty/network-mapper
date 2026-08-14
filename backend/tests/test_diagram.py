@@ -48,10 +48,10 @@ def test_diagram_vsdx_is_valid_zip_with_visio_parts():
     z = zipfile.ZipFile(io.BytesIO(resp.content))
     names = set(z.namelist())
     assert "[Content_Types].xml" in names
-    assert "doc.xml" in names
-    assert "pages/page1.xml" in names
-    assert "media/image1.png" in names  # Amtrak logo embedded
-    page = z.read("pages/page1.xml").decode()
+    assert "visio/document.xml" in names
+    assert "visio/pages/page1.xml" in names
+    assert "visio/media/image1.emf" in names  # Amtrak logo embedded as EMF
+    page = z.read("visio/pages/page1.xml").decode()
     assert "MIFLST1SWC4" in page
     assert "25G1/0/3" in page  # abbreviated port label
 

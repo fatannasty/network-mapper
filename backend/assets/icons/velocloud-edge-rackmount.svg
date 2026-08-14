@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="400" height="100">
+  <rect x="0" y="0" width="400" height="100" rx="4" ry="4" fill="#2a2a33" stroke="#1a1a22" stroke-width="2"/>
+  <rect x="0" y="0" width="50" height="100" rx="4" ry="4" fill="#1a1a22"/>
+  <circle cx="14" cy="20" r="4" fill="#22c55e"/>
+  <circle cx="28" cy="20" r="4" fill="#3b82f6"/>
+  <circle cx="42" cy="20" r="4" fill="#f59e0b"/>
+  <rect x="8" y="32" width="34" height="14" rx="2" fill="#3b82f6" opacity="0.3"/>
+  <text x="25" y="43" text-anchor="middle" fill="#fff" font-size="8" font-family="monospace">VE</text>
+  <rect x="8" y="52" width="34" height="14" rx="2" fill="#059669" opacity="0.3"/>
+  <text x="25" y="63" text-anchor="middle" fill="#fff" font-size="5" font-family="monospace">CLOUD</text>
+  <rect x="8" y="72" width="34" height="14" rx="2" fill="#a855f7" opacity="0.3"/>
+  <text x="25" y="83" text-anchor="middle" fill="#fff" font-size="5" font-family="monospace">SD-WAN</text>
+  <rect x="60" y="18" width="38" height="64" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="79" y="55" text-anchor="middle" fill="#64748b" font-size="6" font-family="monospace">GE1</text>
+  <rect x="104" y="18" width="38" height="64" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="123" y="55" text-anchor="middle" fill="#64748b" font-size="6" font-family="monospace">GE2</text>
+  <rect x="148" y="18" width="38" height="64" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="167" y="55" text-anchor="middle" fill="#64748b" font-size="6" font-family="monospace">GE3</text>
+  <rect x="192" y="18" width="38" height="64" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="211" y="55" text-anchor="middle" fill="#64748b" font-size="6" font-family="monospace">GE4</text>
+  <rect x="236" y="18" width="38" height="64" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="255" y="55" text-anchor="middle" fill="#64748b" font-size="6" font-family="monospace">GE5</text>
+  <rect x="280" y="18" width="38" height="64" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="299" y="55" text-anchor="middle" fill="#64748b" font-size="6" font-family="monospace">GE6</text>
+  <rect x="324" y="18" width="30" height="30" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="339" y="37" text-anchor="middle" fill="#64748b" font-size="5" font-family="monospace">SFP</text>
+  <rect x="358" y="18" width="30" height="30" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="373" y="37" text-anchor="middle" fill="#64748b" font-size="5" font-family="monospace">SFP</text>
+  <rect x="324" y="54" width="64" height="28" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="356" y="72" text-anchor="middle" fill="#64748b" font-size="6" font-family="monospace">CONSOLE</text>
+</svg>
