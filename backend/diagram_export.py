@@ -288,6 +288,7 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     layers = {}
     for n in nodes: layers.setdefault(layer_of[n["ip"]], []).append(n)
     order = [k for k in LAYER_KEYS if k in layers]
+    layer_idx = {k: i for i, k in enumerate(order)}
     for r in order: layers[r].sort(key=lambda n: (n.get("hostname") or n.get("ip") or ""))
 
     # Device icons, sized up-front so slots fit the widest icon
@@ -308,29 +309,50 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         if w > _max_dev_w: _max_dev_w = w
     _DFLT = (GLYPH_W / 2, GLYPH_H / 2, "unknown", None)
 
-    # Links — one per physical link (no aggregation)
-    valid = []
+    # Links — aggregate parallel links into one line per device pair
+    pair_links = {}
     for l in links:
         a, b = l.get("source"), l.get("target")
         if not a or not b or a == b or a not in layer_of or b not in layer_of: continue
-        valid.append({"source": a, "target": b,
-                      "source_interface": l.get("source_interface") or "",
-                      "target_interface": l.get("target_interface") or ""})
+        pair_links.setdefault(tuple(sorted((a, b))), []).append(l)
 
-    # Waterfall layout: tiers flow top-to-bottom; within a tier devices wrap
-    # into rows that are staggered (brick pattern) for readability.
-    MAX_PER_ROW = 5
-    SLOT_W = _max_dev_w + 70.0
-    STAGGER = SLOT_W / 2.0
-    width = max(1150, MARGIN * 2 + (MAX_PER_ROW - 1) * SLOT_W + STAGGER)
+    valid = []
+    for (a, b), group in pair_links.items():
+        src_ifs = sorted(set(l["source_interface"] or "" for l in group if l["source"] == a))
+        dst_ifs = sorted(set(l["target_interface"] or "" for l in group if l["target"] == b))
+        valid.append({"source": a, "target": b,
+                      "source_interface": src_ifs[0] if src_ifs else "",
+                      "target_interface": dst_ifs[0] if dst_ifs else ""})
+
+    # Layered layout: tiers top-to-bottom. Within each tier, devices are
+    # ordered by barycenter (pulled toward their connected neighbors) and
+    # wrapped into rows, so connected devices sit near each other and cables
+    # stay short instead of criss-crossing the page.
+    MAX_PER_ROW = 6
+    SLOT_W = _max_dev_w + 80.0
+
+    neigh = {}
+    for l in valid:
+        a, b = l["source"], l["target"]
+        neigh.setdefault(a, []).append(b)
+        neigh.setdefault(b, []).append(a)
+
     content_top = MARGIN + HEADER_H
     GAP = 75.0
-    ROW_STEP = ZONE_H + GAP
-    TIER_EXTRA = 40.0
+    ROW_H = ZONE_H + GAP
     y_0 = content_top + GAP + ZONE_ROW_CY
-    total_rows = sum(-(-len(layers[r]) // MAX_PER_ROW) for r in order)
-    content_h = total_rows * ROW_STEP + (len(order) - 1) * TIER_EXTRA
-    legend_y = y_0 + content_h
+    width = max(1150, MARGIN * 2 + MAX_PER_ROW * SLOT_W)
+
+    def _row_lists():
+        rows = []
+        for r in order:
+            ips = [n["ip"] for n in layers[r]]
+            for i in range(0, len(ips), MAX_PER_ROW):
+                rows.append(ips[i:i + MAX_PER_ROW])
+        return rows
+
+    rows = _row_lists()
+    legend_y = y_0 + len(rows) * ROW_H
     height = legend_y + LEGEND_H + MARGIN
     scene = Scene(width, height)
     scene.rect(MARGIN / 2, MARGIN / 2, width - MARGIN, height - MARGIN, stroke=C_FRAME, sw=1.5)
@@ -338,20 +360,29 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     scene.text(width / 2, MARGIN + 26, title, size=26)
 
     pos = {}
-    y_cursor = y_0
-    for r in order:
-        group = layers[r]
-        row_idx = 0
-        for i in range(0, len(group), MAX_PER_ROW):
-            row = group[i:i + MAX_PER_ROW]
+
+    def _assign():
+        pos.clear()
+        y = y_0
+        for row in rows:
             n = len(row)
-            row_w = (n - 1) * SLOT_W
-            x_start = (width - row_w) / 2 + (STAGGER if row_idx % 2 else 0)
-            for j, node in enumerate(row):
-                pos[node["ip"]] = (x_start + j * SLOT_W, y_cursor)
-            y_cursor += ROW_STEP
-            row_idx += 1
-        y_cursor += TIER_EXTRA
+            x0 = (width - (n - 1) * SLOT_W) / 2
+            for j, ip in enumerate(row):
+                pos[ip] = (x0 + j * SLOT_W, y)
+            y += ROW_H
+
+    _assign()
+
+    # Barycenter: pull each device toward the average X of its neighbors so
+    # connected devices line up and cables stay short.
+    for _ in range(15):
+        for r in order:
+            def _key(n):
+                xs = [pos[m][0] for m in neigh.get(n["ip"], []) if m in pos]
+                return sum(xs) / len(xs) if xs else pos.get(n["ip"], (width / 2, 0))[0]
+            layers[r].sort(key=_key)
+        rows = _row_lists()
+        _assign()
 
     # Spread links leaving the same device edge so cables don't stack
     attach = {}
@@ -408,11 +439,11 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
             iw, ih, icon_kind, icon_path = device_shape.get(ip, _DFLT)[:4]
             iw *= 2; ih *= 2
             labels = []; ly = cy + ih / 2 + 8
-            scene.text(cx, ly, hn, size=9, bold=True, tag=tag); labels.append((hn, 9, True, C_TEXT)); ly += 14
-            if model:
-                scene.text(cx, ly, model, size=7.5, tag=tag); labels.append((model, 7.5, False, C_TEXT)); ly += 11
+            scene.text(cx, ly, hn, size=9, bold=True, tag=tag); labels.append((hn, 9, True, C_TEXT)); ly += 13
             if ip:
-                scene.text(cx, ly, ip, size=7.5, tag=tag); labels.append((ip, 7.5, False, C_TEXT))
+                scene.text(cx, ly, ip, size=7.5, tag=tag); labels.append((ip, 7.5, False, C_TEXT)); ly += 11
+            if model:
+                scene.text(cx, ly, model, size=7.5, tag=tag); labels.append((model, 7.5, False, C_TEXT))
             if icon_path:
                 scene.image(cx - iw / 2, cy - ih / 2, iw, ih, icon_path, tag=tag)
             else:
