@@ -76,6 +76,9 @@ C_GLYPH = "#2F3542"       # switch faceplate
 C_GLYPH_EDGE = "#111318"
 C_GLYPH_TICK = "#9AA3B2"
 C_UNKNOWN = "#F2F2F2"
+C_SUBNET_FILL = "#F5F8FC"
+C_SUBNET_STROKE = "#B7C7DD"
+C_SUBNET_TEXT = "#4A6A8A"
 
 AMTRAK_BLUE = "#003A70"
 PROPRIETARY = "AMTRAK - Proprietary\nUse Pursuant to Company\nInstructions"
@@ -239,6 +242,19 @@ def _layer_of(node: dict) -> str:
     return "endpoint"
 
 
+def _subnet24(ip: str) -> str | None:
+    """Return the /24 subnet prefix for an IPv4 address, or None."""
+    try:
+        parts = ip.split(".")
+        if len(parts) != 4:
+            return None
+        for p in parts:
+            int(p)
+        return ".".join(parts[:3]) + ".0/24"
+    except (ValueError, AttributeError):
+        return None
+
+
 def _link_color_key(a, b, layer_of, ia, ib):
     la, lb = layer_of.get(a), layer_of.get(b)
     if not la or not lb: return "lan"
@@ -384,6 +400,25 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         rows = _row_lists()
         _assign()
 
+    # Subnet zone boxes: draw a light rectangle around devices that share a
+    # /24 subnet (drawn behind devices/links so they stay readable).
+    subnet_groups: dict[str, list[str]] = {}
+    for ip in pos:
+        pfx = _subnet24(ip)
+        if pfx:
+            subnet_groups.setdefault(pfx, []).append(ip)
+    for pfx, ips in subnet_groups.items():
+        if len(ips) < 2:
+            continue
+        xs = [pos[ip][0] for ip in ips]
+        ys = [pos[ip][1] for ip in ips]
+        min_x = min(xs) - SLOT_W / 2
+        max_x = max(xs) + SLOT_W / 2
+        min_y = min(ys) - ROW_H / 2
+        max_y = max(ys) + ROW_H / 2
+        scene.rect(min_x, min_y, max_x - min_x, max_y - min_y, fill=C_SUBNET_FILL, stroke=C_SUBNET_STROKE, sw=1.0)
+        scene.text(min_x + 6, min_y + 12, pfx, size=8.5, bold=True, color=C_SUBNET_TEXT, align="left")
+
     # Spread links leaving the same device edge so cables don't stack
     attach = {}
     for li, l in enumerate(valid):
@@ -475,42 +510,50 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     return scene
 
 
-def render_pdf(scene: Scene) -> bytes:
+def render_pdf(scenes: list[Scene]) -> bytes:
     from reportlab.pdfgen import canvas as _canvas
     from reportlab.lib.utils import ImageReader
-    limit = 200 * 72; factor = min(1.0, limit / scene.width, limit / scene.height)
-    buf = io.BytesIO(); c = _canvas.Canvas(buf, pagesize=(scene.width * factor, scene.height * factor))
-    if factor < 1.0: c.scale(factor, factor)
-    H = scene.height
-    def fy(y): return H - y
-    for p in scene.prims:
-        k = p["k"]
-        if k == "rect":
-            if p.get("fill"): c.setFillColor(p["fill"])
-            if p.get("stroke"): c.setStrokeColor(p["stroke"]); c.setLineWidth(p["sw"])
-            c.rect(p["x"], fy(p["y"] + p["h"]), p["w"], p["h"], fill=1 if p.get("fill") else 0, stroke=1 if p.get("stroke") else 0)
-        elif k == "ellipse":
-            if p.get("fill"): c.setFillColor(p["fill"])
-            if p.get("stroke"): c.setStrokeColor(p["stroke"]); c.setLineWidth(p["sw"])
-            c.ellipse(p["cx"] - p["rx"], fy(p["cy"] + p["ry"]), p["cx"] + p["rx"], fy(p["cy"] - p["ry"]), fill=1 if p.get("fill") else 0, stroke=1 if p.get("stroke") else 0)
-        elif k == "line":
-            c.setStrokeColor(p["color"]); c.setLineWidth(p["width"]); path = c.beginPath(); path.moveTo(p["pts"][0][0], fy(p["pts"][0][1]))
-            for x, y in p["pts"][1:]: path.lineTo(x, fy(y))
-            c.drawPath(path, fill=0, stroke=1)
-        elif k == "text":
-            font = "Helvetica-Bold" if p["bold"] else ("Helvetica-Oblique" if p["italic"] else "Helvetica"); c.setFont(font, p["size"]); c.setFillColor(p["color"])
-            angle = p.get("angle", 0.0)
-            c.saveState()
-            c.translate(p["x"], fy(p["y"] + p["size"]))
-            if angle: c.rotate(angle)
-            if p["align"] == "left": c.drawString(0, 0, p["v"])
-            elif p["align"] == "right": c.drawRightString(0, 0, p["v"])
-            else: c.drawCentredString(0, 0, p["v"])
-            c.restoreState()
-        elif k == "image":
-            img = ImageReader(p["path"])
-            if img: c.drawImage(img, p["x"], fy(p["y"] + p["h"]), width=p["w"], height=p["h"], mask="auto")
-    c.showPage(); c.save(); return buf.getvalue()
+    limit = 200 * 72
+    buf = io.BytesIO()
+    f0 = min(1.0, limit / scenes[0].width, limit / scenes[0].height)
+    c = _canvas.Canvas(buf, pagesize=(scenes[0].width * f0, scenes[0].height * f0))
+    for scene in scenes:
+        f = min(1.0, limit / scene.width, limit / scene.height)
+        c.setPageSize((scene.width * f, scene.height * f))
+        H = scene.height
+        c.saveState()
+        if f < 1.0: c.scale(f, f)
+        def fy(y): return H - y
+        for p in scene.prims:
+            k = p["k"]
+            if k == "rect":
+                if p.get("fill"): c.setFillColor(p["fill"])
+                if p.get("stroke"): c.setStrokeColor(p["stroke"]); c.setLineWidth(p["sw"])
+                c.rect(p["x"], fy(p["y"] + p["h"]), p["w"], p["h"], fill=1 if p.get("fill") else 0, stroke=1 if p.get("stroke") else 0)
+            elif k == "ellipse":
+                if p.get("fill"): c.setFillColor(p["fill"])
+                if p.get("stroke"): c.setStrokeColor(p["stroke"]); c.setLineWidth(p["sw"])
+                c.ellipse(p["cx"] - p["rx"], fy(p["cy"] + p["ry"]), p["cx"] + p["rx"], fy(p["cy"] - p["ry"]), fill=1 if p.get("fill") else 0, stroke=1 if p.get("stroke") else 0)
+            elif k == "line":
+                c.setStrokeColor(p["color"]); c.setLineWidth(p["width"]); path = c.beginPath(); path.moveTo(p["pts"][0][0], fy(p["pts"][0][1]))
+                for x, y in p["pts"][1:]: path.lineTo(x, fy(y))
+                c.drawPath(path, fill=0, stroke=1)
+            elif k == "text":
+                font = "Helvetica-Bold" if p["bold"] else ("Helvetica-Oblique" if p["italic"] else "Helvetica"); c.setFont(font, p["size"]); c.setFillColor(p["color"])
+                angle = p.get("angle", 0.0)
+                c.saveState()
+                c.translate(p["x"], fy(p["y"] + p["size"]))
+                if angle: c.rotate(angle)
+                if p["align"] == "left": c.drawString(0, 0, p["v"])
+                elif p["align"] == "right": c.drawRightString(0, 0, p["v"])
+                else: c.drawCentredString(0, 0, p["v"])
+                c.restoreState()
+            elif k == "image":
+                img = ImageReader(p["path"])
+                if img: c.drawImage(img, p["x"], fy(p["y"] + p["h"]), width=p["w"], height=p["h"], mask="auto")
+        c.restoreState()
+        c.showPage()
+    c.save(); return buf.getvalue()
 
 
 def _hex(color: str):
@@ -542,7 +585,7 @@ def _pil_font(size: int, bold: bool, italic: bool):
     return ImageFont.load_default()
 
 
-def render_png(scene: Scene, scale: int = 2) -> bytes:
+def _render_png_image(scene: Scene, scale: int = 2):
     from PIL import Image, ImageDraw
     W, H = int(scene.width * scale), int(scene.height * scale)
     img = Image.new("RGB", (W, H), "white"); d = ImageDraw.Draw(img)
@@ -573,7 +616,19 @@ def render_png(scene: Scene, scale: int = 2) -> bytes:
                     icon = icon.convert("RGBA").resize((int(s(p["w"])), int(s(p["h"]))), Image.Resampling.LANCZOS)
                     img.paste(icon, (int(s(p["x"])), int(s(p["y"]))), icon)
             except Exception: pass
-    buf = io.BytesIO(); img.save(buf, format="PNG"); return buf.getvalue()
+    return img
+
+
+def render_png(scenes: list[Scene], scale: int = 2) -> bytes:
+    from PIL import Image
+    images = [_render_png_image(sc, scale) for sc in scenes]
+    max_w = max(im.width for im in images)
+    total_h = sum(im.height for im in images)
+    combined = Image.new("RGB", (max_w, total_h), "white")
+    y = 0
+    for im in images:
+        combined.paste(im, (0, y)); y += im.height
+    buf = io.BytesIO(); combined.save(buf, format="PNG"); return buf.getvalue()
 
 
 def _connector_1d(sid: int, pts: list[tuple[float, float]], color: str, width_pt: float, begin_ref=None, end_ref=None, layer_name="") -> str:
@@ -593,7 +648,8 @@ def _connector_1d(sid: int, pts: list[tuple[float, float]], color: str, width_pt
 _XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
 
 
-def render_vsdx(scene: Scene) -> bytes:
+def _scene_shapes(scene: Scene, media_n: list[int]) -> tuple[str, list[str], list[tuple[str, bytes]]]:
+    """Generate the VSDX shapes/rels/media for one scene (one page)."""
     H = scene.height; shapes=[]; connects=[]; rels=[]; media=[]; sid=1
     def flip_y(y): return (H - y) / 72
     for p in scene.prims:
@@ -628,8 +684,9 @@ def render_vsdx(scene: Scene) -> bytes:
         ip=dev["ip"]; cx,cy=dev["cx"],dev["cy"]; iw,ih=dev["icon_w"],dev["icon_h"]; gx,gy,bw,bh=device_box[ip]; gid=sid; sid+=1; dev_shape_id[ip]=gid
         children=[]
         if dev["icon_path"] and os.path.exists(dev["icon_path"]):
-            rid=f"rId{len(media)+1}"; img_w=iw/72; img_h=ih/72
-            media.append((f"visio/media/image{len(media)+1}.png", open(dev["icon_path"],"rb").read())); rels.append(f'<Relationship Id="{rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image{len(media)}.png"/>')
+            media_n[0] += 1; img_idx = media_n[0]
+            rid=f"rId{len(rels)+1}"; img_w=iw/72; img_h=ih/72
+            media.append((f"visio/media/image{img_idx}.png", open(dev["icon_path"],"rb").read())); rels.append(f'<Relationship Id="{rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image{img_idx}.png"/>')
             children.append(f'<Shape ID="{sid}" Type="Foreign"><Cell N="PinX" V="{img_w/2:.4f}"/><Cell N="PinY" V="{img_h/2:.4f}"/><Cell N="Width" V="{img_w:.4f}"/><Cell N="Height" V="{img_h:.4f}"/><Cell N="LocPinX" V="{img_w/2:.4f}"/><Cell N="LocPinY" V="{img_h/2:.4f}"/><Cell N="ImgWidth" V="{img_w:.4f}"/><Cell N="ImgHeight" V="{img_h:.4f}"/><ForeignData ForeignType="Bitmap" CompressionType="PNG" DisplayFormat="24-bit RGB"><Rel r:id="{rid}"/></ForeignData><Section N="Geometry" IX="0"><Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="2"><Cell N="X" V="{img_w:.4f}"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="3"><Cell N="X" V="{img_w:.4f}"/><Cell N="Y" V="{img_h:.4f}"/></Row><Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="{img_h:.4f}"/></Row><Row T="LineTo" IX="5"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row></Section></Shape>'); sid+=1
         else:
             children.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{iw/144:.4f}"/><Cell N="PinY" V="{ih/144:.4f}"/><Cell N="Width" V="{iw/72:.4f}"/><Cell N="Height" V="{ih/72:.4f}"/><Cell N="FillForegnd" V="{C_GLYPH}"/><Cell N="FillPattern" V="1"/><Cell N="LineColor" V="{C_GLYPH_EDGE}"/><Section N="Geometry" IX="0"><Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="2"><Cell N="X" V="{iw/72:.4f}"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="3"><Cell N="X" V="{iw/72:.4f}"/><Cell N="Y" V="{ih/72:.4f}"/></Row><Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="{ih/72:.4f}"/></Row><Row T="LineTo" IX="5"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row></Section></Shape>'); sid+=1
@@ -652,19 +709,32 @@ def render_vsdx(scene: Scene) -> bytes:
             pinx = px/72 + (w/2 if al=="left" else -w/2 if al=="right" else 0)
             ang_cell = f'<Cell N="TxtAngle" V="{ang*3.14159265358979/180:.4f}"/>' if ang else ""
             shapes.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{y_in:.4f}"/><Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/><Cell N="LocPinX" V="{w/2:.4f}"/><Cell N="LocPinY" V="{h/2:.4f}"/>{ang_cell}<Section N="Character"><Row IX="0"><Cell N="Size" V="{8/72:.4f}"/><Cell N="Style" V="1"/><Cell N="Color" V="{C_PORT}"/></Row></Section><Text>{_xml_escape(txt)}</Text></Shape>'); sid+=1
+    return "".join(shapes), rels, media
 
-    content_types = _XML_DECL + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/><Override PartName="/visio/masters/masters.xml" ContentType="application/vnd.ms-visio.masters+xml"/><Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/><Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/><Override PartName="/visio/windows.xml" ContentType="application/vnd.ms-visio.windows+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>'
+
+def render_vsdx(scenes: list[Scene]) -> bytes:
+    page_shapes = []; page_rels = []; all_media = []; media_n = [0]
+    for scene in scenes:
+        sh, rels, media = _scene_shapes(scene, media_n)
+        page_shapes.append(sh); page_rels.append(rels); all_media.extend(media)
+    n = len(scenes)
+    page_overrides = "".join(f'<Override PartName="/visio/pages/page{i+1}.xml" ContentType="application/vnd.ms-visio.page+xml"/>' for i in range(n))
+    content_types = _XML_DECL + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/><Override PartName="/visio/masters/masters.xml" ContentType="application/vnd.ms-visio.masters+xml"/><Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/>' + page_overrides + '<Override PartName="/visio/windows.xml" ContentType="application/vnd.ms-visio.windows+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>'
     root_rels = _XML_DECL + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/document" Target="visio/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>'
     doc_xml = _XML_DECL + '<VisioDocument xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xml:space="preserve"><DocumentSettings TopPage="0" DefaultTextStyle="3" DefaultLineStyle="3" DefaultFillStyle="3" DefaultGuideStyle="4"><GlueSettings>9</GlueSettings><SnapSettings>65847</SnapSettings><SnapExtensions>34</SnapExtensions></DocumentSettings><StyleSheets><StyleSheet ID="0" NameU="No Style" Name="No Style"/><StyleSheet ID="1" NameU="Normal" Name="Normal"/><StyleSheet ID="3" NameU="No Line" Name="No Line"/></StyleSheets></VisioDocument>'
     doc_rels = _XML_DECL + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/masters" Target="masters/masters.xml"/><Relationship Id="rId2" Type="http://schemas.microsoft.com/visio/2010/relationships/pages" Target="pages/pages.xml"/><Relationship Id="rId3" Type="http://schemas.microsoft.com/visio/2010/relationships/windows" Target="windows.xml"/></Relationships>'
     masters_xml = _XML_DECL + '<Masters xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xml:space="preserve"><Master ID="0" NameU="Dynamic connector" Name="Dynamic connector"><PageSheet LineStyle="3" FillStyle="3" TextStyle="3"/></Master></Masters>'
     masters_rels = _XML_DECL + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>'
-    pages_xml = _XML_DECL + f'<Pages xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xml:space="preserve"><Page ID="0" NameU="Page-1" Name="Page-1" ViewScale="1" ViewCenterX="0" ViewCenterY="0"><PageSheet LineStyle="3" FillStyle="3" TextStyle="3"><Cell N="PageWidth" V="{scene.width/72:.4f}"/><Cell N="PageHeight" V="{scene.height/72:.4f}"/><Cell N="PageLineJumpStyle" V="1"/><Cell N="RouteStyle" V="1"/></PageSheet><Rel r:id="rId1"/></Page></Pages>'
-    pages_rels = _XML_DECL + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/page" Target="page1.xml"/></Relationships>'
-    page1_xml = _XML_DECL + f'<PageContents xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xml:space="preserve"><Shapes>{"".join(shapes)}</Shapes><Connects>{"".join(connects)}</Connects><Layers><Layer IX="0" Name="Connector" Color="#333333" Active="1" Visible="1"/></Layers></PageContents>'
+    page_entries = []
+    for i in range(n):
+        w = scenes[i].width / 72; h = scenes[i].height / 72
+        page_entries.append(f'<Page ID="{i}" NameU="Page-{i+1}" Name="Page-{i+1}" ViewScale="1" ViewCenterX="0" ViewCenterY="0"><PageSheet LineStyle="3" FillStyle="3" TextStyle="3"><Cell N="PageWidth" V="{w:.4f}"/><Cell N="PageHeight" V="{h:.4f}"/><Cell N="PageLineJumpStyle" V="1"/><Cell N="RouteStyle" V="1"/></PageSheet><Rel r:id="rId{i+1}"/></Page>')
+    pages_xml = _XML_DECL + '<Pages xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xml:space="preserve">' + "".join(page_entries) + '</Pages>'
+    page_rel_entries = [f'<Relationship Id="rId{i+1}" Type="http://schemas.microsoft.com/visio/2010/relationships/page" Target="page{i+1}.xml"/>' for i in range(n)]
+    pages_rels = _XML_DECL + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + "".join(page_rel_entries) + '</Relationships>'
     core_xml = _XML_DECL + '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>Network Topology</dc:title><dc:creator>Network Mapper</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">2026-08-14T00:00:00Z</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">2026-08-14T00:00:00Z</dcterms:modified></cp:coreProperties>'
-    app_xml = _XML_DECL + '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Network Mapper</Application><HeadingPairs><vt:vector size="4" baseType="variant"><vt:variant><vt:lpstr>Pages</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant><vt:variant><vt:lpstr>Masters</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs><TitlesOfParts><vt:vector size="2" baseType="lpstr"><vt:lpstr>Page-1</vt:lpstr><vt:lpstr>Dynamic connector</vt:lpstr></vt:vector></TitlesOfParts></Properties>'
-    windows_xml = _XML_DECL + f'<Windows ClientWidth="1000" ClientHeight="700" xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xml:space="preserve"><Window ID="0" WindowType="Drawing" WindowState="1073741824" WindowLeft="0" WindowTop="0" WindowWidth="1000" WindowHeight="700" ContainerType="Page" Page="0" ViewScale="1" ViewCenterX="0" ViewCenterY="0"><ShowRulers>1</ShowRulers><ShowGrid>1</ShowGrid><ShowPageBreaks>0</ShowPageBreaks><ShowGuides>1</ShowGuides><ShowConnectionPoints>1</ShowConnectionPoints><GlueSettings>9</GlueSettings><SnapSettings>295</SnapSettings><SnapExtensions>34</SnapExtensions><DynamicGridEnabled>0</DynamicGridEnabled><TabSplitterPos>0.5</TabSplitterPos></Window></Windows>'
+    app_xml = _XML_DECL + '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Network Mapper</Application><HeadingPairs><vt:vector size="4" baseType="variant"><vt:variant><vt:lpstr>Pages</vt:lpstr></vt:variant><vt:variant><vt:i4>' + str(n) + '</vt:i4></vt:variant><vt:variant><vt:lpstr>Masters</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs><TitlesOfParts><vt:vector size="' + str(n + 1) + '" baseType="lpstr">' + "".join(f'<vt:lpstr>Page-{i+1}</vt:lpstr>' for i in range(n)) + '<vt:lpstr>Dynamic connector</vt:lpstr></vt:vector></TitlesOfParts></Properties>'
+    windows_xml = _XML_DECL + '<Windows ClientWidth="1000" ClientHeight="700" xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xml:space="preserve"><Window ID="0" WindowType="Drawing" WindowState="1073741824" WindowLeft="0" WindowTop="0" WindowWidth="1000" WindowHeight="700" ContainerType="Page" Page="0" ViewScale="1" ViewCenterX="0" ViewCenterY="0"><ShowRulers>1</ShowRulers><ShowGrid>1</ShowGrid><ShowPageBreaks>0</ShowPageBreaks><ShowGuides>1</ShowGuides><ShowConnectionPoints>1</ShowConnectionPoints><GlueSettings>9</GlueSettings><SnapSettings>295</SnapSettings><SnapExtensions>34</SnapExtensions><DynamicGridEnabled>0</DynamicGridEnabled><TabSplitterPos>0.5</TabSplitterPos></Window></Windows>'
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("[Content_Types].xml", content_types)
@@ -677,25 +747,90 @@ def render_vsdx(scene: Scene) -> bytes:
         z.writestr("visio/masters/_rels/masters.xml.rels", masters_rels)
         z.writestr("visio/pages/pages.xml", pages_xml)
         z.writestr("visio/pages/_rels/pages.xml.rels", pages_rels)
-        z.writestr("visio/pages/page1.xml", page1_xml)
         z.writestr("visio/windows.xml", windows_xml)
-        if rels: z.writestr("visio/pages/_rels/page1.xml.rels", _XML_DECL + f'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{"".join(rels)}</Relationships>')
-        for name, data in media: z.writestr(name, data)
+        for i in range(n):
+            page_xml = _XML_DECL + f'<PageContents xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xml:space="preserve"><Shapes>{page_shapes[i]}</Shapes><Connects></Connects><Layers><Layer IX="0" Name="Connector" Color="#333333" Active="1" Visible="1"/></Layers></PageContents>'
+            z.writestr(f"visio/pages/page{i+1}.xml", page_xml)
+            if page_rels[i]:
+                z.writestr(f"visio/pages/_rels/page{i+1}.xml.rels", _XML_DECL + f'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{"".join(page_rels[i])}</Relationships>')
+        for name, data in all_media: z.writestr(name, data)
     return buf.getvalue()
 
 
-def render_docx(scene: Scene) -> bytes:
+def render_docx(scenes: list[Scene]) -> bytes:
     from docx import Document; from docx.shared import Inches; from docx.enum.section import WD_ORIENT
-    png = render_png(scene, scale=2); doc = Document(); sec = doc.sections[0]; w_in, h_in = min(scene.width/72, 22), min(scene.height/72, 22)
-    if w_in >= h_in: sec.orientation = WD_ORIENT.LANDSCAPE
-    sec.page_width = Inches(w_in); sec.page_height = Inches(h_in); sec.left_margin = sec.right_margin = Inches(0.2); sec.top_margin = sec.bottom_margin = Inches(0.2)
-    doc.add_picture(io.BytesIO(png), width=Inches(w_in - 0.4)); buf = io.BytesIO(); doc.save(buf); return buf.getvalue()
+    doc = Document(); sec = doc.sections[0]
+    sec.orientation = WD_ORIENT.LANDSCAPE
+    sec.page_width = Inches(11); sec.page_height = Inches(8.5)
+    sec.left_margin = sec.right_margin = Inches(0.2); sec.top_margin = sec.bottom_margin = Inches(0.2)
+    for i, scene in enumerate(scenes):
+        img = _render_png_image(scene, scale=2)
+        buf = io.BytesIO(); img.save(buf, format="PNG")
+        doc.add_picture(io.BytesIO(buf.getvalue()), width=Inches(10.6))
+        if i < len(scenes) - 1:
+            doc.add_page_break()
+    buf = io.BytesIO(); doc.save(buf); return buf.getvalue()
+
+
+def _partition(nodes: list[dict], links: list[dict], max_per_page: int = 25) -> list[tuple[list[dict], list[dict]]]:
+    """Split a large topology into pages, keeping connected devices together."""
+    if len(nodes) <= max_per_page:
+        return [(nodes, links)]
+    node_by_ip = {n["ip"]: n for n in nodes}
+    ipset = set(node_by_ip)
+    adj = {ip: [] for ip in ipset}
+    for l in links:
+        a, b = l.get("source"), l.get("target")
+        if a in ipset and b in ipset and a != b:
+            adj[a].append(b); adj[b].append(a)
+    visited = set(); comps = []
+    for ip in ipset:
+        if ip in visited: continue
+        comp = []; st = [ip]; visited.add(ip)
+        while st:
+            u = st.pop(); comp.append(u)
+            for v in adj[u]:
+                if v not in visited:
+                    visited.add(v); st.append(v)
+        comps.append(comp)
+    comps.sort(key=len, reverse=True)
+    units = []
+    for comp in comps:
+        if len(comp) <= max_per_page:
+            units.append(comp)
+        else:
+            sub = {}
+            for ip in comp:
+                pfx = _subnet24(ip) or "other"
+                sub.setdefault(pfx, []).append(ip)
+            for pfx in sorted(sub, key=lambda p: -len(sub[p])):
+                units.append(sub[pfx])
+    pages = []
+    cur = []
+    for u in units:
+        if cur and len(cur) + len(u) > max_per_page:
+            pages.append(cur); cur = list(u)
+        else:
+            cur.extend(u)
+    if cur: pages.append(cur)
+    result = []
+    for page_ips in pages:
+        pset = set(page_ips)
+        pnodes = [node_by_ip[ip] for ip in page_ips]
+        plinks = [l for l in links if l.get("source") in pset and l.get("target") in pset]
+        result.append((pnodes, plinks))
+    return result
 
 
 def export_diagram(nodes: list[dict], links: list[dict], fmt: str, opts: dict) -> bytes:
-    scene = build_scene(nodes, links, opts)
-    if fmt == "pdf": return render_pdf(scene)
-    if fmt == "png": return render_png(scene)
-    if fmt == "vsdx": return render_vsdx(scene)
-    if fmt == "docx": return render_docx(scene)
+    if opts.get("exclude_endpoints", False):
+        keep = {n["ip"] for n in nodes if _layer_of(n) != "endpoint"}
+        nodes = [n for n in nodes if n["ip"] in keep]
+        links = [l for l in links if l.get("source") in keep and l.get("target") in keep]
+    partitions = _partition(nodes, links)
+    scenes = [build_scene(pn, pl, opts) for pn, pl in partitions]
+    if fmt == "pdf": return render_pdf(scenes)
+    if fmt == "png": return render_png(scenes)
+    if fmt == "vsdx": return render_vsdx(scenes)
+    if fmt == "docx": return render_docx(scenes)
     raise ValueError(f"unsupported format: {fmt}")
