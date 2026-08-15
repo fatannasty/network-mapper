@@ -134,6 +134,23 @@ def _shorten_interface(name: str) -> str:
     return name
 
 
+def _port_label(interfaces) -> str:
+    """Concise port label for a link's interfaces: '25G1/0/23' for one,
+    '25G1/0/23-24' for a consecutive run, '(4x)' for non-consecutive ports."""
+    ifs = [i for i in interfaces if i]
+    if not ifs:
+        return ""
+    if len(ifs) == 1:
+        return _shorten_interface(ifs[0])
+    short = [_shorten_interface(i) for i in ifs]
+    mm = [re.match(r"^(.*?)(\d+)$", s) for s in short]
+    if all(mm) and len({m.group(1) for m in mm}) == 1:
+        nums = sorted(int(m.group(2)) for m in mm)
+        if nums == list(range(nums[0], nums[0] + len(nums))):
+            return f"{mm[0].group(1)}{nums[0]}-{nums[-1]}"
+    return f"({len(ifs)}x)"
+
+
 def _icon_kind(device_type: str, model: str, hostname: str) -> str:
     dt, m, h = device_type.lower(), model.lower(), hostname.lower()
     if "access point" in dt or "accesspoint" in dt or m.startswith("mr") or m.startswith("air-"):
@@ -338,7 +355,9 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         dst_ifs = sorted(set(l["target_interface"] or "" for l in group if l["target"] == b))
         valid.append({"source": a, "target": b,
                       "source_interface": src_ifs[0] if src_ifs else "",
-                      "target_interface": dst_ifs[0] if dst_ifs else ""})
+                      "target_interface": dst_ifs[0] if dst_ifs else "",
+                      "source_interfaces": src_ifs,
+                      "target_interfaces": dst_ifs})
 
     # Layered layout: tiers top-to-bottom. Within each tier, devices are
     # ordered by barycenter (pulled toward their connected neighbors) and
@@ -439,8 +458,8 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         a, b = l["source"], l["target"]
         role = _link_color_key(a, b, layer_of, l["source_interface"], l["target_interface"])
         color = legend_color.get(role, C_LINK) if color_links else C_LINK
-        ia_s = _shorten_interface(l["source_interface"])
-        ib_s = _shorten_interface(l["target_interface"])
+        ia_s = _port_label(l.get("source_interfaces", [l["source_interface"]]))
+        ib_s = _port_label(l.get("target_interfaces", [l["target_interface"]]))
         if pos[a][1] < pos[b][1]:
             sx, sy = attach_x(a, "bottom", li), pos[a][1] + half_h(a)
             tx, ty = attach_x(b, "top", li), pos[b][1] - half_h(b)
