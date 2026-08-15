@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import type { Node, Edge } from '@xyflow/react'
-import type { OnNodesChange, OnEdgesChange, NodeMouseHandler } from '@xyflow/react'
+import type { OnNodesChange, OnEdgesChange, NodeMouseHandler, EdgeMouseHandler } from '@xyflow/react'
 import {
   ReactFlow,
   Background,
@@ -7,8 +8,10 @@ import {
   MiniMap,
 } from '@xyflow/react'
 
+import type { Device } from '../../../api'
 import SimpleNode from '../../../components/SimpleNode'
 import TopologyLegend from './TopologyLegend'
+import TopologyLinkTooltip from './TopologyLinkTooltip'
 import { topologyTokens } from '../../../app/theme/tokens/topology'
 
 const nodeTypes = { device: SimpleNode }
@@ -19,6 +22,7 @@ interface Props {
   onNodesChange: OnNodesChange
   onEdgesChange: OnEdgesChange
   onNodeClick: NodeMouseHandler
+  deviceByIp: Map<string, Device>
   showLegend?: boolean
 }
 
@@ -33,10 +37,16 @@ const nodeColors: Record<string, string> = {
   unknown: '#6b7280',
 }
 
-export default function TopologyCanvas({ nodes, edges, onNodesChange, onEdgesChange, onNodeClick, showLegend = true }: Props) {
+export default function TopologyCanvas({ nodes, edges, onNodesChange, onEdgesChange, onNodeClick, deviceByIp, showLegend = true }: Props) {
+  const [hover, setHover] = useState<{ edge: Edge; x: number; y: number } | null>(null)
+  const onEdgeHover: EdgeMouseHandler = (event, edge) => {
+    setHover({ edge, x: event.clientX, y: event.clientY })
+  }
+  const onEdgeLeave: EdgeMouseHandler = () => setHover(null)
+
   const presentTypes = [...new Set(nodes.map((n) => (n.data?.device_type as string) || 'unknown'))]
   return (
-    <div className="flex-1 relative">
+    <div className="flex-1 relative overflow-hidden">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -44,11 +54,22 @@ export default function TopologyCanvas({ nodes, edges, onNodesChange, onEdgesCha
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         onNodeClick={onNodeClick}
+        onEdgeMouseEnter={onEdgeHover}
+        onEdgeMouseMove={onEdgeHover}
+        onEdgeMouseLeave={onEdgeLeave}
         fitView
         fitViewOptions={{ padding: 0.3 }}
         attributionPosition="bottom-left"
+        connectionRadius={20}
+        elevateEdgesOnSelect
+        style={{
+          background:
+            'radial-gradient(1100px 720px at 12% -5%, rgb(var(--accent) / 0.10), transparent 60%),' +
+            'radial-gradient(900px 640px at 100% 105%, rgb(var(--accent) / 0.07), transparent 55%),' +
+            'rgb(var(--topo-bg))',
+        }}
       >
-        <Background style={{ backgroundColor: 'rgb(var(--topo-bg))' }} color={topologyTokens.dotColor} gap={20} />
+        <Background color={topologyTokens.dotColor} gap={20} />
         <Controls className="!bg-surface-1 !border-border !fill-current !text-muted" />
         <MiniMap
           nodeColor={(n) => {
@@ -59,6 +80,12 @@ export default function TopologyCanvas({ nodes, edges, onNodesChange, onEdgesCha
         />
       </ReactFlow>
       {showLegend && <TopologyLegend presentTypes={presentTypes} />}
+      <TopologyLinkTooltip
+        edge={hover?.edge ?? null}
+        deviceByIp={deviceByIp}
+        x={hover?.x ?? 0}
+        y={hover?.y ?? 0}
+      />
     </div>
   )
 }

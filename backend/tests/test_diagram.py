@@ -21,6 +21,8 @@ LINKS = [
      "source_interface": "GigabitEthernet0/1", "target_interface": "TwentyFiveGigE1/1/1"},
     {"source": "10.41.36.2", "target": "10.41.36.4",
      "source_interface": "TwentyFiveGigE1/0/3", "target_interface": "TenGigabitEthernet1/1/1"},
+    {"source": "10.41.36.2", "target": "10.41.36.4",
+     "source_interface": "TwentyFiveGigE1/0/4", "target_interface": "TenGigabitEthernet1/1/2"},
 ]
 
 
@@ -50,10 +52,12 @@ def test_diagram_vsdx_is_valid_zip_with_visio_parts():
     assert "[Content_Types].xml" in names
     assert "visio/document.xml" in names
     assert "visio/pages/page1.xml" in names
-    assert "visio/media/image1.emf" in names  # Amtrak logo embedded as EMF
+    assert "visio/media/image1.png" in names  # Amtrak logo embedded as PNG
+    assert "visio/media/image2.png" in names  # device icon embedded as PNG
     page = z.read("visio/pages/page1.xml").decode()
     assert "MIFLST1SWC4" in page
-    assert "25G1/0/3" in page  # abbreviated port label
+    assert "25G1/1/1" in page  # abbreviated port label
+    assert "C9300X-24CY" in page  # device model shown under hostname
 
 
 def test_diagram_docx():

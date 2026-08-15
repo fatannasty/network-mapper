@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getReport, exportReport, downloadConfigs, type Report, type ScanHistoryEntry } from '../api'
+import { getReport, exportReport, type Report, type ScanHistoryEntry } from '../api'
 import Badge from './ui/Badge'
 import Button from './ui/Button'
 import Card from './ui/Card'
@@ -8,7 +8,6 @@ import PageHeader from './ui/PageHeader'
 import PageState from './ui/PageState'
 import Select from './ui/Select'
 import Tooltip from './ui/Tooltip'
-import GaugeBar from './ui/GaugeBar'
 import Skeleton from './ui/Skeleton'
 
 function DashboardSkeleton() {
@@ -231,7 +230,7 @@ function KpiCard({ label, value, sub, accent, tooltip, href, sparkData, sparkCol
   label: string
   value: number
   sub: string
-  accent: 'blue' | 'green' | 'red' | 'amber'
+  accent: 'blue' | 'green' | 'red' | 'amber' | 'violet' | 'cyan'
   tooltip: string
   href: string
   sparkData?: number[]
@@ -242,6 +241,8 @@ function KpiCard({ label, value, sub, accent, tooltip, href, sparkData, sparkCol
     green: 'border-l-green-500',
     red: 'border-l-red-500',
     amber: 'border-l-amber-500',
+    violet: 'border-l-violet-500',
+    cyan: 'border-l-cyan-500',
   }
   return (
     <Tooltip content={tooltip} position="bottom">
@@ -301,8 +302,6 @@ function ExportMenu() {
   const items = [
     { label: 'Export Devices', key: 'devices', handler: () => exportReport('devices') },
     { label: 'Export Links', key: 'links', handler: () => exportReport('links') },
-    { label: 'Export Configs (meta)', key: 'configs', handler: () => exportReport('configs') },
-    { label: 'Download Configs', key: 'configs-full', handler: () => downloadConfigs() },
     { label: 'Export Scans', key: 'scans', handler: () => exportReport('scans') },
   ]
 
@@ -409,8 +408,6 @@ export default function OperationsDashboard() {
   const alerts: { severity: 'critical' | 'warning' | 'info'; title: string; message: string; href: string }[] = []
   if (down > 0) alerts.push({ severity: 'critical', title: 'Interfaces down', message: `${down} interface${down === 1 ? '' : 's'} reported down.`, href: '/dashboard' })
   if (scan?.status !== 'completed') alerts.push({ severity: 'critical', title: 'Latest scan failed', message: `Scan "${scan?.subnet || 'unknown'}" did not complete.`, href: '/dashboard' })
-  if (report.stale_devices_90d > 0) alerts.push({ severity: 'warning', title: 'Stale devices', message: `${report.stale_devices_90d} devices not seen in 90 days.`, href: '/quality' })
-  if (!scan?.finished_at || Date.now() - new Date(scan.finished_at).getTime() > 60 * 60 * 1000) alerts.push({ severity: 'info', title: 'Data may be stale', message: 'Latest discovery is more than one hour old.', href: '/ingest' })
 
   return (
     <div className="h-full overflow-auto">
@@ -458,42 +455,15 @@ export default function OperationsDashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label="Devices" value={report.total_devices} sub="known network devices" accent="blue" tooltip="Total known devices in inventory. Click to open Inventory." href="/inventory" sparkData={scanHistoryValues} sparkColor="#3b82f6" />
           <KpiCard label="Connections" value={report.total_links} sub="topology links" accent="green" tooltip="Total topology links. Click to open Topology." href="/topology" />
-          <KpiCard label="Interfaces down" value={down} sub="current persisted status" accent={down > 0 ? 'red' : 'green'} tooltip="Interfaces reporting operational down. Click to open Quality." href="/quality" />
-          <KpiCard label="Stale devices" value={report.stale_devices_90d} sub="not seen in 90 days" accent={report.stale_devices_90d > 0 ? 'amber' : 'green'} tooltip="Devices missing from recent scans. Click to open Quality." href="/quality" />
+          <KpiCard label="Sites" value={Object.keys(report.by_site).length} sub="network locations" accent="violet" tooltip="Distinct sites across the inventory. Click to open Inventory." href="/inventory" />
+          <KpiCard label="Interfaces" value={report.total_interfaces} sub="discovered interfaces" accent="cyan" tooltip="Total interfaces discovered across devices. Click to open Inventory." href="/inventory" />
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-4">
+        <div className="grid lg:grid-cols-2 gap-4">
           <DistributionCard report={report} />
           <Card>
             <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Interfaces by status</h2>
             <DonutChart data={report.interface_status} colorFor={(key) => key === 'up' ? '#34d399' : key === 'down' ? '#f87171' : '#6b7280'} />
-          </Card>
-          <Card>
-            <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">Config coverage</h2>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-text-secondary">Devices with configs</span>
-                  <span className="text-muted tabular-nums">{report.config_coverage.devices_with_config} / {report.total_devices}</span>
-                </div>
-                <div className="h-3 rounded-full bg-surface-3 overflow-hidden">
-                  <div className="h-full rounded-full bg-green-500 transition-all duration-500" style={{ width: `${report.total_devices > 0 ? (report.config_coverage.devices_with_config / report.total_devices) * 100 : 0}%` }} />
-                </div>
-              </div>
-              {Object.entries(report.config_coverage.by_device_type || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([type, count]) => (
-                <div key={type}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-text-secondary capitalize">{type}</span>
-                    <span className="text-muted tabular-nums">{count}</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
-                    <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${Math.min(100, (count / (report.by_device_type[type] || 1)) * 100)}%` }} />
-                  </div>
-                </div>
-              ))}
-              {Object.keys(report.config_coverage.by_device_type || {}).length === 0 && <p className="text-xs text-muted">No configs collected yet.</p>}
-              <Link to="/configs" className="inline-block text-xs text-accent hover:text-accent-hover">Collect configs &rarr;</Link>
-            </div>
           </Card>
         </div>
 
@@ -520,27 +490,6 @@ export default function OperationsDashboard() {
             )}
           </Card>
         </div>
-
-        {report.dod_gates && Object.keys(report.dod_gates).length > 0 && (
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wide">Definition of Done</h2>
-              <span className="text-[11px] text-muted">Sprint 13 targets</span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {Object.entries(report.dod_gates).map(([key, gate]) => (
-                <div key={key} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted capitalize">{key}</span>
-                    <Badge label={gate.met ? 'met' : 'gap'} />
-                  </div>
-                  <div className="text-3xl font-bold text-text-primary tabular-nums">{gate.actual}%</div>
-                  <GaugeBar label="target" actual={gate.actual} target={gate.target} />
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
 
         <Card padding={false}>
           <div className="p-5 pb-3 flex items-center justify-between">

@@ -8,6 +8,7 @@ polling SNMP (when UDP/161 is open) and running the classifier.
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
 import subprocess
 import sys
@@ -46,18 +47,48 @@ def local_ip() -> str:
 
 # ── Probes ───────────────────────────────────────────────────────────────────
 
-def ping_host(ip: str) -> bool:
-    """ICMP ping via system ping; returns True if the host is alive."""
-    cmd = ["ping", "-c", "1", "-W", str(PING_TIMEOUT_MS // 1000)]
+def _ping(ip: str) -> tuple[bool, float | None]:
+    """Ping a host once via system ping; returns (alive, latency_ms).
+
+    Latency is parsed from the "time=NN ms" field in the ping reply so a single
+    ICMP echo serves both the liveness sweep and the latency metric.
+    """
+    cmd = ["ping", "-c", "1", "-W", str(PING_TIMEOUT_MS // 1000), ip]
     if sys.platform == "darwin":
         cmd = ["ping", "-c", "1", "-W", str(PING_TIMEOUT_MS), ip]
-    else:
-        cmd = ["ping", "-c", "1", "-W", str(PING_TIMEOUT_MS // 1000), ip]
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=2)
-        return result.returncode == 0
     except (subprocess.TimeoutExpired, OSError):
-        return False
+        return False, None
+    if result.returncode != 0:
+        return False, None
+    match = re.search(r"time=([\d.]+)\s*ms", result.stdout.decode(errors="ignore"))
+    latency = float(match.group(1)) if match else None
+    return True, latency
+
+
+def ping_host(ip: str) -> bool:
+    """ICMP ping via system ping; returns True if the host is alive."""
+    return _ping(ip)[0]
+
+
+def ping_latency_ms(ip: str) -> float | None:
+    """ICMP round-trip time to a host in milliseconds, or None if unreachable."""
+    return _ping(ip)[1]
+
+
+def measure_latencies(ips: list[str], max_workers: int = 32) -> dict[str, float | None]:
+    """Ping a batch of hosts concurrently and return ip -> latency_ms."""
+    results: dict[str, float | None] = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(ping_latency_ms, ip): ip for ip in ips}
+        for future in as_completed(futures):
+            ip = futures[future]
+            try:
+                results[ip] = future.result()
+            except Exception:
+                results[ip] = None
+    return results
 
 
 def tcp_port_open(ip: str, port: int) -> bool:
@@ -290,11 +321,16 @@ def discover(cidr: str, communities: list[str] | None = None, exclude_pcs: bool 
     report(0, "ping")
 
     alive: list[str] = []
+    latency_map: dict[str, float] = {}
     with ThreadPoolExecutor(max_workers=64) as pool:
-        futures = {pool.submit(ping_host, ip): ip for ip in hosts}
+        futures = {pool.submit(_ping, ip): ip for ip in hosts}
         for future in as_completed(futures):
-            if future.result():
-                alive.append(futures[future])
+            ok, lat = future.result()
+            if ok:
+                ip = futures[future]
+                alive.append(ip)
+                if lat is not None:
+                    latency_map[ip] = lat
 
     alive.sort(key=lambda ip: int(ipaddress.ip_address(ip)))
     report(50, "identify")
@@ -316,6 +352,9 @@ def discover(cidr: str, communities: list[str] | None = None, exclude_pcs: bool 
 
     if exclude_pcs:
         devices = [d for d in devices if d["device_type"] in NETWORK_DEVICE_TYPES]
+
+    for device in devices:
+        device["latency_ms"] = latency_map.get(device["ip"])
 
     neighbors = collect_topology(devices, communities, snmpv3=snmpv3,
                                  snmp_port=snmp_port, progress_cb=report)

@@ -4,7 +4,6 @@ import AppShell from './app/layouts/AppShell'
 import LoginForm from './components/LoginForm'
 import Ingest from './components/Ingest'
 import TopologyViewer from './components/TopologyViewer'
-import Configs from './components/Configs'
 import DeviceInventory from './components/DeviceInventory'
 import DataQuality from './components/DataQuality'
 import OperationsDashboard from './components/OperationsDashboard'
@@ -34,7 +33,6 @@ export default function App() {
           <Route path="/dashboard" element={<OperationsDashboard />} />
           <Route path="/topology" element={<TopologyViewer />} />
           <Route path="/ingest" element={<Ingest />} />
-          <Route path="/configs" element={<Configs />} />
           <Route path="/inventory" element={<DeviceInventory />} />
           <Route path="/quality" element={<DataQuality />} />
           <Route path="/admin" element={<AdminPage />} />
@@ -43,7 +41,6 @@ export default function App() {
           <Route path="/catalyst" element={<Navigate to="/ingest?tab=catalyst" replace />} />
           <Route path="/meraki" element={<Navigate to="/ingest?tab=meraki" replace />} />
           <Route path="/velocloud" element={<Navigate to="/ingest?tab=velocloud" replace />} />
-          <Route path="/changes" element={<Navigate to="/configs?tab=changes" replace />} />
           <Route path="/reports" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

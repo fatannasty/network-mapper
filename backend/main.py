@@ -439,6 +439,29 @@ def api_discover(req: DiscoverRequest, db: Session = Depends(get_db)):
 
 # ── Inventory ─────────────────────────────────────────────────────────────────
 
+@app.post("/api/inventory/measure-latency", dependencies=[Depends(operator)])
+def inventory_measure_latency(site: Optional[str] = Query(None),
+                              db: Session = Depends(get_db)):
+    """Ping every device and store the ICMP round-trip time (latency_ms)."""
+    import datetime
+
+    devices = repositories.list_devices(db, site=site, limit=5000)
+    if not devices:
+        return {"measured": 0, "updated": 0}
+
+    latencies = scanner.measure_latencies([d.ip for d in devices])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    updated = 0
+    for device in devices:
+        latency = latencies.get(device.ip)
+        if latency is not None:
+            device.latency_ms = latency
+            device.latency_checked_at = now
+            updated += 1
+    db.commit()
+    return {"measured": len(devices), "updated": updated}
+
+
 @app.get("/api/inventory/devices", dependencies=[Depends(authenticated)])
 def inventory_devices(device_type: Optional[str] = Query(None),
                       vendor: Optional[str] = Query(None),
@@ -812,6 +835,7 @@ class DiagramExportRequest(BaseModel):
     rev_time: str = ""
     color_links: bool = True
     legend: list[DiagramLegendEntry] = []
+    exclude_endpoints: bool = False
 
 
 @app.post("/api/topology/diagram", dependencies=[Depends(authenticated)])
@@ -842,6 +866,7 @@ def api_topology_diagram(req: DiagramExportRequest):
         "rev_time": req.rev_time or now.strftime("%I:%M %p"),
         "color_links": req.color_links,
         "legend": [e.model_dump() for e in req.legend] or diagram_export.DEFAULT_LEGEND,
+        "exclude_endpoints": req.exclude_endpoints,
     }
     data = diagram_export.export_diagram(req.nodes, req.links, fmt, opts)
 

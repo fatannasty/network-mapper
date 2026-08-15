@@ -10,6 +10,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useTopology } from './hooks/useTopology'
 import { treeLayout, freeLayout, circleLayout, radialLayout } from './services/layout'
 import { normalizeType, pluralLabel } from './services/friendly'
+import { measureLatency } from '../../api'
 import TopologyToolbar from './components/TopologyToolbar'
 import TopologyCanvas from './components/TopologyCanvas'
 import TopologyGroupDetail from './components/TopologyGroupDetail'
@@ -21,6 +22,15 @@ import Button from '../../components/ui/Button'
 
 type IdNode = { id: string }
 type IdLink = { source: string; target: string }
+
+function StatChip({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex flex-col items-center min-w-[88px] px-4 py-2.5 rounded-2xl border border-border/50 bg-surface-2/70 backdrop-blur-xl shadow-lg shadow-accent/5">
+      <span className="text-2xl font-bold text-text-primary tabular-nums leading-none bg-gradient-to-b from-text-primary to-accent bg-clip-text text-transparent">{value.toLocaleString()}</span>
+      <span className="text-[10px] text-muted uppercase tracking-widest mt-1.5">{label}</span>
+    </div>
+  )
+}
 
 export default function TopologyView() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -56,6 +66,7 @@ export default function TopologyView() {
   const [simplified, setSimplified] = useState(true)
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const [measuringLatency, setMeasuringLatency] = useState(false)
 
   // A focused device view should always show individual devices so the
   // connections around the selected device are visible.
@@ -88,6 +99,18 @@ export default function TopologyView() {
     setSelectedDevice(null)
     setSimplified(false)
     setSearchParams({ ...(scanId ? { scan_id: scanId } : {}), device: ip }, { replace: true })
+  }
+
+  const handleMeasureLatency = async () => {
+    setMeasuringLatency(true)
+    try {
+      await measureLatency(siteFilter)
+      await fetchData()
+    } catch {
+      // measurement failures are non-fatal; the tooltip simply shows "—"
+    } finally {
+      setMeasuringLatency(false)
+    }
   }
 
   const focusedDevice = useMemo(() => {
@@ -160,6 +183,7 @@ export default function TopologyView() {
         source: e.source,
         target: e.target,
         label: `${e.count}`,
+        data: { cluster: { src: pluralLabel(e.source.replace('group:', '')), tgt: pluralLabel(e.target.replace('group:', '')), count: e.count } },
         labelStyle: { fill: '#9ca3af', fontSize: 11, fontWeight: 600 },
         labelBgStyle: { fill: '#1f2937', fillOpacity: 0.85 },
         labelBgPadding: [6, 3] as [number, number],
@@ -209,13 +233,14 @@ export default function TopologyView() {
         source: l.source,
         target: l.target,
         label: protocolLabel,
-        labelStyle: { fill: isPath ? '#22c55e' : '#9ca3af', fontSize: 10, fontWeight: 500 },
-        labelBgStyle: { fill: isPath ? '#064e3b' : '#1f2937', fillOpacity: 0.85 },
+        data: { link: l },
+        labelStyle: { fill: isPath ? '#22c55e' : '#94a3b8', fontSize: 10, fontWeight: 600 },
+        labelBgStyle: { fill: isPath ? '#064e3b' : '#0f172a', fillOpacity: 0.9 },
         labelBgPadding: [6, 3] as [number, number],
-        labelBgBorderRadius: 4,
+        labelBgBorderRadius: 6,
         style: {
-          stroke: isPath ? '#22c55e' : l.protocol === 'cdp' ? '#f59e0b' : '#3b82f6',
-          strokeWidth: isPath ? 3 : 2,
+          stroke: isPath ? '#22c55e' : l.protocol === 'cdp' ? '#f59e0b' : l.protocol === 'catalyst' ? '#38bdf8' : '#60a5fa',
+          strokeWidth: isPath ? 3.5 : 2.25,
         },
         animated: true,
         type: 'smoothstep',
@@ -267,6 +292,28 @@ export default function TopologyView() {
 
   return (
     <div className="h-full flex flex-col">
+      {/* Hero header */}
+      <div className="relative px-6 pt-6 pb-5 bg-gradient-to-b from-accent/15 via-accent/5 to-transparent border-b border-border/30 shrink-0 overflow-hidden">
+        <div className="absolute -top-24 -left-16 w-72 h-72 rounded-full bg-accent/20 blur-3xl pointer-events-none" />
+        <div className="absolute -top-16 right-10 w-56 h-56 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
+        <div className="relative flex items-end justify-between gap-6 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold text-text-primary tracking-tight">
+              Network Topology
+              {siteFilter && <span className="ml-2 text-xl font-semibold text-accent">\u00b7 {siteFilter}</span>}
+            </h1>
+            <p className="text-sm text-muted mt-1.5 max-w-xl">
+              An interactive map of your network — see how every device is connected, from edge to core.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <StatChip label="Devices" value={topology?.nodes.length ?? 0} />
+            <StatChip label="Links" value={topology?.links.length ?? 0} />
+            <StatChip label="Sites" value={sites.length} />
+          </div>
+        </div>
+      </div>
+
       <TopologyToolbar
         topology={topology}
         scans={scans}
@@ -295,6 +342,8 @@ export default function TopologyView() {
           setPathResult(null)
         }}
         onExportDiagram={() => setExportOpen(true)}
+        onMeasureLatency={handleMeasureLatency}
+        measuringLatency={measuringLatency}
       />
 
       {focusIp && (
@@ -351,7 +400,7 @@ export default function TopologyView() {
               edges={edges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
-          onNodeClick={(_e, node) => {
+              onNodeClick={(_e, node) => {
                 if (showSimple && node.data?.group) {
                   setSelectedDevice(null)
                   setExpandedGroup(node.data.device_type as string)
@@ -360,6 +409,7 @@ export default function TopologyView() {
                 if (showSimple) return
                 setSelectedDevice(node.id)
               }}
+              deviceByIp={deviceByIp}
             />
 
             {selectedDeviceData && (

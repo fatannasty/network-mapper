@@ -73,6 +73,13 @@ def _run_migrations() -> None:
         if "collected_by" not in cols:
             conn.execute(text("ALTER TABLE device_configs ADD COLUMN collected_by VARCHAR(128)"))
 
+        # Latency: ICMP round-trip time to each device (ping RTT in ms).
+        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(devices)"))}
+        if "latency_ms" not in cols:
+            conn.execute(text("ALTER TABLE devices ADD COLUMN latency_ms FLOAT DEFAULT 0.0"))
+        if "latency_checked_at" not in cols:
+            conn.execute(text("ALTER TABLE devices ADD COLUMN latency_checked_at DATETIME"))
+
         # Sprint 13: relabel legacy Catalyst topology links from 'unknown' to 'catalyst'.
         cols = {row[1] for row in conn.execute(text("PRAGMA table_info(links)"))}
         if "protocol" in cols:

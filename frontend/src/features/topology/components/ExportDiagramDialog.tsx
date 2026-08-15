@@ -38,6 +38,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
   const [documentName, setDocumentName] = useState('')
   const [revision, setRevision] = useState('')
   const [colorLinks, setColorLinks] = useState(true)
+  const [excludeEndpoints, setExcludeEndpoints] = useState(true)
   const [legend, setLegend] = useState<DiagramLegendEntry[]>(DEFAULT_LEGEND)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -59,6 +60,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
         document_name: documentName.trim(),
         revision: revision.trim(),
         color_links: colorLinks,
+        exclude_endpoints: excludeEndpoints,
         legend: legend.filter((e) => e.label.trim()),
       })
       onClose()
@@ -119,6 +121,17 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
                 className="accent-blue-500"
               />
               Color-code links by role
+            </label>
+          </div>
+          <div className="flex items-end pb-1">
+            <label className="flex items-center gap-2 text-xs text-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={excludeEndpoints}
+                onChange={(e) => setExcludeEndpoints(e.target.checked)}
+                className="accent-blue-500"
+              />
+              Exclude access points &amp; end-user devices
             </label>
           </div>
         </div>

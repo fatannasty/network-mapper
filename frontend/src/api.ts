@@ -66,6 +66,8 @@ export interface Device {
   first_seen?: string
   last_seen?: string
   catalyst_id?: string
+  latency_ms?: number
+  latency_checked_at?: string
 }
 
 export interface Interface {
@@ -235,6 +237,13 @@ export async function getTopology(scanId?: string, focus?: string, site?: string
 export async function getDevices(params?: Record<string, string>) {
   const r = await api.get('/api/inventory/devices', { params })
   return r.data
+}
+
+export async function measureLatency(site?: string) {
+  const r = await api.post('/api/inventory/measure-latency', null, {
+    params: site ? { site } : undefined,
+  })
+  return r.data as { measured: number; updated: number }
 }
 
 export async function getDevice(id: number) {
@@ -587,6 +596,7 @@ export interface DiagramExportOptions {
   rev_time?: string
   color_links?: boolean
   legend?: DiagramLegendEntry[]
+  exclude_endpoints?: boolean
 }
 
 export async function exportTopologyDiagram(opts: DiagramExportOptions) {

@@ -1,8 +1,11 @@
 """Sprint 2: inventory persistence (Devices, ScanJobs) via the API + repositories."""
 
+import pytest
+
 from conftest import make_client
 
 import repositories
+import scanner
 from database import SessionLocal
 
 client = make_client("admin")
@@ -191,6 +194,31 @@ def test_device_to_dict_includes_interfaces():
         data = device.to_dict()
         assert len(data["interfaces"]) == 2
         assert data["interfaces"][0]["ifDescr"] == "eth0"
+
+
+# ── Latency persistence (RTT) ────────────────────────────────────────────────
+
+def test_upsert_device_persists_latency():
+    with SessionLocal() as db:
+        device = repositories.upsert_device(db, {
+            "ip": "10.0.0.9", "hostname": "sw9", "device_type": "switch",
+            "latency_ms": 3.21,
+        }, scan_id="scan-lat")
+        assert device.latency_ms == pytest.approx(3.21)
+        assert device.latency_checked_at is not None
+        assert device.to_dict()["latency_ms"] == pytest.approx(3.21)
+
+
+def test_measure_latency_endpoint(monkeypatch):
+    _run_discovery()
+    monkeypatch.setattr(scanner, "measure_latencies", lambda ips: {ip: 4.5 for ip in ips})
+    resp = client.post("/api/inventory/measure-latency")
+    assert resp.status_code == 200
+    assert resp.json()["updated"] >= 1
+    devices = client.get("/api/inventory/devices").json()["devices"]
+    dev = next(d for d in devices if d["ip"] == "127.0.0.1")
+    assert dev["latency_ms"] == pytest.approx(4.5)
+    assert dev["latency_checked_at"]
 
 
 # ── Link persistence (Sprint 5) ───────────────────────────────────────────────

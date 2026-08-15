@@ -44,6 +44,9 @@ def upsert_device(db: Session, data: dict, scan_id: str) -> Device:
     device.catalyst_id = data.get("catalyst_id") or data.get("_id") or device.catalyst_id
     device.last_scan_id = scan_id
     device.last_seen = now
+    if data.get("latency_ms") is not None:
+        device.latency_ms = data["latency_ms"]
+        device.latency_checked_at = now
     db.commit()
     db.refresh(device)
 

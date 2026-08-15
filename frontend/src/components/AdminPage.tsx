@@ -264,7 +264,6 @@ export default function AdminPage() {
               {[
                 { label: 'Run Discovery', href: '/ingest', icon: '🔍' },
                 { label: 'Import Catalyst', href: '/ingest?tab=catalyst', icon: '📡' },
-                { label: 'Collect Configs', href: '/configs', icon: '⚙️' },
                 { label: 'View Inventory', href: '/inventory', icon: '📋' },
                 { label: 'View Topology', href: '/topology', icon: '🔗' },
                 { label: 'Data Quality', href: '/quality', icon: '✅' },

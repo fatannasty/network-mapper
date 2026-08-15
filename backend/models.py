@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -67,6 +68,8 @@ class Device(Base):
     last_scan_id = Column(String(32), ForeignKey("scan_jobs.id"), nullable=True)
     first_seen = Column(DateTime, default=_utcnow)
     last_seen = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    latency_ms = Column(Float, default=0.0)
+    latency_checked_at = Column(DateTime, nullable=True)
 
     interfaces = relationship(
         "Interface",
@@ -93,6 +96,8 @@ class Device(Base):
             "interfaces": [i.to_dict() for i in self.interfaces],
             "first_seen": self.first_seen.isoformat() if self.first_seen else None,
             "last_seen": self.last_seen.isoformat() if self.last_seen else None,
+            "latency_ms": self.latency_ms or 0.0,
+            "latency_checked_at": self.latency_checked_at.isoformat() if self.latency_checked_at else None,
         }
 
 
