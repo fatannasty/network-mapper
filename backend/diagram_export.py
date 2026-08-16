@@ -919,8 +919,12 @@ def render_docx(scenes: list[Scene]) -> bytes:
     buf = io.BytesIO(); doc.save(buf); return buf.getvalue()
 
 
-def _partition(nodes: list[dict], links: list[dict], max_per_page: int = 25) -> list[tuple[list[dict], list[dict]]]:
-    """Split a large topology into pages, keeping connected devices together."""
+def _partition(nodes: list[dict], links: list[dict], max_per_page: int = 20) -> list[tuple[list[dict], list[dict]]]:
+    """Split a large topology into pages, keeping connected devices together.
+
+    Mirrors the reference: about ~18 devices per sheet. Large connected
+    components are split by /24 subnet so each sheet is a coherent zone.
+    """
     if len(nodes) <= max_per_page:
         return [(nodes, links)]
     node_by_ip = {n["ip"]: n for n in nodes}
