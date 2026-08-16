@@ -188,6 +188,26 @@ def list_scan_jobs(db: Session, limit: int = 20) -> list[ScanJob]:
     return db.query(ScanJob).order_by(ScanJob.started_at.desc()).limit(limit).all()
 
 
+def get_diagram_prefs(db: Session, scan_id: str) -> dict:
+    job = db.query(ScanJob).filter(ScanJob.id == scan_id).first()
+    if not job:
+        return {"topology": "auto", "link_detail": "full"}
+    return {
+        "topology": job.diagram_topology or "auto",
+        "link_detail": job.diagram_link_detail or "full",
+    }
+
+
+def set_diagram_prefs(db: Session, scan_id: str, topology: str, link_detail: str) -> bool:
+    job = db.query(ScanJob).filter(ScanJob.id == scan_id).first()
+    if not job:
+        return False
+    job.diagram_topology = topology
+    job.diagram_link_detail = link_detail
+    db.commit()
+    return True
+
+
 def count_links(db: Session) -> int:
     return db.query(func.count(Link.id)).scalar() or 0
 

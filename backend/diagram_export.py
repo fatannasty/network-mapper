@@ -509,6 +509,17 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
                       "source_interfaces": src_ifs,
                       "target_interfaces": dst_ifs})
 
+    # Link detail: filter noisy links for dense sites.
+    #   full     — draw every link.
+    #   backbone — drop same-tier (redundancy) links between switches.
+    #   core     — only the spine: links touching the router/core tiers.
+    link_detail = (opts.get("link_detail") or "full").lower()
+    if link_detail == "backbone":
+        valid = [l for l in valid if layer_of[l["source"]] != layer_of[l["target"]]]
+    elif link_detail == "core":
+        spine = ("internet", "velocloud", "router", "core")
+        valid = [l for l in valid if layer_of[l["source"]] in spine or layer_of[l["target"]] in spine]
+
     # Select a layout topology (auto-detected unless explicitly chosen).
     topology = (opts.get("topology") or "auto").lower()
     if topology == "auto":

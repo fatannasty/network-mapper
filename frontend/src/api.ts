@@ -598,6 +598,7 @@ export interface DiagramExportOptions {
   legend?: DiagramLegendEntry[]
   exclude_endpoints?: boolean
   topology?: 'auto' | 'tree' | 'star' | 'ring' | 'bus'
+  link_detail?: 'full' | 'backbone' | 'core'
 }
 
 export async function exportTopologyDiagram(opts: DiagramExportOptions) {
@@ -609,4 +610,18 @@ export async function exportTopologyDiagram(opts: DiagramExportOptions) {
   a.download = `${slug}.${opts.format}`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+export interface DiagramPrefs {
+  topology: 'auto' | 'tree' | 'star' | 'ring' | 'bus'
+  link_detail: 'full' | 'backbone' | 'core'
+}
+
+export async function getDiagramPrefs(scanId: string): Promise<DiagramPrefs> {
+  const r = await api.get('/api/topology/diagram-prefs', { params: { scan_id: scanId } })
+  return r.data
+}
+
+export async function saveDiagramPrefs(scanId: string, prefs: DiagramPrefs) {
+  await api.post('/api/topology/diagram-prefs', { scan_id: scanId, ...prefs })
 }

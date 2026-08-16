@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Modal from '../../../components/ui/Modal'
 import Button from '../../../components/ui/Button'
 import Input from '../../../components/ui/Input'
 import {
   exportTopologyDiagram,
+  getDiagramPrefs,
+  saveDiagramPrefs,
   apiErrorMessage,
   type TopologyData,
   type DiagramFormat,
@@ -26,6 +28,12 @@ const TOPOLOGIES: { id: 'auto' | 'tree' | 'star' | 'ring' | 'bus'; label: string
   { id: 'bus', label: 'Bus', hint: 'Single backbone row' },
 ]
 
+const LINK_DETAILS: { id: 'full' | 'backbone' | 'core'; label: string; hint: string }[] = [
+  { id: 'full', label: 'Full', hint: 'Every link' },
+  { id: 'backbone', label: 'Backbone', hint: 'Hide redundancy' },
+  { id: 'core', label: 'Core only', hint: 'Spine only' },
+]
+
 const FORMATS: { id: DiagramFormat; label: string; hint: string }[] = [
   { id: 'vsdx', label: 'Visio (.vsdx)', hint: 'Editable devices & connectors' },
   { id: 'pdf', label: 'PDF (.pdf)', hint: 'Static drawing sheet' },
@@ -37,9 +45,10 @@ interface Props {
   onClose: () => void
   topology: TopologyData
   defaultTitle: string
+  scanId?: string
 }
 
-export default function ExportDiagramDialog({ open, onClose, topology, defaultTitle }: Props) {
+export default function ExportDiagramDialog({ open, onClose, topology, defaultTitle, scanId }: Props) {
   const [format, setFormat] = useState<DiagramFormat>('vsdx')
   const [title, setTitle] = useState(defaultTitle)
   const [drawnBy, setDrawnBy] = useState('')
@@ -48,9 +57,20 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
   const [colorLinks, setColorLinks] = useState(true)
   const [excludeEndpoints, setExcludeEndpoints] = useState(true)
   const [topoMode, setTopoMode] = useState<'auto' | 'tree' | 'star' | 'ring' | 'bus'>('auto')
+  const [linkDetail, setLinkDetail] = useState<'full' | 'backbone' | 'core'>('full')
   const [legend, setLegend] = useState<DiagramLegendEntry[]>(DEFAULT_LEGEND)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!open || !scanId) return
+    getDiagramPrefs(scanId)
+      .then((p) => {
+        setTopoMode(p.topology ?? 'auto')
+        setLinkDetail(p.link_detail ?? 'full')
+      })
+      .catch(() => {})
+  }, [open, scanId])
 
   const updateLegend = (i: number, patch: Partial<DiagramLegendEntry>) => {
     setLegend((prev) => prev.map((e, j) => (j === i ? { ...e, ...patch } : e)))
@@ -60,6 +80,9 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
     setBusy(true)
     setError('')
     try {
+      if (scanId) {
+        await saveDiagramPrefs(scanId, { topology: topoMode, link_detail: linkDetail })
+      }
       await exportTopologyDiagram({
         format,
         nodes: topology.nodes,
@@ -71,6 +94,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
         color_links: colorLinks,
         exclude_endpoints: excludeEndpoints,
         topology: topoMode,
+        link_detail: linkDetail,
         legend: legend.filter((e) => e.label.trim()),
       })
       onClose()
@@ -121,6 +145,27 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
               >
                 <div className="text-xs font-semibold">{t.label}</div>
                 <div className="text-[9px] text-muted mt-0.5">{t.hint}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-muted mb-1.5">Link detail</label>
+          <div className="grid grid-cols-3 gap-2">
+            {LINK_DETAILS.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setLinkDetail(d.id)}
+                className={`px-2 py-1.5 rounded-lg border text-center transition-all ${
+                  linkDetail === d.id
+                    ? 'border-accent bg-accent-subtle/50 text-text-primary'
+                    : 'border-border/40 bg-surface-2/50 text-muted hover:text-text-primary'
+                }`}
+              >
+                <div className="text-xs font-semibold">{d.label}</div>
+                <div className="text-[9px] text-muted mt-0.5">{d.hint}</div>
               </button>
             ))}
           </div>

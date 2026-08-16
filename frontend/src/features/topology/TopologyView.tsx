@@ -441,6 +441,7 @@ export default function TopologyView() {
           onClose={() => setExportOpen(false)}
           topology={topology}
           defaultTitle={siteFilter ? `AMTRAK ${siteFilter.toUpperCase()}` : 'AMTRAK NETWORK DIAGRAM'}
+          scanId={scanId}
         />
       )}
     </div>

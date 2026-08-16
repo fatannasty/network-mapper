@@ -837,6 +837,7 @@ class DiagramExportRequest(BaseModel):
     legend: list[DiagramLegendEntry] = []
     exclude_endpoints: bool = False
     topology: str = "auto"                    # auto | tree | star | ring | bus
+    link_detail: str = "full"                 # full | backbone | core
 
 
 @app.post("/api/topology/diagram", dependencies=[Depends(authenticated)])
@@ -869,6 +870,7 @@ def api_topology_diagram(req: DiagramExportRequest):
         "legend": [e.model_dump() for e in req.legend] or diagram_export.DEFAULT_LEGEND,
         "exclude_endpoints": req.exclude_endpoints,
         "topology": req.topology,
+        "link_detail": req.link_detail,
     }
     data = diagram_export.export_diagram(req.nodes, req.links, fmt, opts)
 
@@ -884,6 +886,26 @@ def api_topology_diagram(req: DiagramExportRequest):
         media_type=media_types[fmt],
         headers={"Content-Disposition": f'attachment; filename="{slug}.{fmt}"'},
     )
+
+
+class DiagramPrefsRequest(BaseModel):
+    scan_id: str
+    topology: str = "auto"
+    link_detail: str = "full"
+
+
+@app.get("/api/topology/diagram-prefs", dependencies=[Depends(authenticated)])
+def api_diagram_prefs_get(scan_id: str = Query(...), db: Session = Depends(get_db)):
+    """Remembered diagram layout preferences for a scan/site."""
+    return repositories.get_diagram_prefs(db, scan_id)
+
+
+@app.post("/api/topology/diagram-prefs", dependencies=[Depends(authenticated)])
+def api_diagram_prefs_set(req: DiagramPrefsRequest, db: Session = Depends(get_db)):
+    """Persist the diagram layout preferences for a scan/site."""
+    if not repositories.set_diagram_prefs(db, req.scan_id, req.topology, req.link_detail):
+        raise HTTPException(status_code=404, detail="scan not found")
+    return {"ok": True}
 
 
 @app.get("/api/topology/path", dependencies=[Depends(authenticated)])

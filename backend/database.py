@@ -87,6 +87,13 @@ def _run_migrations() -> None:
                 "UPDATE links SET protocol='catalyst' WHERE protocol IN ('unknown', '')"
             ))
 
+        # Diagram preferences: remembered topology + link detail per scan.
+        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(scan_jobs)"))}
+        if "diagram_topology" not in cols:
+            conn.execute(text("ALTER TABLE scan_jobs ADD COLUMN diagram_topology VARCHAR(16) DEFAULT 'auto'"))
+        if "diagram_link_detail" not in cols:
+            conn.execute(text("ALTER TABLE scan_jobs ADD COLUMN diagram_link_detail VARCHAR(16) DEFAULT 'full'"))
+
 
 def get_db():
     """FastAPI dependency yielding a scoped session."""

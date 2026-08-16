@@ -155,6 +155,8 @@ class ScanJob(Base):
     error = Column(Text, nullable=True)
     started_at = Column(DateTime, default=_utcnow)
     finished_at = Column(DateTime, nullable=True)
+    diagram_topology = Column(String(16), default="auto")
+    diagram_link_detail = Column(String(16), default="full")
 
     devices = relationship("Device", backref="scan")
 
