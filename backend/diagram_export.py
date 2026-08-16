@@ -345,6 +345,8 @@ def _layout_tree(layers, order, valid, _max_dev_w):
             y += ROW_H
 
     _assign()
+    # Barycenter: pull each device toward the average X of its neighbors so
+    # connected devices line up and cables stay short.
     for _ in range(15):
         for r in order:
             def _key(n):
@@ -520,6 +522,10 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     else:
         pos, width, height, legend_y, content_top = _layout_tree(layers, order, valid, _max_dev_w)
 
+    show_tb = opts.get("title_block", True)
+    if not show_tb:
+        height = legend_y + MARGIN
+
     scene = Scene(width, height)
     scene.rect(MARGIN / 2, MARGIN / 2, width - MARGIN, height - MARGIN, stroke=C_FRAME, sw=1.5)
     if os.path.exists(ASSET_LOGO): scene.image(MARGIN + 6, MARGIN / 2 + 8, 170.0, 170.0 * 394 / 700, ASSET_LOGO)
@@ -602,7 +608,8 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
                              "src_align": "center", "dst_align": "center",
                              "ax": pos[a][0], "ay": pos[a][1], "bx": pos[b][0], "by": pos[b][1]})
 
-    # Draw devices: icon + hostname + model + IP (below the icon)
+    # Draw devices: icon + hostname + model + IP (labels above the icon so
+    # cables can attach to the bottom edge without crossing the text)
     for r in order:
         for n in layers[r]:
             cx, cy = pos[n["ip"]]
@@ -612,10 +619,10 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
             tag = ("dev", ip)
             iw, ih, icon_kind, icon_path = device_shape.get(ip, _DFLT)[:4]
             iw *= 2; ih *= 2
-            labels = []; ly = cy + ih / 2 + 8
-            scene.text(cx, ly, hn, size=9, bold=True, tag=tag); labels.append((hn, 9, True, C_TEXT)); ly += 13
+            labels = []; ly = cy - ih / 2 - 8
+            scene.text(cx, ly, hn, size=9, bold=True, tag=tag); labels.append((hn, 9, True, C_TEXT)); ly -= 13
             if ip:
-                scene.text(cx, ly, ip, size=7.5, tag=tag); labels.append((ip, 7.5, False, C_TEXT)); ly += 11
+                scene.text(cx, ly, ip, size=7.5, tag=tag); labels.append((ip, 7.5, False, C_TEXT)); ly -= 11
             if model:
                 scene.text(cx, ly, model, size=7.5, tag=tag); labels.append((model, 7.5, False, C_TEXT))
             if icon_path:
@@ -624,28 +631,29 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
                 scene.rect(cx - GLYPH_W / 2, cy - GLYPH_H / 2, GLYPH_W, GLYPH_H, fill=C_GLYPH, stroke=C_GLYPH_EDGE, sw=1.0, tag=tag)
             scene.devices.append({"ip": ip, "cx": cx, "cy": cy, "kind": icon_kind, "labels": labels, "icon_path": icon_path, "icon_w": iw, "icon_h": ih})
 
-    # Title block + legend
-    bx = MARGIN + 24; bw = (width - MARGIN / 2) - bx; by = legend_y
-    scene.rect(bx, by, bw, LEGEND_H, stroke=C_FRAME, sw=1.2); c1, c2 = bx + 210, bx + 510
-    scene.line([(c1, by), (c1, by + LEGEND_H)], color=C_FRAME, width=1.0); scene.line([(c2, by), (c2, by + LEGEND_H)], color=C_FRAME, width=1.0)
-    scene.text((bx + c1) / 2, by + 8, "LEGEND", size=9, bold=True, align="center")
-    ey = by + 28
-    for e in legend:
-        scene.rect(bx + 10, ey + 3, 48, 5, fill=e.get("color") or C_LINK, stroke=None, sw=0)
-        scene.text(66 + bx, ey, e.get("label") or "", size=8.5, align="left"); ey += 16
-    mid_x = c1 + (c2 - c1) / 2
-    if os.path.exists(ASSET_LOGO): scene.image(mid_x - 32, by + 10, 64, 36, ASSET_LOGO)
-    text_y = by + 56
-    for i, ln in enumerate(PROPRIETARY.split("\n")): scene.text(mid_x, text_y + i * 13, ln, size=9, bold=True, italic=True, align="center")
-    rows = [[("Drawn By: ", opts.get("drawn_by") or ""), ("Drawn Date: ", opts.get("drawn_date") or "08142026")], [("Drawing Title: ", opts.get("drawing_title") or title)], [("Document Name: ", opts.get("document_name") or "")], [("Revision: ", opts.get("revision") or ""), ("Rev. Date: ", "14 Aug 26"), ("Rev. Time: ", "07:45 PM")]]
-    rh = LEGEND_H / 4
-    for i, row in enumerate(rows):
-        ry = by + i * rh
-        if i: scene.line([(c2, ry), (bx + bw, ry)], color=C_FRAME, width=1.0)
-        cw = (bx + bw - c2) / len(row)
-        for j, (label, val) in enumerate(row):
-            if j: scene.line([(c2 + j * cw, ry), (c2 + j * cw, ry + rh)], color=C_FRAME, width=1.0)
-            scene.text(c2 + j * cw + cw / 2, ry + rh / 2 - 4, label + val, size=9, align="center")
+    # Title block + legend (only on the final sheet of a multi-page drawing)
+    if show_tb:
+        bx = MARGIN + 24; bw = (width - MARGIN / 2) - bx; by = legend_y
+        scene.rect(bx, by, bw, LEGEND_H, stroke=C_FRAME, sw=1.2); c1, c2 = bx + 210, bx + 510
+        scene.line([(c1, by), (c1, by + LEGEND_H)], color=C_FRAME, width=1.0); scene.line([(c2, by), (c2, by + LEGEND_H)], color=C_FRAME, width=1.0)
+        scene.text((bx + c1) / 2, by + 8, "LEGEND", size=9, bold=True, align="center")
+        ey = by + 28
+        for e in legend:
+            scene.rect(bx + 10, ey + 3, 48, 5, fill=e.get("color") or C_LINK, stroke=None, sw=0)
+            scene.text(66 + bx, ey, e.get("label") or "", size=8.5, align="left"); ey += 16
+        mid_x = c1 + (c2 - c1) / 2
+        if os.path.exists(ASSET_LOGO): scene.image(mid_x - 32, by + 10, 64, 36, ASSET_LOGO)
+        text_y = by + 56
+        for i, ln in enumerate(PROPRIETARY.split("\n")): scene.text(mid_x, text_y + i * 13, ln, size=9, bold=True, italic=True, align="center")
+        rows = [[("Drawn By: ", opts.get("drawn_by") or ""), ("Drawn Date: ", opts.get("drawn_date") or "08142026")], [("Drawing Title: ", opts.get("drawing_title") or title)], [("Document Name: ", opts.get("document_name") or "")], [("Revision: ", opts.get("revision") or ""), ("Rev. Date: ", "14 Aug 26"), ("Rev. Time: ", "07:45 PM")]]
+        rh = LEGEND_H / 4
+        for i, row in enumerate(rows):
+            ry = by + i * rh
+            if i: scene.line([(c2, ry), (bx + bw, ry)], color=C_FRAME, width=1.0)
+            cw = (bx + bw - c2) / len(row)
+            for j, (label, val) in enumerate(row):
+                if j: scene.line([(c2 + j * cw, ry), (c2 + j * cw, ry + rh)], color=C_FRAME, width=1.0)
+                scene.text(c2 + j * cw + cw / 2, ry + rh / 2 - 4, label + val, size=9, align="center")
     return scene
 
 
@@ -830,7 +838,7 @@ def _scene_shapes(scene: Scene, media_n: list[int]) -> tuple[str, list[str], lis
         else:
             children.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{iw/144:.4f}"/><Cell N="PinY" V="{ih/144:.4f}"/><Cell N="Width" V="{iw/72:.4f}"/><Cell N="Height" V="{ih/72:.4f}"/><Cell N="FillForegnd" V="{C_GLYPH}"/><Cell N="FillPattern" V="1"/><Cell N="LineColor" V="{C_GLYPH_EDGE}"/><Section N="Geometry" IX="0"><Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="2"><Cell N="X" V="{iw/72:.4f}"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="3"><Cell N="X" V="{iw/72:.4f}"/><Cell N="Y" V="{ih/72:.4f}"/></Row><Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="{ih/72:.4f}"/></Row><Row T="LineTo" IX="5"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row></Section></Shape>'); sid+=1
         for i, (txt, sz, bold, col) in enumerate(dev["labels"]):
-            ly_l = (ih/2 + 8 + i*13)/72; children.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{iw/144:.4f}"/><Cell N="PinY" V="{-ly_l:.4f}"/><Cell N="Width" V="2"/><Cell N="Height" V="0.2"/><Section N="Character"><Row IX="0"><Cell N="Size" V="{sz/72:.4f}"/><Cell N="Style" V="{"1" if bold else "0"}"/><Cell N="Color" V="{col}"/></Row></Section><Text>{_xml_escape(txt)}</Text></Shape>'); sid+=1
+            ly_l = (ih/2 + 8 + i*13)/72; children.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{iw/144:.4f}"/><Cell N="PinY" V="{ly_l:.4f}"/><Cell N="Width" V="2"/><Cell N="Height" V="0.2"/><Section N="Character"><Row IX="0"><Cell N="Size" V="{sz/72:.4f}"/><Cell N="Style" V="{"1" if bold else "0"}"/><Cell N="Color" V="{col}"/></Row></Section><Text>{_xml_escape(txt)}</Text></Shape>'); sid+=1
         conn_rows = []
         for i, (lx, ly) in enumerate(conn_points.get(ip, [])):
             conn_rows.append(f'<Row T="Connection" IX="{i}"><Cell N="X" V="{lx:.5f}"/><Cell N="Y" V="{ly:.5f}"/></Row>')
@@ -967,7 +975,12 @@ def export_diagram(nodes: list[dict], links: list[dict], fmt: str, opts: dict) -
         nodes = [n for n in nodes if n["ip"] in keep]
         links = [l for l in links if l.get("source") in keep and l.get("target") in keep]
     partitions = _partition(nodes, links)
-    scenes = [build_scene(pn, pl, opts) for pn, pl in partitions]
+    scenes = []
+    n_parts = len(partitions)
+    for i, (pn, pl) in enumerate(partitions):
+        o = dict(opts)
+        o["title_block"] = (i == n_parts - 1)  # title block only on the last sheet
+        scenes.append(build_scene(pn, pl, o))
     if fmt == "pdf": return render_pdf(scenes)
     if fmt == "png": return render_png(scenes)
     if fmt == "vsdx": return render_vsdx(scenes)
