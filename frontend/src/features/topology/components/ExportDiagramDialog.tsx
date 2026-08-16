@@ -18,6 +18,13 @@ const DEFAULT_LEGEND: DiagramLegendEntry[] = [
   { key: 'management', label: 'Management', color: '#8E24AA' },
 ]
 
+const TOPOLOGIES: { id: 'tree' | 'star' | 'ring' | 'bus'; label: string; hint: string }[] = [
+  { id: 'tree', label: 'Tree', hint: 'Hierarchical tiers' },
+  { id: 'star', label: 'Star', hint: 'Core in the centre' },
+  { id: 'ring', label: 'Ring', hint: 'Devices in a circle' },
+  { id: 'bus', label: 'Bus', hint: 'Single backbone row' },
+]
+
 const FORMATS: { id: DiagramFormat; label: string; hint: string }[] = [
   { id: 'vsdx', label: 'Visio (.vsdx)', hint: 'Editable devices & connectors' },
   { id: 'pdf', label: 'PDF (.pdf)', hint: 'Static drawing sheet' },
@@ -39,6 +46,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
   const [revision, setRevision] = useState('')
   const [colorLinks, setColorLinks] = useState(true)
   const [excludeEndpoints, setExcludeEndpoints] = useState(true)
+  const [topoMode, setTopoMode] = useState<'tree' | 'star' | 'ring' | 'bus'>('tree')
   const [legend, setLegend] = useState<DiagramLegendEntry[]>(DEFAULT_LEGEND)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -61,6 +69,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
         revision: revision.trim(),
         color_links: colorLinks,
         exclude_endpoints: excludeEndpoints,
+        topology: topoMode,
         legend: legend.filter((e) => e.label.trim()),
       })
       onClose()
@@ -90,6 +99,27 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
               >
                 <div className="text-xs font-semibold">{f.label}</div>
                 <div className="text-[10px] text-muted mt-0.5">{f.hint}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-muted mb-1.5">Layout topology</label>
+          <div className="grid grid-cols-4 gap-2">
+            {TOPOLOGIES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTopoMode(t.id)}
+                className={`px-2 py-1.5 rounded-lg border text-center transition-all ${
+                  topoMode === t.id
+                    ? 'border-accent bg-accent-subtle/50 text-text-primary'
+                    : 'border-border/40 bg-surface-2/50 text-muted hover:text-text-primary'
+                }`}
+              >
+                <div className="text-xs font-semibold">{t.label}</div>
+                <div className="text-[9px] text-muted mt-0.5">{t.hint}</div>
               </button>
             ))}
           </div>

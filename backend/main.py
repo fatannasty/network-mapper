@@ -836,6 +836,7 @@ class DiagramExportRequest(BaseModel):
     color_links: bool = True
     legend: list[DiagramLegendEntry] = []
     exclude_endpoints: bool = False
+    topology: str = "tree"                    # tree | star | ring | bus
 
 
 @app.post("/api/topology/diagram", dependencies=[Depends(authenticated)])
@@ -867,6 +868,7 @@ def api_topology_diagram(req: DiagramExportRequest):
         "color_links": req.color_links,
         "legend": [e.model_dump() for e in req.legend] or diagram_export.DEFAULT_LEGEND,
         "exclude_endpoints": req.exclude_endpoints,
+        "topology": req.topology,
     }
     data = diagram_export.export_diagram(req.nodes, req.links, fmt, opts)
 

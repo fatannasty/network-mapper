@@ -17,6 +17,7 @@ Scene units are points (1/72"), origin top-left, y grows downward.
 from __future__ import annotations
 
 import io
+import math
 import os
 import re
 import zipfile
@@ -305,6 +306,127 @@ class Scene:
         self.prims.append({"k": "ellipse", "cx": cx, "cy": cy, "rx": rx, "ry": ry, "fill": fill, "stroke": stroke, "sw": sw, "tag": tag})
 
 
+def _layout_tree(layers, order, valid, _max_dev_w):
+    """Hierarchical top-to-bottom tiers, barycenter-ordered, wrapped into rows."""
+    MAX_PER_ROW = 6
+    SLOT_W = _max_dev_w + 120.0
+    neigh = {}
+    for l in valid:
+        a, b = l["source"], l["target"]
+        neigh.setdefault(a, []).append(b)
+        neigh.setdefault(b, []).append(a)
+    content_top = MARGIN + HEADER_H
+    GAP = 95.0
+    ROW_H = ZONE_H + GAP
+    y_0 = content_top + GAP + ZONE_ROW_CY
+    width = max(1150, MARGIN * 2 + MAX_PER_ROW * SLOT_W)
+
+    def _row_lists():
+        rows = []
+        for r in order:
+            ips = [n["ip"] for n in layers[r]]
+            for i in range(0, len(ips), MAX_PER_ROW):
+                rows.append(ips[i:i + MAX_PER_ROW])
+        return rows
+
+    rows = _row_lists()
+    legend_y = y_0 + len(rows) * ROW_H
+    height = legend_y + LEGEND_H + MARGIN
+    pos = {}
+
+    def _assign():
+        pos.clear()
+        y = y_0
+        for row in rows:
+            n = len(row)
+            x0 = (width - (n - 1) * SLOT_W) / 2
+            for j, ip in enumerate(row):
+                pos[ip] = (x0 + j * SLOT_W, y)
+            y += ROW_H
+
+    _assign()
+    for _ in range(15):
+        for r in order:
+            def _key(n):
+                xs = [pos[m][0] for m in neigh.get(n["ip"], []) if m in pos]
+                return sum(xs) / len(xs) if xs else pos.get(n["ip"], (width / 2, 0))[0]
+            layers[r].sort(key=_key)
+        rows = _row_lists()
+        _assign()
+    return pos, width, height, legend_y, content_top
+
+
+def _layout_star(layers, order, _max_dev_w):
+    """Radial layout: top tiers at the centre, other tiers in concentric rings."""
+    SLOT = _max_dev_w + 90.0
+    center_nodes = [n for r in order[:2] for n in layers[r]]
+    ring_tiers = order[2:]
+    radii = []
+    radius = 240.0
+    for r in ring_tiers:
+        n = len(layers[r])
+        rr = max(radius, n * SLOT / (2 * math.pi))
+        radii.append(rr)
+        radius = rr + 220.0
+    max_radius = radii[-1] if radii else 260.0
+    content_top = MARGIN + HEADER_H
+    content_h = 2 * max_radius + 120.0
+    width = max(1150, 2 * (max_radius + SLOT))
+    legend_y = content_top + content_h
+    height = legend_y + LEGEND_H + MARGIN
+    cx = width / 2
+    cy = content_top + content_h / 2
+    pos = {}
+    n = len(center_nodes)
+    for i, node in enumerate(center_nodes):
+        pos[node["ip"]] = (cx + (i - (n - 1) / 2) * SLOT, cy)
+    for ri, r in enumerate(ring_tiers):
+        devices = layers[r]
+        n = len(devices)
+        rr = radii[ri]
+        for i, node in enumerate(devices):
+            angle = 2 * math.pi * i / n - math.pi / 2
+            pos[node["ip"]] = (cx + rr * math.cos(angle), cy + rr * math.sin(angle))
+    return pos, width, height, legend_y, content_top
+
+
+def _layout_ring(layers, order, _max_dev_w):
+    """Single circle of all devices."""
+    SLOT = _max_dev_w + 90.0
+    all_nodes = [n for r in order for n in layers[r]]
+    n = len(all_nodes)
+    r = max(220.0, n * SLOT / (2 * math.pi))
+    content_top = MARGIN + HEADER_H
+    content_h = 2 * r + 120.0
+    width = max(1150, 2 * (r + SLOT))
+    legend_y = content_top + content_h
+    height = legend_y + LEGEND_H + MARGIN
+    cx = width / 2
+    cy = content_top + content_h / 2
+    pos = {}
+    for i, node in enumerate(all_nodes):
+        angle = 2 * math.pi * i / n - math.pi / 2
+        pos[node["ip"]] = (cx + r * math.cos(angle), cy + r * math.sin(angle))
+    return pos, width, height, legend_y, content_top
+
+
+def _layout_bus(layers, order, _max_dev_w):
+    """Linear backbone: all devices in a single horizontal row."""
+    SLOT = _max_dev_w + 90.0
+    all_nodes = [n for r in order for n in layers[r]]
+    n = len(all_nodes)
+    content_top = MARGIN + HEADER_H
+    width = max(1150, MARGIN * 2 + n * SLOT)
+    y = content_top + 220.0
+    legend_y = y + 200.0
+    height = legend_y + LEGEND_H + MARGIN
+    x0 = (width - (n - 1) * SLOT) / 2
+    pos = {}
+    for i, node in enumerate(all_nodes):
+        pos[node["ip"]] = (x0 + i * SLOT, y)
+    return pos, width, height, legend_y, content_top
+
+
 def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     title = (opts.get("title") or "AMTRAK NETWORK DIAGRAM").upper()
     legend = opts.get("legend") or DEFAULT_LEGEND
@@ -359,84 +481,42 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
                       "source_interfaces": src_ifs,
                       "target_interfaces": dst_ifs})
 
-    # Layered layout: tiers top-to-bottom. Within each tier, devices are
-    # ordered by barycenter (pulled toward their connected neighbors) and
-    # wrapped into rows, so connected devices sit near each other and cables
-    # stay short instead of criss-crossing the page.
-    MAX_PER_ROW = 6
-    SLOT_W = _max_dev_w + 80.0
+    # Select a layout topology (Tree is the default hierarchical layout).
+    topology = (opts.get("topology") or "tree").lower()
+    if topology == "star":
+        pos, width, height, legend_y, content_top = _layout_star(layers, order, _max_dev_w)
+    elif topology == "ring":
+        pos, width, height, legend_y, content_top = _layout_ring(layers, order, _max_dev_w)
+    elif topology == "bus":
+        pos, width, height, legend_y, content_top = _layout_bus(layers, order, _max_dev_w)
+    else:
+        pos, width, height, legend_y, content_top = _layout_tree(layers, order, valid, _max_dev_w)
 
-    neigh = {}
-    for l in valid:
-        a, b = l["source"], l["target"]
-        neigh.setdefault(a, []).append(b)
-        neigh.setdefault(b, []).append(a)
-
-    content_top = MARGIN + HEADER_H
-    GAP = 75.0
-    ROW_H = ZONE_H + GAP
-    y_0 = content_top + GAP + ZONE_ROW_CY
-    width = max(1150, MARGIN * 2 + MAX_PER_ROW * SLOT_W)
-
-    def _row_lists():
-        rows = []
-        for r in order:
-            ips = [n["ip"] for n in layers[r]]
-            for i in range(0, len(ips), MAX_PER_ROW):
-                rows.append(ips[i:i + MAX_PER_ROW])
-        return rows
-
-    rows = _row_lists()
-    legend_y = y_0 + len(rows) * ROW_H
-    height = legend_y + LEGEND_H + MARGIN
     scene = Scene(width, height)
     scene.rect(MARGIN / 2, MARGIN / 2, width - MARGIN, height - MARGIN, stroke=C_FRAME, sw=1.5)
     if os.path.exists(ASSET_LOGO): scene.image(MARGIN + 6, MARGIN / 2 + 8, 170.0, 170.0 * 394 / 700, ASSET_LOGO)
     scene.text(width / 2, MARGIN + 26, title, size=26)
 
-    pos = {}
-
-    def _assign():
-        pos.clear()
-        y = y_0
-        for row in rows:
-            n = len(row)
-            x0 = (width - (n - 1) * SLOT_W) / 2
-            for j, ip in enumerate(row):
-                pos[ip] = (x0 + j * SLOT_W, y)
-            y += ROW_H
-
-    _assign()
-
-    # Barycenter: pull each device toward the average X of its neighbors so
-    # connected devices line up and cables stay short.
-    for _ in range(15):
-        for r in order:
-            def _key(n):
-                xs = [pos[m][0] for m in neigh.get(n["ip"], []) if m in pos]
-                return sum(xs) / len(xs) if xs else pos.get(n["ip"], (width / 2, 0))[0]
-            layers[r].sort(key=_key)
-        rows = _row_lists()
-        _assign()
-
     # Subnet zone boxes: draw a light rectangle around devices that share a
-    # /24 subnet (drawn behind devices/links so they stay readable).
-    subnet_groups: dict[str, list[str]] = {}
-    for ip in pos:
-        pfx = _subnet24(ip)
-        if pfx:
-            subnet_groups.setdefault(pfx, []).append(ip)
-    for pfx, ips in subnet_groups.items():
-        if len(ips) < 2:
-            continue
-        xs = [pos[ip][0] for ip in ips]
-        ys = [pos[ip][1] for ip in ips]
-        min_x = min(xs) - SLOT_W / 2
-        max_x = max(xs) + SLOT_W / 2
-        min_y = min(ys) - ROW_H / 2
-        max_y = max(ys) + ROW_H / 2
-        scene.rect(min_x, min_y, max_x - min_x, max_y - min_y, fill=C_SUBNET_FILL, stroke=C_SUBNET_STROKE, sw=1.0)
-        scene.text(min_x + 6, min_y + 12, pfx, size=8.5, bold=True, color=C_SUBNET_TEXT, align="left")
+    # /24 subnet (drawn behind devices/links so they stay readable). Only
+    # meaningful for the row/column topologies, so skip for radial layouts.
+    if topology in ("tree", "bus"):
+        subnet_groups: dict[str, list[str]] = {}
+        for ip in pos:
+            pfx = _subnet24(ip)
+            if pfx:
+                subnet_groups.setdefault(pfx, []).append(ip)
+        for pfx, ips in subnet_groups.items():
+            if len(ips) < 2:
+                continue
+            xs = [pos[ip][0] for ip in ips]
+            ys = [pos[ip][1] for ip in ips]
+            min_x = min(xs) - _max_dev_w / 2 - 25
+            max_x = max(xs) + _max_dev_w / 2 + 25
+            min_y = min(ys) - 70
+            max_y = max(ys) + 70
+            scene.rect(min_x, min_y, max_x - min_x, max_y - min_y, fill=C_SUBNET_FILL, stroke=C_SUBNET_STROKE, sw=1.0)
+            scene.text(min_x + 6, min_y + 12, pfx, size=8.5, bold=True, color=C_SUBNET_TEXT, align="left")
 
     # Spread links leaving the same device edge so cables don't stack
     attach = {}
@@ -453,7 +533,15 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
 
     def half_h(ip): return device_shape.get(ip, _DFLT)[1]
 
-    # Draw links (simple elbow) with port names at the midpoint
+    # Draw links (elbow) with port names at the midpoint, collision-suppressed
+    placed_labels = []
+    def _label_ok(x, y):
+        for lx, ly in placed_labels:
+            if abs(lx - x) < 55 and abs(ly - y) < 16:
+                return False
+        placed_labels.append((x, y))
+        return True
+
     for li, l in enumerate(valid):
         a, b = l["source"], l["target"]
         role = _link_color_key(a, b, layer_of, l["source_interface"], l["target_interface"])
@@ -466,15 +554,19 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         else:
             sx, sy = attach_x(a, "top", li), pos[a][1] - half_h(a)
             tx, ty = attach_x(b, "bottom", li), pos[b][1] + half_h(b)
-        cy = (sy + ty) / 2
+        # Route the horizontal segment in the gap just outside the source
+        # device (not the midpoint), so cables ride clear channels instead of
+        # cutting through the devices in between.
+        dirn = 1 if sy < ty else -1
+        cy = sy + dirn * 50
         pts = [(sx, sy), (sx, cy), (tx, cy), (tx, ty)]
         lw = 2.0 if role in ("wan", "core") else 1.2
         scene.line(pts, color=color, width=lw, tag="link")
         mid_x = (sx + tx) / 2
         mid_y = (sy + ty) / 2
-        if ia_s:
+        if ia_s and _label_ok(mid_x, mid_y - 8):
             scene.text(mid_x, mid_y - 8, ia_s, size=8, bold=True, color=C_PORT, tag="link")
-        if ib_s:
+        if ib_s and _label_ok(mid_x, mid_y + 8):
             scene.text(mid_x, mid_y + 8, ib_s, size=8, bold=True, color=C_PORT, tag="link")
         scene.vlinks.append({"a": a, "b": b, "color": color, "width": lw, "role": role,
                              "src_if": ia_s, "dst_if": ib_s, "pts": pts,
