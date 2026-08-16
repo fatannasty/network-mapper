@@ -18,7 +18,8 @@ const DEFAULT_LEGEND: DiagramLegendEntry[] = [
   { key: 'management', label: 'Management', color: '#8E24AA' },
 ]
 
-const TOPOLOGIES: { id: 'tree' | 'star' | 'ring' | 'bus'; label: string; hint: string }[] = [
+const TOPOLOGIES: { id: 'auto' | 'tree' | 'star' | 'ring' | 'bus'; label: string; hint: string }[] = [
+  { id: 'auto', label: 'Auto', hint: 'Detect best layout' },
   { id: 'tree', label: 'Tree', hint: 'Hierarchical tiers' },
   { id: 'star', label: 'Star', hint: 'Core in the centre' },
   { id: 'ring', label: 'Ring', hint: 'Devices in a circle' },
@@ -46,7 +47,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
   const [revision, setRevision] = useState('')
   const [colorLinks, setColorLinks] = useState(true)
   const [excludeEndpoints, setExcludeEndpoints] = useState(true)
-  const [topoMode, setTopoMode] = useState<'tree' | 'star' | 'ring' | 'bus'>('tree')
+  const [topoMode, setTopoMode] = useState<'auto' | 'tree' | 'star' | 'ring' | 'bus'>('auto')
   const [legend, setLegend] = useState<DiagramLegendEntry[]>(DEFAULT_LEGEND)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -106,7 +107,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
 
         <div>
           <label className="block text-xs text-muted mb-1.5">Layout topology</label>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             {TOPOLOGIES.map((t) => (
               <button
                 key={t.id}

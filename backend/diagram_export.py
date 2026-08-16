@@ -427,6 +427,32 @@ def _layout_bus(layers, order, _max_dev_w):
     return pos, width, height, legend_y, content_top
 
 
+def _auto_topology(nodes: list[dict], links: list[dict]) -> str:
+    """Recommend a layout topology from the network's shape.
+
+    - Star: a true hub-and-spoke (one hub links to most of the network, and
+      the rest are mostly degree-1 leaves).
+    - Tree: everything else (hierarchical default).
+    """
+    n = len(nodes)
+    if n == 0:
+        return "tree"
+    adj: dict[str, list[str]] = {nd["ip"]: [] for nd in nodes}
+    ips = set(adj)
+    for l in links:
+        a, b = l.get("source"), l.get("target")
+        if a in ips and b in ips and a != b:
+            adj[a].append(b); adj[b].append(a)
+    degs = [len(v) for v in adj.values()]
+    if not degs:
+        return "tree"
+    max_deg = max(degs)
+    leaves = sum(1 for d in degs if d <= 1)
+    if n <= 30 and max_deg >= int(n * 0.5) and leaves >= int(n * 0.5):
+        return "star"
+    return "tree"
+
+
 def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     title = (opts.get("title") or "AMTRAK NETWORK DIAGRAM").upper()
     legend = opts.get("legend") or DEFAULT_LEGEND
@@ -481,8 +507,10 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
                       "source_interfaces": src_ifs,
                       "target_interfaces": dst_ifs})
 
-    # Select a layout topology (Tree is the default hierarchical layout).
-    topology = (opts.get("topology") or "tree").lower()
+    # Select a layout topology (auto-detected unless explicitly chosen).
+    topology = (opts.get("topology") or "auto").lower()
+    if topology == "auto":
+        topology = _auto_topology(nodes, links)
     if topology == "star":
         pos, width, height, legend_y, content_top = _layout_star(layers, order, _max_dev_w)
     elif topology == "ring":

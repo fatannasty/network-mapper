@@ -836,7 +836,7 @@ class DiagramExportRequest(BaseModel):
     color_links: bool = True
     legend: list[DiagramLegendEntry] = []
     exclude_endpoints: bool = False
-    topology: str = "tree"                    # tree | star | ring | bus
+    topology: str = "auto"                    # auto | tree | star | ring | bus
 
 
 @app.post("/api/topology/diagram", dependencies=[Depends(authenticated)])

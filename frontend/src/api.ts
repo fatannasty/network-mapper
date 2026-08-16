@@ -597,7 +597,7 @@ export interface DiagramExportOptions {
   color_links?: boolean
   legend?: DiagramLegendEntry[]
   exclude_endpoints?: boolean
-  topology?: 'tree' | 'star' | 'ring' | 'bus'
+  topology?: 'auto' | 'tree' | 'star' | 'ring' | 'bus'
 }
 
 export async function exportTopologyDiagram(opts: DiagramExportOptions) {
