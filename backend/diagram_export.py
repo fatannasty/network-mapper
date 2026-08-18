@@ -162,38 +162,50 @@ def _icon_kind(device_type: str, model: str, hostname: str) -> str:
 
 
 def _icon_path(device_type: str, model: str, hostname: str) -> str | None:
-    """Find the best-matching icon image for a device."""
+    """Find the icon image for a device — conventional, readable shapes.
+
+    Uses a consistent Cisco-style icon per device category (model names stay in
+    the text label under each icon) so large diagrams read cleanly instead of
+    showing flat front-panel "brick" images.
+    """
     dt, m, h = device_type.lower(), model.lower(), hostname.lower()
     if not m and not dt:
         return None
-
-    # 1. Exact model match
     m_slug = re.sub(r"[^a-z0-9]+", "-", m).strip("-")
-    if m_slug:
-        p = os.path.join(ICON_DIR, f"{m_slug}.png")
-        if os.path.exists(p):
-            return p
 
-    # 2. Series fallback (e.g. C9500-40X -> C9500-24Y4C.png)
-    if m.startswith("c9500"):
-        p = os.path.join(ICON_DIR, "c9500-24y4c.png")
+    # Access points: prefer the accurate Meraki MR icon
+    if m.startswith("mr"):
+        p = os.path.join(ICON_DIR, f"meraki-{m_slug}.png")
         if os.path.exists(p):
             return p
-    if m.startswith("c9300"):
-        p = os.path.join(ICON_DIR, "c9300-24p.png")
-        if os.path.exists(p):
-            return p
-
-    # 3. Generic fallback
-    if "access point" in dt or "accesspoint" in dt or m.startswith("mr"):
         p = os.path.join(ICON_DIR, "ap.png")
-    elif "firewall" in dt or m.startswith("mx"):
-        p = os.path.join(ICON_DIR, "firewall.png")
-    elif "router" in dt or m.startswith(("isr", "asr")):
-        p = os.path.join(ICON_DIR, "router.png")
-    else:
-        p = os.path.join(ICON_DIR, "switch.png")
+        return p if os.path.exists(p) else None
+    if "access point" in dt or "accesspoint" in dt:
+        p = os.path.join(ICON_DIR, "ap.png")
+        return p if os.path.exists(p) else None
 
+    # SD-WAN / VeloCloud edges
+    if "velocloud" in dt or m.startswith("velocloud"):
+        p = os.path.join(ICON_DIR, "velocloud.png")
+        return p if os.path.exists(p) else None
+
+    # Cloud / Internet
+    if "cloud" in dt or "internet" in dt:
+        p = os.path.join(ICON_DIR, "cloud-cisco.png")
+        return p if os.path.exists(p) else None
+
+    # Firewalls
+    if "firewall" in dt or m.startswith("mx"):
+        p = os.path.join(ICON_DIR, "firewall-cisco.png")
+        return p if os.path.exists(p) else None
+
+    # Routers (ISR / ASR / generic)
+    if "router" in dt or m.startswith(("isr", "asr", "1921", "2921", "3925")):
+        p = os.path.join(ICON_DIR, "router.png")
+        return p if os.path.exists(p) else None
+
+    # Switches — conventional boxy icon
+    p = os.path.join(ICON_DIR, "layer3-switch.png")
     return p if os.path.exists(p) else None
 
 
