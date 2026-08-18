@@ -628,7 +628,7 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         group = attach.get(ip, {}).get(side, [])
         n = len(group)
         if n <= 1: return pos[ip][0]
-        return pos[ip][0] + (group.index(li) - (n - 1) / 2) * 20.0
+        return pos[ip][0] + (group.index(li) - (n - 1) / 2) * 10.0
 
     def half_h(ip): return device_shape.get(ip, _DFLT)[1]
 
