@@ -908,6 +908,43 @@ def api_diagram_prefs_set(req: DiagramPrefsRequest, db: Session = Depends(get_db
     return {"ok": True}
 
 
+@app.get("/api/topology/port-table", dependencies=[Depends(authenticated)])
+def api_port_table(scan_id: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    """Companion CSV: every device, its interfaces, and what each port connects
+    to (device -> port -> neighbor), matching the topology diagram."""
+    import csv
+    from io import StringIO
+    from diagram_export import _layer_of, _shorten_interface
+
+    data = api_topology(scan_id=scan_id, focus=None, site=None, db=db)
+    nodes = data.get("nodes") or []
+    links = data.get("links") or []
+    node_by_ip = {n["ip"]: n for n in nodes}
+
+    rows = []
+    for l in links:
+        a, b = l.get("source"), l.get("target")
+        ia, ib = _shorten_interface(l.get("source_interface") or ""), _shorten_interface(l.get("target_interface") or "")
+        proto = l.get("protocol") or ""
+        na, nb = node_by_ip.get(a), node_by_ip.get(b)
+        rows.append((na or {}, ia, proto, b, nb or {}, ib))
+        rows.append((nb or {}, ib, proto, a, na or {}, ia))
+    rows.sort(key=lambda r: ((r[0].get("hostname") or r[0].get("ip") or "").lower(), r[1]))
+
+    buf = StringIO()
+    w = csv.writer(buf)
+    w.writerow(["device_hostname", "device_ip", "device_model", "tier",
+                "interface", "protocol", "neighbor_hostname", "neighbor_ip",
+                "neighbor_interface"])
+    for dev, iface, proto, neigh_ip, neigh, neigh_if in rows:
+        w.writerow([dev.get("hostname") or "", dev.get("ip") or "",
+                    dev.get("model") or "", _layer_of(dev), iface, proto,
+                    neigh.get("hostname") or "", neigh_ip or "", neigh_if])
+
+    return Response(content=buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": 'attachment; filename="device-port-table.csv"'})
+
+
 @app.get("/api/topology/path", dependencies=[Depends(authenticated)])
 def api_topology_path(source: str = Query(...), target: str = Query(...),
                       db: Session = Depends(get_db)):

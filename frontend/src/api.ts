@@ -622,6 +622,19 @@ export async function getDiagramPrefs(scanId: string): Promise<DiagramPrefs> {
   return r.data
 }
 
+export async function downloadPortTable(scanId?: string) {
+  const r = await api.get('/api/topology/port-table', {
+    params: scanId ? { scan_id: scanId } : undefined,
+    responseType: 'blob',
+  })
+  const url = URL.createObjectURL(r.data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'device-port-table.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export async function saveDiagramPrefs(scanId: string, prefs: DiagramPrefs) {
   await api.post('/api/topology/diagram-prefs', { scan_id: scanId, ...prefs })
 }
