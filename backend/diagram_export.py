@@ -754,13 +754,8 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     # Obstacle-avoiding routing for the row-based topologies
     rects = _device_rects(pos, half_w, half_h)
     rect_by_ip = {ip: _device_rects({ip: pos[ip]}, half_w, half_h)[0] for ip in pos}
-    if topology in ("tree", "bus"):
-        channels = _usable_channels(rects)
-        gutters = _usable_gutters(rects)
-    else:
-        channels, gutters = [], []
 
-    # Reserve each device's label block so port labels never land on a name
+    # Reserve each device's label block (name/IP/model to the right of the icon)
     def _txt_w(text, size): return len(text) * size * 0.62
     label_block = {}
     for ip in pos:
@@ -769,8 +764,17 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         lines = [hn] + [ip] + ([model] if model else [])
         w = max(_txt_w(t, 9 if i == 0 else 7.5) for i, t in enumerate(lines)) if lines else 10.0
         iw, ih = device_shape.get(ip, _DFLT)[0] * 2, device_shape.get(ip, _DFLT)[1] * 2
-        top = pos[ip][1] - ih / 2 - 8
-        label_block[ip] = (pos[ip][0] - w / 2, top - 4 - (len(lines) - 1) * 12 - 9, pos[ip][0] + w / 2, top)
+        lx = pos[ip][0] + iw / 2 + 8
+        y0 = pos[ip][1] - (len(lines) - 1) * 13 / 2 + 4
+        label_block[ip] = (lx - 2, y0 - 11, lx + w + 2, y0 + (len(lines) - 1) * 13 + 2)
+
+    # Routing lanes (channels/gutters) avoid both icons and label text.
+    if topology in ("tree", "bus"):
+        all_obs = list(rects) + list(label_block.values())
+        channels = _usable_channels(all_obs)
+        gutters = _usable_gutters(all_obs)
+    else:
+        channels, gutters = [], []
 
     # Rect-based label collision map (device names reserved first)
     placed_rects = []
@@ -801,6 +805,7 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
             sx, sy = attach_x(a, "top", li), pos[a][1] - half_h(a)
             tx, ty = attach_x(b, "bottom", li), pos[b][1] + half_h(b)
         link_obs = [rects[i] for i, ip in enumerate(pos) if ip not in (a, b)]
+        link_obs += [label_block[ip] for ip in label_block if ip not in (a, b)]
         if channels:
             same_row = abs(pos[a][1] - pos[b][1]) < 1.0
             pts, _ = _route_avoid(sx, sy, tx, ty, link_obs, channels, gutters, same_row)
@@ -830,8 +835,8 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
                              "src_align": "center", "dst_align": "center",
                              "ax": pos[a][0], "ay": pos[a][1], "bx": pos[b][0], "by": pos[b][1]})
 
-    # Draw devices: icon + hostname + model + IP (labels above the icon so
-    # cables can attach to the bottom edge without crossing the text)
+    # Draw devices: icon + hostname/IP/model to the RIGHT of the icon, so the
+    # vertical cable runs (top/bottom edges) never cross the wording.
     for r in order:
         for n in layers[r]:
             cx, cy = pos[n["ip"]]
@@ -841,12 +846,14 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
             tag = ("dev", ip)
             iw, ih, icon_kind, icon_path = device_shape.get(ip, _DFLT)[:4]
             iw *= 2; ih *= 2
-            labels = []; ly = cy - ih / 2 - 8
-            scene.text(cx, ly, hn, size=9, bold=True, tag=tag); labels.append((hn, 9, True, C_TEXT)); ly -= 13
-            if ip:
-                scene.text(cx, ly, ip, size=7.5, tag=tag); labels.append((ip, 7.5, False, C_TEXT)); ly -= 11
-            if model:
-                scene.text(cx, ly, model, size=7.5, tag=tag); labels.append((model, 7.5, False, C_TEXT))
+            lines = [(hn, 9, True)] + ([(ip, 7.5, False)] if ip else []) + ([(model, 7.5, False)] if model else [])
+            n_lines = len(lines)
+            lx = cx + iw / 2 + 8
+            labels = []
+            y0 = cy - (n_lines - 1) * 13 / 2 + 4
+            for i, (txt, size, bold) in enumerate(lines):
+                scene.text(lx, y0 + i * 13, txt, size=size, bold=bold, align="left", tag=tag)
+                labels.append((txt, size, bold, C_TEXT))
             if icon_path:
                 scene.image(cx - iw / 2, cy - ih / 2, iw, ih, icon_path, tag=tag)
             else:
@@ -1060,7 +1067,12 @@ def _scene_shapes(scene: Scene, media_n: list[int]) -> tuple[str, list[str], lis
         else:
             children.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{iw/144:.4f}"/><Cell N="PinY" V="{ih/144:.4f}"/><Cell N="Width" V="{iw/72:.4f}"/><Cell N="Height" V="{ih/72:.4f}"/><Cell N="FillForegnd" V="{C_GLYPH}"/><Cell N="FillPattern" V="1"/><Cell N="LineColor" V="{C_GLYPH_EDGE}"/><Section N="Geometry" IX="0"><Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="2"><Cell N="X" V="{iw/72:.4f}"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="3"><Cell N="X" V="{iw/72:.4f}"/><Cell N="Y" V="{ih/72:.4f}"/></Row><Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="{ih/72:.4f}"/></Row><Row T="LineTo" IX="5"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row></Section></Shape>'); sid+=1
         for i, (txt, sz, bold, col) in enumerate(dev["labels"]):
-            ly_l = (ih/2 + 8 + i*13)/72; children.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{iw/144:.4f}"/><Cell N="PinY" V="{ly_l:.4f}"/><Cell N="Width" V="2"/><Cell N="Height" V="0.2"/><Section N="Character"><Row IX="0"><Cell N="Size" V="{sz/72:.4f}"/><Cell N="Style" V="{"1" if bold else "0"}"/><Cell N="Color" V="{col}"/></Row></Section><Text>{_xml_escape(txt)}</Text></Shape>'); sid+=1
+            n = len(dev["labels"])
+            lx_l = (iw / 2 + 8) / 72
+            ly_l = ((n - 1) / 2 - i) * 13 / 72
+            tw = max(0.3, len(txt) * sz * 0.62 / 72)
+            children.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{lx_l:.4f}"/><Cell N="PinY" V="{ly_l:.4f}"/><Cell N="Width" V="{tw:.4f}"/><Cell N="Height" V="{sz * 1.6 / 72:.4f}"/><Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="{sz * 0.8 / 72:.4f}"/><Section N="Character"><Row IX="0"><Cell N="Size" V="{sz / 72:.4f}"/><Cell N="Style" V="{"1" if bold else "0"}"/><Cell N="Color" V="{col}"/></Row></Section><Section N="Paragraph"><Row IX="0"><Cell N="HorzAlign" V="0"/></Row></Section><Text>{_xml_escape(txt)}</Text></Shape>')
+            sid += 1
         conn_rows = []
         for i, (lx, ly) in enumerate(conn_points.get(ip, [])):
             conn_rows.append(f'<Row T="Connection" IX="{i}"><Cell N="X" V="{lx:.5f}"/><Cell N="Y" V="{ly:.5f}"/></Row>')
