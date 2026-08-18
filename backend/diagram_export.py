@@ -204,7 +204,24 @@ def _icon_path(device_type: str, model: str, hostname: str) -> str | None:
         p = os.path.join(ICON_DIR, "router.png")
         return p if os.path.exists(p) else None
 
-    # Switches — conventional boxy icon
+    # Switches — prefer the actual model icon (shows the real hardware), with a
+    # conventional boxy icon only as a fallback for unknown models.
+    if m_slug:
+        p = os.path.join(ICON_DIR, f"{m_slug}.png")
+        if os.path.exists(p):
+            return p
+    if m.startswith("c9500"):
+        p = os.path.join(ICON_DIR, "c9500-24y4c.png")
+        if os.path.exists(p):
+            return p
+    if m.startswith("c9300"):
+        p = os.path.join(ICON_DIR, "c9300l-48p.png")
+        if os.path.exists(p):
+            return p
+    if m.startswith("c9200"):
+        p = os.path.join(ICON_DIR, "c9200l-48p.png")
+        if os.path.exists(p):
+            return p
     p = os.path.join(ICON_DIR, "layer3-switch.png")
     return p if os.path.exists(p) else None
 
@@ -245,7 +262,7 @@ def _icon_size(path: str, max_w: float, max_h: float) -> tuple[float, float]:
             w, h = img.size
             # Clamp the aspect ratio so wide flat front-panel icons don't
             # render as paper-thin slivers (unreadable, breaks cable attach).
-            aspect = max(0.6, min(3.0, w / h))
+            aspect = max(0.6, min(2.2, w / h))
             if w / h > aspect:
                 w = h * aspect
             elif h / w > 1.0 / aspect:
@@ -562,10 +579,10 @@ def _path_crossings(pts: list, obstacles: list) -> int:
                for (x1, y1), (x2, y2) in zip(pts, pts[1:]))
 
 
-def _route_avoid(sx, sy, tx, ty, obstacles, channels, gutters):
+def _route_avoid(sx, sy, tx, ty, obstacles, channels, gutters, same_row=False):
     """Orthogonal path (sx,sy)->(tx,ty) that rides empty channels/lanes and
     detours around device icons. Returns (points, crossing_count)."""
-    if abs(sy - ty) < 1.0:  # same row: ride the gap below the row
+    if same_row or abs(sy - ty) < 1.0:  # same row: ride the gap below the row
         below = [c for c in channels if c > sy + 20]
         c = min(below) if below else sy + 80
         pts = [(sx, sy), (sx, c), (tx, c), (tx, ty)]
@@ -633,8 +650,8 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         icon_path = _icon_path(dt, n.get("model") or "", hn)
         kind = _icon_kind(dt, n.get("model") or "", hn)
         if icon_path:
-            w, h = _icon_size(icon_path, 64 if kind == "ap" else 110 if kind == "router" else 130,
-                              64 if kind == "ap" else 60 if kind == "router" else 70)
+            w, h = _icon_size(icon_path, 64 if kind == "ap" else 100 if kind == "router" else 96,
+                              64 if kind == "ap" else 56 if kind == "router" else 56)
         else:
             w, h = GLYPH_W, GLYPH_H
         device_shape[ip] = (w / 2, h / 2, kind, icon_path)
@@ -784,7 +801,8 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
             tx, ty = attach_x(b, "bottom", li), pos[b][1] + half_h(b)
         link_obs = [rects[i] for i, ip in enumerate(pos) if ip not in (a, b)]
         if channels:
-            pts, _ = _route_avoid(sx, sy, tx, ty, link_obs, channels, gutters)
+            same_row = abs(pos[a][1] - pos[b][1]) < 1.0
+            pts, _ = _route_avoid(sx, sy, tx, ty, link_obs, channels, gutters, same_row)
         else:
             dirn = 1 if sy < ty else -1
             cy = sy + dirn * 50
