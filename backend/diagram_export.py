@@ -261,13 +261,6 @@ def _icon_size(path: str, max_w: float, max_h: float) -> tuple[float, float]:
         from PIL import Image
         with Image.open(path) as img:
             w, h = img.size
-            # Clamp the aspect ratio so wide flat front-panel icons don't
-            # render as paper-thin slivers (unreadable, breaks cable attach).
-            aspect = max(0.6, min(2.2, w / h))
-            if w / h > aspect:
-                w = h * aspect
-            elif h / w > 1.0 / aspect:
-                h = w / aspect
             f = min(max_w / w, max_h / h)
             return w * f, h * f
     except Exception:
@@ -651,8 +644,8 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         icon_path = _icon_path(dt, n.get("model") or "", hn)
         kind = _icon_kind(dt, n.get("model") or "", hn)
         if icon_path:
-            w, h = _icon_size(icon_path, 64 if kind == "ap" else 100 if kind == "router" else 96,
-                              64 if kind == "ap" else 56 if kind == "router" else 56)
+            w, h = _icon_size(icon_path, 64 if kind == "ap" else 110 if kind == "router" else 130,
+                              64 if kind == "ap" else 60 if kind == "router" else 70)
         else:
             w, h = GLYPH_W, GLYPH_H
         device_shape[ip] = (w / 2, h / 2, kind, icon_path)
@@ -825,14 +818,14 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
             ly = hseg[1]
         else:
             lx, ly = (sx + tx) / 2, (sy + ty) / 2
-        if ia_s and _label_ok(lx - _txt_w(ia_s, 8) / 2, ly - 14, _txt_w(ia_s, 8), 9):
-            scene.text(lx, ly - 8, ia_s, size=8, bold=True, color=C_PORT, tag="link")
-        if ib_s and _label_ok(lx - _txt_w(ib_s, 8) / 2, ly + 6, _txt_w(ib_s, 8), 9):
-            scene.text(lx, ly + 8, ib_s, size=8, bold=True, color=C_PORT, tag="link")
+        if ia_s and _label_ok(lx, ly - 14, _txt_w(ia_s, 8), 9):
+            scene.text(lx, ly - 8, ia_s, size=8, bold=True, color=C_PORT, align="left", tag="link")
+        if ib_s and _label_ok(lx, ly + 6, _txt_w(ib_s, 8), 9):
+            scene.text(lx, ly + 8, ib_s, size=8, bold=True, color=C_PORT, align="left", tag="link")
         scene.vlinks.append({"a": a, "b": b, "color": color, "width": lw, "role": role,
                              "src_if": ia_s, "dst_if": ib_s, "pts": pts,
                              "src_label_pos": (lx, ly - 8), "dst_label_pos": (lx, ly + 8),
-                             "src_align": "center", "dst_align": "center",
+                             "src_align": "left", "dst_align": "left",
                              "ax": pos[a][0], "ay": pos[a][1], "bx": pos[b][0], "by": pos[b][1]})
 
     # Draw devices: icon + hostname/IP/model to the RIGHT of the icon, so the
@@ -1089,7 +1082,9 @@ def _scene_shapes(scene: Scene, media_n: list[int]) -> tuple[str, list[str], lis
             y_in = flip_y(py)
             pinx = px/72 + (w/2 if al=="left" else -w/2 if al=="right" else 0)
             ang_cell = f'<Cell N="TxtAngle" V="{ang*3.14159265358979/180:.4f}"/>' if ang else ""
-            shapes.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{y_in:.4f}"/><Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/><Cell N="LocPinX" V="{w/2:.4f}"/><Cell N="LocPinY" V="{h/2:.4f}"/>{ang_cell}<Section N="Character"><Row IX="0"><Cell N="Size" V="{8/72:.4f}"/><Cell N="Style" V="1"/><Cell N="Color" V="{C_PORT}"/></Row></Section><Text>{_xml_escape(txt)}</Text></Shape>'); sid+=1
+            halign = {"left": 0, "center": 1, "right": 2}.get(al, 1)
+            par_cell = f'<Section N="Paragraph"><Row IX="0"><Cell N="HorzAlign" V="{halign}"/></Row></Section>'
+            shapes.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{y_in:.4f}"/><Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/><Cell N="LocPinX" V="{w/2:.4f}"/><Cell N="LocPinY" V="{h/2:.4f}"/>{ang_cell}<Section N="Character"><Row IX="0"><Cell N="Size" V="{8/72:.4f}"/><Cell N="Style" V="1"/><Cell N="Color" V="{C_PORT}"/></Row></Section>{par_cell}<Text>{_xml_escape(txt)}</Text></Shape>'); sid+=1
     return "".join(shapes), rels, media
 
 
