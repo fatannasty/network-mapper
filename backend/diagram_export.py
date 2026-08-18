@@ -306,6 +306,60 @@ class Scene:
         self.prims.append({"k": "ellipse", "cx": cx, "cy": cy, "rx": rx, "ry": ry, "fill": fill, "stroke": stroke, "sw": sw, "tag": tag})
 
 
+def _build_ap_scene(aps: list[dict], opts: dict) -> Scene:
+    """Build a simple dedicated sheet listing the access points."""
+    title = (opts.get("title") or "AMTRAK NETWORK DIAGRAM").upper()
+    n = len(aps)
+    PER_ROW = 8
+    SLOT = 170.0
+    rows = -(-n // PER_ROW)
+    content_top = MARGIN + HEADER_H
+    width = max(1150, MARGIN * 2 + PER_ROW * SLOT)
+    legend_y = content_top + rows * 96 + 40
+    height = legend_y + LEGEND_H + MARGIN
+    scene = Scene(width, height)
+    scene.rect(MARGIN / 2, MARGIN / 2, width - MARGIN, height - MARGIN, stroke=C_FRAME, sw=1.5)
+    if os.path.exists(ASSET_LOGO): scene.image(MARGIN + 6, MARGIN / 2 + 8, 170.0, 170.0 * 394 / 700, ASSET_LOGO)
+    scene.text(width / 2, MARGIN + 26, f"{title} - ACCESS POINTS", size=24)
+    for i, node in enumerate(aps):
+        ip = node.get("ip") or ""
+        hn = (node.get("hostname") or "").split(".")[0] or ip
+        dt = (node.get("device_type") or "").lower()
+        icon_path = _icon_path(dt, node.get("model") or "", hn)
+        kind = _icon_kind(dt, node.get("model") or "", hn)
+        w, h = (_icon_size(icon_path, 56, 56) if icon_path else (GLYPH_W, GLYPH_H))
+        row, col = divmod(i, PER_ROW)
+        x = MARGIN + col * SLOT + SLOT / 2
+        y = content_top + row * 96 + 60
+        if icon_path:
+            scene.image(x - w / 2, y - h / 2, w, h, icon_path, tag=("dev", ip))
+        scene.text(x, y + h / 2 + 7, hn, size=8, bold=True, tag=("dev", ip))
+        if ip:
+            scene.text(x, y + h / 2 + 17, ip, size=7, tag=("dev", ip))
+        scene.devices.append({"ip": ip, "cx": x, "cy": y, "kind": kind,
+                              "labels": [(hn, 8, True, C_TEXT), (ip, 7, False, C_TEXT)],
+                              "icon_path": icon_path, "icon_w": w, "icon_h": h})
+    if opts.get("title_block", True):
+        bx = MARGIN + 24; bw = (width - MARGIN / 2) - bx; by = legend_y
+        scene.rect(bx, by, bw, LEGEND_H, stroke=C_FRAME, sw=1.2); c1, c2 = bx + 210, bx + 510
+        scene.line([(c1, by), (c1, by + LEGEND_H)], color=C_FRAME, width=1.0); scene.line([(c2, by), (c2, by + LEGEND_H)], color=C_FRAME, width=1.0)
+        scene.text((bx + c1) / 2, by + 8, "LEGEND", size=9, bold=True, align="center")
+        ey = by + 28
+        for e in (opts.get("legend") or DEFAULT_LEGEND):
+            scene.rect(bx + 10, ey + 3, 48, 5, fill=e.get("color") or C_LINK, stroke=None, sw=0)
+            scene.text(66 + bx, ey, e.get("label") or "", size=8.5, align="left"); ey += 16
+        rows_data = [[("Drawn By: ", opts.get("drawn_by") or ""), ("Drawn Date: ", opts.get("drawn_date") or "08142026")], [("Drawing Title: ", opts.get("drawing_title") or title)], [("Document Name: ", opts.get("document_name") or "")], [("Revision: ", opts.get("revision") or ""), ("Rev. Date: ", "14 Aug 26"), ("Rev. Time: ", "07:45 PM")]]
+        rh = LEGEND_H / 4
+        for i, row in enumerate(rows_data):
+            ry = by + i * rh
+            if i: scene.line([(c2, ry), (bx + bw, ry)], color=C_FRAME, width=1.0)
+            cw = (bx + bw - c2) / len(row)
+            for j, (label, val) in enumerate(row):
+                if j: scene.line([(c2 + j * cw, ry), (c2 + j * cw, ry + rh)], color=C_FRAME, width=1.0)
+                scene.text(c2 + j * cw + cw / 2, ry + rh / 2 - 4, label + val, size=9, align="center")
+    return scene
+
+
 def _layout_tree(layers, order, valid, _max_dev_w):
     """Hierarchical top-to-bottom tiers, barycenter-ordered, wrapped into rows."""
     MAX_PER_ROW = 6
@@ -985,17 +1039,24 @@ def _partition(nodes: list[dict], links: list[dict], max_per_page: int = 20) -> 
 
 
 def export_diagram(nodes: list[dict], links: list[dict], fmt: str, opts: dict) -> bytes:
-    if opts.get("exclude_endpoints", False):
-        keep = {n["ip"] for n in nodes if _layer_of(n) != "endpoint"}
-        nodes = [n for n in nodes if n["ip"] in keep]
-        links = [l for l in links if l.get("source") in keep and l.get("target") in keep]
-    partitions = _partition(nodes, links)
+    # Split access points / end-user devices onto their own sheet so the main
+    # pages stay a clean top-down tier (internet -> router -> core -> dist -> access).
+    include_aps = not opts.get("exclude_endpoints", False)
+    infra = [n for n in nodes if _layer_of(n) != "endpoint"]
+    aps = [n for n in nodes if _layer_of(n) == "endpoint"] if include_aps else []
+    infra_ips = {n["ip"] for n in infra}
+    infra_links = [l for l in links if l.get("source") in infra_ips and l.get("target") in infra_ips]
+    partitions = _partition(infra, infra_links)
+    total = len(partitions) + (1 if aps else 0)
     scenes = []
-    n_parts = len(partitions)
     for i, (pn, pl) in enumerate(partitions):
         o = dict(opts)
-        o["title_block"] = (i == n_parts - 1)  # title block only on the last sheet
+        o["title_block"] = (i == total - 1)  # title block only on the last sheet
         scenes.append(build_scene(pn, pl, o))
+    if aps:
+        o = dict(opts)
+        o["title_block"] = True
+        scenes.append(_build_ap_scene(aps, o))
     if fmt == "pdf": return render_pdf(scenes)
     if fmt == "png": return render_png(scenes)
     if fmt == "vsdx": return render_vsdx(scenes)

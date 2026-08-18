@@ -55,7 +55,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
   const [documentName, setDocumentName] = useState('')
   const [revision, setRevision] = useState('')
   const [colorLinks, setColorLinks] = useState(true)
-  const [excludeEndpoints, setExcludeEndpoints] = useState(true)
+  const [excludeEndpoints, setExcludeEndpoints] = useState(false)
   const [topoMode, setTopoMode] = useState<'auto' | 'tree' | 'star' | 'ring' | 'bus'>('auto')
   const [linkDetail, setLinkDetail] = useState<'full' | 'backbone' | 'core'>('full')
   const [legend, setLegend] = useState<DiagramLegendEntry[]>(DEFAULT_LEGEND)
@@ -207,7 +207,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
                 onChange={(e) => setExcludeEndpoints(e.target.checked)}
                 className="accent-blue-500"
               />
-              Exclude access points &amp; end-user devices
+              Exclude access points (separate page)
             </label>
           </div>
         </div>
