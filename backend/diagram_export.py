@@ -21,6 +21,7 @@ import math
 import os
 import re
 import zipfile
+from collections import defaultdict
 from xml.sax.saxutils import escape as _xml_escape
 
 # --------------------------------------------------------------------------
@@ -37,6 +38,7 @@ SLOT_W = 260              # horizontal slot per device (spaced for readability)
 MAX_PER_ROW = 8           # rows wrap downward past this (uniform vertical flow)
 LEGEND_H = 130            # legend / title block height
 TOP_PAD = 20              # extra headroom above the first row (keeps labels clear)
+LARGE_SITE_THRESHOLD = 30  # infra devices above this use overview + drill-down pages
 
 # Hierarchy: Internet -> VeloCloud -> Router/Firewall -> Core -> Distribution
 # -> Access -> End Users & Devices, drawn top to bottom. Each band is a row of
@@ -334,6 +336,193 @@ class Scene:
 
     def ellipse(self, cx, cy, rx, ry, fill=None, stroke=None, sw=1.0, tag=None):
         self.prims.append({"k": "ellipse", "cx": cx, "cy": cy, "rx": rx, "ry": ry, "fill": fill, "stroke": stroke, "sw": sw, "tag": tag})
+
+
+def _split_large_site(infra: list[dict], links: list[dict]):
+    """Group a large site into top tiers (edge/core) and subnet 'blocks'.
+
+    Returns (top_nodes, zone_groups, top_links, uplinks) where zone_groups is
+    {subnet: [nodes]} for the distribution/access tiers (access switches are
+    attached to the subnet of the distribution switch they connect to), and
+    uplinks is {subnet: {core_ip: set(zone_device_ips)}}.
+    """
+    layer = {n["ip"]: _layer_of(n) for n in infra}
+    top_tiers = ("internet", "velocloud", "router", "core")
+    top_nodes = [n for n in infra if layer[n["ip"]] in top_tiers]
+    top_ips = {n["ip"] for n in top_nodes}
+
+    dist = [n for n in infra if layer[n["ip"]] == "distribution"]
+    access = [n for n in infra if layer[n["ip"]] == "access"]
+    dist_zone = {n["ip"]: (_subnet24(n["ip"]) or "other") for n in dist}
+
+    dist_adj = defaultdict(list)
+    for l in links:
+        a, b = l.get("source"), l.get("target")
+        if layer.get(a) == "distribution" and layer.get(b) == "access":
+            dist_adj[b].append(a)
+        elif layer.get(b) == "distribution" and layer.get(a) == "access":
+            dist_adj[a].append(b)
+
+    zone_groups = defaultdict(list)
+    for n in dist:
+        zone_groups[dist_zone[n["ip"]]].append(n)
+    node_zone = dict(dist_zone)
+    for n in access:
+        d = dist_adj.get(n["ip"], [])
+        pfx = dist_zone[d[0]] if d else (_subnet24(n["ip"]) or "other")
+        zone_groups[pfx].append(n)
+        node_zone[n["ip"]] = pfx
+
+    top_links = [l for l in links if l.get("source") in top_ips and l.get("target") in top_ips]
+
+    # uplinks: top device -> zone (bundled); cross: zone <-> zone (bundled)
+    uplinks = defaultdict(lambda: defaultdict(set))
+    cross = defaultdict(set)
+    for l in links:
+        a, b = l.get("source"), l.get("target")
+        za, zb = node_zone.get(a), node_zone.get(b)
+        if a in top_ips and zb is not None:
+            uplinks[zb][a].add(b)
+        elif b in top_ips and za is not None:
+            uplinks[za][b].add(a)
+        elif za is not None and zb is not None and za != zb:
+            cross[frozenset((za, zb))].add((a, b))
+
+    return top_nodes, zone_groups, top_links, uplinks, cross
+
+
+def _build_overview_scene(top_nodes: list[dict], zone_groups: dict, top_links: list[dict],
+                          uplinks: dict, cross: dict, opts: dict) -> Scene:
+    """Overview sheet: edge device -> cores -> subnet zone containers."""
+    title = (opts.get("title") or "AMTRAK NETWORK DIAGRAM").upper()
+    legend = opts.get("legend") or DEFAULT_LEGEND
+    color_links = opts.get("color_links", True)
+    legend_color = {e.get("key"): e.get("color") for e in legend if e.get("key")}
+
+    layer_of = {n["ip"]: _layer_of(n) for n in top_nodes}
+    layers = {}
+    for n in top_nodes:
+        layers.setdefault(layer_of[n["ip"]], []).append(n)
+    order = [k for k in LAYER_KEYS if k in layers]
+    for r in order:
+        layers[r].sort(key=lambda n: (n.get("hostname") or n.get("ip") or ""))
+
+    device_shape = {}
+    for n in top_nodes:
+        ip = n["ip"]; dt = (n.get("device_type") or "").lower()
+        hn = (n.get("hostname") or "").split(".")[0]
+        icon_path = _icon_path(dt, n.get("model") or "", hn)
+        kind = _icon_kind(dt, n.get("model") or "", hn)
+        if icon_path:
+            w, h = _icon_size(icon_path, 64 if kind == "ap" else 110 if kind == "router" else 130,
+                              64 if kind == "ap" else 60 if kind == "router" else 70)
+        else:
+            w, h = GLYPH_W, GLYPH_H
+        device_shape[ip] = (w, h, kind, icon_path)
+
+    zone_items = sorted(zone_groups.items(), key=lambda kv: -len(kv[1]))
+    SLOT = 250.0
+    ncols = max([len(layers[r]) for r in order] + [len(zone_items)] + [1])
+    width = max(1200.0, MARGIN * 2 + ncols * SLOT)
+    content_top = MARGIN + HEADER_H + TOP_PAD
+    TIER_GAP = 210.0
+
+    pos = {}
+    y = content_top + 55
+    for r in order:
+        ns = layers[r]
+        x0 = (width - (len(ns) - 1) * SLOT) / 2
+        for j, n in enumerate(ns):
+            pos[n["ip"]] = (x0 + j * SLOT, y)
+        y += TIER_GAP
+
+    ZONE_W, ZONE_H = 200.0, 90.0
+    zone_slot = 225.0
+    zone_y = y + 40
+    zx0 = (width - (len(zone_items) - 1) * zone_slot) / 2
+    zone_pos = {}
+    for j, (pfx, ns) in enumerate(zone_items):
+        zone_pos[pfx] = (zx0 + j * zone_slot, zone_y)
+
+    bus_y = zone_y + ZONE_H / 2 + 30
+    legend_y = bus_y + 20 if cross else zone_y + ZONE_H / 2 + 50
+    height = legend_y + LEGEND_H + MARGIN
+
+    scene = Scene(width, height)
+    scene.rect(MARGIN / 2, MARGIN / 2, width - MARGIN, height - MARGIN, stroke=C_FRAME, sw=1.5)
+    if os.path.exists(ASSET_LOGO):
+        scene.image(MARGIN + 6, MARGIN / 2 + 8, 170.0, 170.0 * 394 / 700, ASSET_LOGO)
+    scene.text(width / 2, MARGIN + 26, f"{title} - OVERVIEW", size=26)
+
+    # zone containers (behind everything else)
+    for pfx in zone_pos:
+        cx, cy = zone_pos[pfx]
+        n = len(zone_groups[pfx])
+        scene.rect(cx - ZONE_W / 2, cy - ZONE_H / 2, ZONE_W, ZONE_H, fill="#F2F5F8", stroke="#555555", sw=1.4)
+        scene.text(cx, cy - 12, pfx, size=9.5, bold=True)
+        scene.text(cx, cy + 8, f"{n} device{'s' if n != 1 else ''}", size=8.5)
+
+    # top devices (icons + side labels)
+    for r in order:
+        for n in layers[r]:
+            cx, cy = pos[n["ip"]]
+            ip = n["ip"]; w, h, kind, icon_path = device_shape[ip]
+            hn = (n.get("hostname") or "").split(".")[0] or ip
+            ipaddr = n.get("ip") or ""
+            tag = ("dev", ip)
+            labels = []
+            if icon_path:
+                scene.image(cx - w / 2, cy - h / 2, w, h, icon_path, tag=tag)
+            else:
+                scene.rect(cx - GLYPH_W / 2, cy - GLYPH_H / 2, GLYPH_W, GLYPH_H, fill=C_GLYPH, stroke=C_GLYPH_EDGE, sw=1.0, tag=tag)
+            scene.text(cx + w / 2 + 8, cy - 6, hn, size=9, bold=True, align="left", tag=tag); labels.append((hn, 9, True, C_TEXT))
+            if ipaddr:
+                scene.text(cx + w / 2 + 8, cy + 7, ipaddr, size=7.5, align="left", tag=tag); labels.append((ipaddr, 7.5, False, C_TEXT))
+            scene.devices.append({"ip": ip, "cx": cx, "cy": cy, "kind": kind, "labels": labels,
+                                  "icon_path": icon_path, "icon_w": w, "icon_h": h})
+
+    # top-tier links
+    for l in top_links:
+        a, b = l["source"], l["target"]
+        if a not in pos or b not in pos:
+            continue
+        role = _link_color_key(a, b, layer_of, l.get("source_interface"), l.get("target_interface"))
+        color = legend_color.get(role, C_LINK) if color_links else C_LINK
+        ax, ay = pos[a]; bx, by = pos[b]
+        ha = device_shape[a][1]; hb = device_shape[b][1]
+        if ay < by:
+            sy, ty = ay + ha / 2, by - hb / 2
+        else:
+            sy, ty = ay - ha / 2, by + hb / 2
+        cy_mid = (sy + ty) / 2
+        scene.line([(ax, sy), (ax, cy_mid), (bx, cy_mid), (bx, ty)], color=color, width=2.0 if role in ("wan", "core") else 1.2)
+
+    # core -> zone bundled links (one line per top/zone pair, labelled with the count)
+    for pfx, top_counts in uplinks.items():
+        if pfx not in zone_pos:
+            continue
+        zx, zy = zone_pos[pfx]
+        ztop = zy - ZONE_H / 2
+        for cip, devs in top_counts.items():
+            if cip not in pos:
+                continue
+            cx, cy = pos[cip]
+            ch = device_shape[cip][1]
+            sy = cy + ch / 2
+            scene.line([(cx, sy), (cx, (sy + ztop) / 2), (zx, (sy + ztop) / 2), (zx, ztop)], color=C_LINK, width=1.2)
+            scene.text(zx, (sy + ztop) / 2 - 8, f"{len(devs)}x", size=8, bold=True, color=C_PORT)
+
+    # cross-zone links (distribution <-> distribution across subnets) ride a
+    # bus below the zone row so they don't cross the boxes.
+    for (za, zb), pairs in cross.items():
+        if za not in zone_pos or zb not in zone_pos:
+            continue
+        ax, ay = zone_pos[za]; bx, by = zone_pos[zb]
+        sy = ay + ZONE_H / 2; ty = by + ZONE_H / 2
+        scene.line([(ax, sy), (ax, bus_y), (bx, bus_y), (bx, ty)], color="#888888", width=1.0)
+        scene.text((ax + bx) / 2, bus_y - 8, f"{len(pairs)}x", size=8, color=C_PORT)
+
+    return scene
 
 
 def _build_ap_scene(aps: list[dict], opts: dict) -> Scene:
@@ -1210,19 +1399,37 @@ def export_diagram(nodes: list[dict], links: list[dict], fmt: str, opts: dict) -
     aps = [n for n in nodes if _layer_of(n) == "endpoint"] if include_aps else []
     infra_ips = {n["ip"] for n in infra}
     infra_links = [l for l in links if l.get("source") in infra_ips and l.get("target") in infra_ips]
-    partitions = _partition(infra, infra_links)
-    # Put the page containing the top of the hierarchy (router / SD-WAN /
-    # internet) first so the drawing starts at the edge device.
-    def _top_score(part):
-        pn, _ = part
-        return 0 if any(_layer_of(n) in ("internet", "velocloud", "router") for n in pn) else 1
-    partitions.sort(key=_top_score)
-    total = len(partitions) + (1 if aps else 0)
+
+    # Large sites get an overview page + one drill-down page per subnet block.
+    ov = (opts.get("overview") or "auto").lower()
+    large = ov in ("on", "true", "1") or (ov == "auto" and len(infra) > LARGE_SITE_THRESHOLD)
+
     scenes = []
-    for i, (pn, pl) in enumerate(partitions):
-        o = dict(opts)
-        o["title_block"] = (i == total - 1)  # title block only on the last sheet
-        scenes.append(build_scene(pn, pl, o))
+    if large:
+        top_nodes, zone_groups, top_links, uplinks, cross = _split_large_site(infra, infra_links)
+        zone_order = sorted(zone_groups.keys(), key=lambda p: -len(zone_groups[p]))
+        scenes.append(_build_overview_scene(top_nodes, zone_groups, top_links, uplinks, cross, opts))
+        for zi, pfx in enumerate(zone_order):
+            znodes = zone_groups[pfx]
+            zips = {n["ip"] for n in znodes}
+            zlinks = [l for l in infra_links if l.get("source") in zips and l.get("target") in zips]
+            o = dict(opts)
+            o["title_block"] = (not aps) and (zi == len(zone_order) - 1)
+            o["subtitle"] = pfx
+            scenes.append(build_scene(znodes, zlinks, o))
+    else:
+        partitions = _partition(infra, infra_links)
+        # Put the page containing the top of the hierarchy (router / SD-WAN /
+        # internet) first so the drawing starts at the edge device.
+        def _top_score(part):
+            pn, _ = part
+            return 0 if any(_layer_of(n) in ("internet", "velocloud", "router") for n in pn) else 1
+        partitions.sort(key=_top_score)
+        total = len(partitions) + (1 if aps else 0)
+        for i, (pn, pl) in enumerate(partitions):
+            o = dict(opts)
+            o["title_block"] = (i == total - 1)  # title block only on the last sheet
+            scenes.append(build_scene(pn, pl, o))
     if aps:
         o = dict(opts)
         o["title_block"] = True
