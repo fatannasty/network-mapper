@@ -231,6 +231,13 @@ def _icon_size(path: str, max_w: float, max_h: float) -> tuple[float, float]:
         from PIL import Image
         with Image.open(path) as img:
             w, h = img.size
+            # Clamp the aspect ratio so wide flat front-panel icons don't
+            # render as paper-thin slivers (unreadable, breaks cable attach).
+            aspect = max(0.6, min(3.0, w / h))
+            if w / h > aspect:
+                w = h * aspect
+            elif h / w > 1.0 / aspect:
+                h = w / aspect
             f = min(max_w / w, max_h / h)
             return w * f, h * f
     except Exception:
@@ -509,6 +516,81 @@ def _auto_topology(nodes: list[dict], links: list[dict]) -> str:
     return "tree"
 
 
+def _device_rects(pos, half_w, half_h, pad=4.0) -> list[tuple[float, float, float, float]]:
+    """Axis-aligned rect (x0, y0, x1, y1) for every device icon."""
+    return [(pos[ip][0] - half_w(ip) - pad, pos[ip][1] - half_h(ip) - pad,
+             pos[ip][0] + half_w(ip) + pad, pos[ip][1] + half_h(ip) + pad)
+            for ip in pos]
+
+
+def _usable_channels(obstacles: list, margin: float = 110.0) -> list[float]:
+    """Horizontal cable levels in the empty bands between device rows."""
+    ys = sorted(set(r[1] for r in obstacles) | set(r[3] for r in obstacles))
+    cands = [(a + b) / 2 for a, b in zip(ys, ys[1:])]
+    cands += [ys[0] - margin, ys[-1] + margin]
+    return sorted(c for c in cands if all(not (o[1] <= c <= o[3]) for o in obstacles))
+
+
+def _usable_gutters(obstacles: list, margin: float = 70.0) -> list[float]:
+    """Vertical cable lanes in the empty columns between devices."""
+    xs = sorted(set(r[0] for r in obstacles) | set(r[2] for r in obstacles))
+    cands = [(a + b) / 2 for a, b in zip(xs, xs[1:])]
+    cands += [xs[0] - margin, xs[-1] + margin]
+    return sorted(g for g in cands if all(not (o[0] <= g <= o[2]) for o in obstacles))
+
+
+def _segment_clear(x1: float, y1: float, x2: float, y2: float, obstacles: list) -> bool:
+    xa, xb = min(x1, x2), max(x1, x2)
+    ya, yb = min(y1, y2), max(y1, y2)
+    return all(not (xa <= o[2] and xb >= o[0] and ya <= o[3] and yb >= o[1]) for o in obstacles)
+
+
+def _path_crossings(pts: list, obstacles: list) -> int:
+    return sum(0 if _segment_clear(x1, y1, x2, y2, obstacles) else 1
+               for (x1, y1), (x2, y2) in zip(pts, pts[1:]))
+
+
+def _route_avoid(sx, sy, tx, ty, obstacles, channels, gutters):
+    """Orthogonal path (sx,sy)->(tx,ty) that rides empty channels/lanes and
+    detours around device icons. Returns (points, crossing_count)."""
+    if abs(sy - ty) < 1.0:  # same row: ride the gap below the row
+        below = [c for c in channels if c > sy + 20]
+        c = min(below) if below else sy + 80
+        pts = [(sx, sy), (sx, c), (tx, c), (tx, ty)]
+        return pts, _path_crossings(pts, obstacles)
+    lo, hi = min(sy, ty), max(sy, ty)
+    best = None
+    for c in channels:
+        if not (lo < c < hi):
+            continue
+        pts = [(sx, sy), (sx, c), (tx, c), (tx, ty)]
+        n = _path_crossings(pts, obstacles)
+        if n == 0:
+            return pts, 0
+        if best is None or n < best[0]:
+            best = (n, pts)
+    # 4-bend detour: source channel -> gutter lane -> target channel
+    xlo, xhi = min(sx, tx) - 260, max(sx, tx) + 260
+    for c1 in channels:
+        if not (lo < c1 < hi):
+            continue
+        for c2 in channels:
+            if not (lo < c2 < hi):
+                continue
+            for gx in gutters:
+                if not (xlo < gx < xhi):
+                    continue
+                pts = [(sx, sy), (sx, c1), (gx, c1), (gx, c2), (tx, c2), (tx, ty)]
+                n = _path_crossings(pts, obstacles)
+                if n == 0:
+                    return pts, 0
+                if best is None or n < best[0]:
+                    best = (n, pts)
+    if best:
+        return best[1], best[0]
+    return [(sx, sy), (tx, ty)], 1
+
+
 def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     title = (opts.get("title") or "AMTRAK NETWORK DIAGRAM").upper()
     legend = opts.get("legend") or DEFAULT_LEGEND
@@ -530,6 +612,7 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
 
     # Device icons, sized up-front so slots fit the widest icon
     dt_by_ip = {n["ip"]: (n.get("device_type") or "").lower() for n in nodes}
+    nodes_by_ip = {n["ip"]: n for n in nodes}
     device_shape = {}
     _max_dev_w = GLYPH_W
     for n in nodes:
@@ -621,55 +704,98 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     attach = {}
     for li, l in enumerate(valid):
         a, b = l["source"], l["target"]
-        u, lo = (a, b) if pos[a][1] < pos[b][1] else (b, a)
-        attach.setdefault(u, {}).setdefault("bottom", []).append(li)
-        attach.setdefault(lo, {}).setdefault("top", []).append(li)
+        if abs(pos[a][1] - pos[b][1]) < 1.0:
+            attach.setdefault(a, {}).setdefault("bottom", []).append(li)
+            attach.setdefault(b, {}).setdefault("bottom", []).append(li)
+        elif pos[a][1] < pos[b][1]:
+            attach.setdefault(a, {}).setdefault("bottom", []).append(li)
+            attach.setdefault(b, {}).setdefault("top", []).append(li)
+        else:
+            attach.setdefault(a, {}).setdefault("top", []).append(li)
+            attach.setdefault(b, {}).setdefault("bottom", []).append(li)
     def attach_x(ip, side, li):
         group = attach.get(ip, {}).get(side, [])
         n = len(group)
         if n <= 1: return pos[ip][0]
         return pos[ip][0] + (group.index(li) - (n - 1) / 2) * 10.0
-
+    def half_w(ip): return device_shape.get(ip, _DFLT)[0]
     def half_h(ip): return device_shape.get(ip, _DFLT)[1]
 
-    # Draw links (elbow) with port names at the midpoint, collision-suppressed
-    placed_labels = []
-    def _label_ok(x, y):
-        for lx, ly in placed_labels:
-            if abs(lx - x) < 55 and abs(ly - y) < 16:
+    # Obstacle-avoiding routing for the row-based topologies
+    rects = _device_rects(pos, half_w, half_h)
+    rect_by_ip = {ip: _device_rects({ip: pos[ip]}, half_w, half_h)[0] for ip in pos}
+    if topology in ("tree", "bus"):
+        channels = _usable_channels(rects)
+        gutters = _usable_gutters(rects)
+    else:
+        channels, gutters = [], []
+
+    # Reserve each device's label block so port labels never land on a name
+    def _txt_w(text, size): return len(text) * size * 0.62
+    label_block = {}
+    for ip in pos:
+        hn = (nodes_by_ip[ip].get("hostname") or "").split(".")[0] or ip
+        model = (nodes_by_ip[ip].get("model") or "").strip()
+        lines = [hn] + [ip] + ([model] if model else [])
+        w = max(_txt_w(t, 9 if i == 0 else 7.5) for i, t in enumerate(lines)) if lines else 10.0
+        iw, ih = device_shape.get(ip, _DFLT)[0] * 2, device_shape.get(ip, _DFLT)[1] * 2
+        top = pos[ip][1] - ih / 2 - 8
+        label_block[ip] = (pos[ip][0] - w / 2, top - 4 - (len(lines) - 1) * 12 - 9, pos[ip][0] + w / 2, top)
+
+    # Rect-based label collision map (device names reserved first)
+    placed_rects = []
+    for ip, (x0, y0, x1, y1) in label_block.items():
+        placed_rects.append((x0 - 3, y0 - 2, x1 + 3, y1 + 2))
+    def _label_ok(x, y, w, h):
+        for rx0, ry0, rx1, ry1 in placed_rects:
+            if x < rx1 and x + w > rx0 and y < ry1 and y + h > ry0:
                 return False
-        placed_labels.append((x, y))
+        placed_rects.append((x, y, x + w, y + h))
         return True
 
+    # Draw links (elbow, obstacle-avoiding) with port names on the cable
     for li, l in enumerate(valid):
         a, b = l["source"], l["target"]
         role = _link_color_key(a, b, layer_of, l["source_interface"], l["target_interface"])
         color = legend_color.get(role, C_LINK) if color_links else C_LINK
         ia_s = _port_label(l.get("source_interfaces", [l["source_interface"]]))
         ib_s = _port_label(l.get("target_interfaces", [l["target_interface"]]))
-        if pos[a][1] < pos[b][1]:
+        if abs(pos[a][1] - pos[b][1]) < 1.0:
+            # Same row: ride the gap below the row, both ends on the bottom edge.
+            sx, sy = attach_x(a, "bottom", li), pos[a][1] + half_h(a)
+            tx, ty = attach_x(b, "bottom", li), pos[b][1] + half_h(b)
+        elif pos[a][1] < pos[b][1]:
             sx, sy = attach_x(a, "bottom", li), pos[a][1] + half_h(a)
             tx, ty = attach_x(b, "top", li), pos[b][1] - half_h(b)
         else:
             sx, sy = attach_x(a, "top", li), pos[a][1] - half_h(a)
             tx, ty = attach_x(b, "bottom", li), pos[b][1] + half_h(b)
-        # Route the horizontal segment in the gap just outside the source
-        # device (not the midpoint), so cables ride clear channels instead of
-        # cutting through the devices in between.
-        dirn = 1 if sy < ty else -1
-        cy = sy + dirn * 50
-        pts = [(sx, sy), (sx, cy), (tx, cy), (tx, ty)]
+        link_obs = [rects[i] for i, ip in enumerate(pos) if ip not in (a, b)]
+        if channels:
+            pts, _ = _route_avoid(sx, sy, tx, ty, link_obs, channels, gutters)
+        else:
+            dirn = 1 if sy < ty else -1
+            cy = sy + dirn * 50
+            pts = [(sx, sy), (sx, cy), (tx, cy), (tx, ty)]
         lw = 2.0 if role in ("wan", "core") else 1.2
         scene.line(pts, color=color, width=lw, tag="link")
-        mid_x = (sx + tx) / 2
-        mid_y = (sy + ty) / 2
-        if ia_s and _label_ok(mid_x, mid_y - 8):
-            scene.text(mid_x, mid_y - 8, ia_s, size=8, bold=True, color=C_PORT, tag="link")
-        if ib_s and _label_ok(mid_x, mid_y + 8):
-            scene.text(mid_x, mid_y + 8, ib_s, size=8, bold=True, color=C_PORT, tag="link")
+        # Place port labels at the midpoint of the longest horizontal cable run
+        hseg = None
+        for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+            if abs(y1 - y2) < 0.5 and (hseg is None or abs(x2 - x1) > hseg[2]):
+                hseg = (min(x1, x2), y1, abs(x2 - x1))
+        if hseg:
+            lx = hseg[0] + hseg[2] / 2
+            ly = hseg[1]
+        else:
+            lx, ly = (sx + tx) / 2, (sy + ty) / 2
+        if ia_s and _label_ok(lx - _txt_w(ia_s, 8) / 2, ly - 14, _txt_w(ia_s, 8), 9):
+            scene.text(lx, ly - 8, ia_s, size=8, bold=True, color=C_PORT, tag="link")
+        if ib_s and _label_ok(lx - _txt_w(ib_s, 8) / 2, ly + 6, _txt_w(ib_s, 8), 9):
+            scene.text(lx, ly + 8, ib_s, size=8, bold=True, color=C_PORT, tag="link")
         scene.vlinks.append({"a": a, "b": b, "color": color, "width": lw, "role": role,
                              "src_if": ia_s, "dst_if": ib_s, "pts": pts,
-                             "src_label_pos": (mid_x, mid_y - 8), "dst_label_pos": (mid_x, mid_y + 8),
+                             "src_label_pos": (lx, ly - 8), "dst_label_pos": (lx, ly + 8),
                              "src_align": "center", "dst_align": "center",
                              "ax": pos[a][0], "ay": pos[a][1], "bx": pos[b][0], "by": pos[b][1]})
 
