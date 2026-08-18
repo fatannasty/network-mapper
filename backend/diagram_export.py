@@ -36,7 +36,6 @@ UNKNOWN_W, UNKNOWN_H = 100, 22
 SLOT_W = 260              # horizontal slot per device (spaced for readability)
 MAX_PER_ROW = 8           # rows wrap downward past this (uniform vertical flow)
 LEGEND_H = 130            # legend / title block height
-SIDE_LEGEND_W = 210       # right-side connection-legend panel width
 TOP_PAD = 20              # extra headroom above the first row (keeps labels clear)
 
 # Hierarchy: Internet -> VeloCloud -> Router/Firewall -> Core -> Distribution
@@ -622,33 +621,6 @@ def _route_avoid(sx, sy, tx, ty, obstacles, channels, gutters, same_row=False):
     return [(sx, sy), (tx, ty)], 1
 
 
-def _draw_side_legend(scene: Scene, content_top: float, width: float, height: float, legend: list) -> None:
-    """Left-side panel explaining how the devices connect (easy to read)."""
-    x0 = MARGIN / 2 + 8
-    x1 = x0 + SIDE_LEGEND_W
-    y0 = content_top + 12
-    y1 = height - LEGEND_H - 12
-    scene.rect(x0, y0, x1 - x0, y1 - y0, fill="#F7F7F7", stroke=C_FRAME, sw=1.2)
-    scene.text((x0 + x1) / 2, y0 + 6, "LEGEND", size=11, bold=True, align="center")
-    scene.line([(x0 + 8, y0 + 20), (x1 - 8, y0 + 20)], color="#CCCCCC", width=1.0)
-    ly = y0 + 30
-    scene.text(x0 + 10, ly, "LINK TYPES", size=8.5, bold=True, align="left"); ly += 16
-    for e in legend:
-        scene.rect(x0 + 10, ly + 1, 26, 5, fill=e.get("color") or C_LINK, stroke=None, sw=0)
-        scene.text(x0 + 44, ly - 2, e.get("label") or "", size=8.5, align="left"); ly += 15
-    ly += 8
-    scene.line([(x0 + 8, ly), (x1 - 8, ly)], color="#CCCCCC", width=1.0)
-    ly += 10
-    scene.text(x0 + 10, ly, "DEVICES", size=8.5, bold=True, align="left"); ly += 17
-    for dt, label in [("router", "Router / Firewall"), ("switch", "Core Switch"),
-                      ("switch", "Distribution / Access Switch"), ("access point", "Meraki Access Point")]:
-        p = _icon_path(dt, "", "")
-        if p:
-            w, h = _icon_size(p, 30, 30)
-            scene.image(x0 + 8 + (30 - w) / 2, ly - 15, w, h, p)
-        scene.text(x0 + 44, ly - 4, label, size=8.5, align="left"); ly += 21
-
-
 def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     title = (opts.get("title") or "AMTRAK NETWORK DIAGRAM").upper()
     legend = opts.get("legend") or DEFAULT_LEGEND
@@ -728,12 +700,6 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     else:
         pos, width, height, legend_y, content_top = _layout_tree(layers, order, valid, _max_dev_w)
 
-    # Reserve a left-side panel for the connection legend: shift the whole
-    # layout right so nothing overlaps it.
-    if opts.get("side_legend", True) and topology in ("tree", "bus"):
-        pos = {ip: (x + SIDE_LEGEND_W, y) for ip, (x, y) in pos.items()}
-        width += SIDE_LEGEND_W
-
     show_tb = opts.get("title_block", True)
     if not show_tb:
         height = legend_y + MARGIN
@@ -742,9 +708,6 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     scene.rect(MARGIN / 2, MARGIN / 2, width - MARGIN, height - MARGIN, stroke=C_FRAME, sw=1.5)
     if os.path.exists(ASSET_LOGO): scene.image(MARGIN + 6, MARGIN / 2 + 8, 170.0, 170.0 * 394 / 700, ASSET_LOGO)
     scene.text(width / 2, MARGIN + 26, title, size=26)
-
-    if opts.get("side_legend", True) and topology in ("tree", "bus"):
-        _draw_side_legend(scene, content_top, width, height, legend)
 
     # Subnet zone boxes: draw a light rectangle around devices that share a
     # /24 subnet (drawn behind devices/links so they stay readable). Only
