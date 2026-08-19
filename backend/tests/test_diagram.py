@@ -178,3 +178,46 @@ def test_diagram_render_cache_serves_repeat_requests(monkeypatch):
     assert r1.status_code == 200 and r2.status_code == 200
     assert r1.content == r2.content
     assert calls["n"] == 1  # second request served from cache
+
+
+def test_diagram_legibility_no_obstructions():
+    """A dense fat-tree site must render with no cable-through-icon,
+    cable-through-label, or label-label overlaps (visual regression guard)."""
+    from diagram_export import build_scene, analyze_scene
+
+    nodes = [{"ip": "10.0.0.1", "hostname": "EDGE-ROUTER", "model": "ISR4331",
+              "device_type": "router"}]
+    for i in range(2):
+        nodes.append({"ip": f"10.0.0.{10 + i}", "hostname": f"CORE-{i + 1}",
+                      "model": "C9500-24Y4C", "device_type": "switch"})
+    for i in range(8):
+        nodes.append({"ip": f"10.0.1.{11 + i}", "hostname": f"DIST-{i + 1}",
+                      "model": "C9300X-24Y", "device_type": "switch"})
+    for i in range(6):
+        nodes.append({"ip": f"10.0.2.{21 + i}", "hostname": f"ACCESS-{i + 1}",
+                      "model": "WS-C3560CX-8PC-S", "device_type": "switch"})
+
+    links = [
+        {"source": "10.0.0.1", "target": "10.0.0.10", "source_interface": "Gi0/0/0", "target_interface": "Te1/0/1"},
+        {"source": "10.0.0.1", "target": "10.0.0.11", "source_interface": "Gi0/0/1", "target_interface": "Te1/0/1"},
+        {"source": "10.0.0.10", "target": "10.0.0.11", "source_interface": "Te1/0/2", "target_interface": "Te1/0/2"},
+    ]
+    for i in range(8):
+        dist_ip = f"10.0.1.{11 + i}"
+        links.append({"source": "10.0.0.10", "target": dist_ip,
+                      "source_interface": "Te1/0/3", "target_interface": "Te1/0/1"})
+        links.append({"source": "10.0.0.11", "target": dist_ip,
+                      "source_interface": "Te1/0/3", "target_interface": "Te1/0/2"})
+    for i in range(6):
+        acc_ip = f"10.0.2.{21 + i}"
+        dist_ip = f"10.0.1.{11 + (i % 8)}"
+        links.append({"source": dist_ip, "target": acc_ip,
+                      "source_interface": "Te1/1/1", "target_interface": "Te1/1/1"})
+
+    scene = build_scene(nodes, links, {"title": "TEST", "exclude_endpoints": False,
+                                       "topology": "tree", "link_detail": "full",
+                                       "title_block": False})
+    m = analyze_scene(scene)
+    assert m["cable_switch_crossings"] == 0, m
+    assert m["cable_label_crossings"] == 0, m
+    assert m["label_label_overlaps"] == 0, m

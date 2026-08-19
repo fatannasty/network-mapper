@@ -1072,7 +1072,9 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
                 scene.image(cx - iw / 2, cy - ih / 2, iw, ih, icon_path, tag=tag)
             else:
                 scene.rect(cx - GLYPH_W / 2, cy - GLYPH_H / 2, GLYPH_W, GLYPH_H, fill=C_GLYPH, stroke=C_GLYPH_EDGE, sw=1.0, tag=tag)
-            scene.devices.append({"ip": ip, "cx": cx, "cy": cy, "kind": icon_kind, "labels": labels, "icon_path": icon_path, "icon_w": iw, "icon_h": ih})
+            scene.devices.append({"ip": ip, "cx": cx, "cy": cy, "kind": icon_kind, "labels": labels,
+                                  "icon_path": icon_path, "icon_w": iw, "icon_h": ih,
+                                  "label_block": label_block.get(ip, (lx - 2, y0 - 11, lx + 100, y0 + n_lines * 13))})
 
     # Title block + legend (only on the final sheet of a multi-page drawing)
     if show_tb:
@@ -1524,3 +1526,47 @@ def export_diagram(nodes: list[dict], links: list[dict], fmt: str, opts: dict) -
     if fmt == "vsdx": return render_vsdx(scenes)
     if fmt == "docx": return render_docx(scenes)
     raise ValueError(f"unsupported format: {fmt}")
+
+
+def analyze_scene(scene: Scene) -> dict:
+    """Count legibility regressions in a rendered scene.
+
+    Returns counts for: cables passing through switch icons, cables passing
+    through device label text, and device labels overlapping each other.
+    A clean scene has all three equal to zero.
+    """
+    def _seg_hits(x1, y1, x2, y2, rects):
+        xa, xb = min(x1, x2), max(x1, x2)
+        ya, yb = min(y1, y2), max(y1, y2)
+        return any(xa <= r[2] and xb >= r[0] and ya <= r[3] and yb >= r[1] for r in rects)
+
+    icon_rects = {d["ip"]: (d["cx"] - d["icon_w"] / 2, d["cy"] - d["icon_h"] / 2,
+                            d["cx"] + d["icon_w"] / 2, d["cy"] + d["icon_h"] / 2)
+                  for d in scene.devices}
+    label_rects = {d["ip"]: d.get("label_block") for d in scene.devices}
+    label_rects = {k: v for k, v in label_rects.items() if v}
+
+    cable_switch = 0
+    cable_label = 0
+    for l in scene.vlinks:
+        end = {l["a"], l["b"]}
+        for ip, r in icon_rects.items():
+            if ip in end:
+                continue
+            if any(_seg_hits(x1, y1, x2, y2, [r]) for (x1, y1), (x2, y2) in zip(l["pts"], l["pts"][1:])):
+                cable_switch += 1
+        for r in label_rects.values():
+            if any(_seg_hits(x1, y1, x2, y2, [r]) for (x1, y1), (x2, y2) in zip(l["pts"], l["pts"][1:])):
+                cable_label += 1
+
+    label_label = 0
+    rects = list(label_rects.values())
+    for i in range(len(rects)):
+        for j in range(i + 1, len(rects)):
+            a, b = rects[i], rects[j]
+            if a[0] < b[2] and a[2] > b[0] and a[1] < b[3] and a[3] > b[1]:
+                label_label += 1
+
+    return {"cable_switch_crossings": cable_switch,
+            "cable_label_crossings": cable_label,
+            "label_label_overlaps": label_label}
