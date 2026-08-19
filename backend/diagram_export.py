@@ -615,7 +615,9 @@ def _build_ap_scene(aps: list[dict], opts: dict) -> Scene:
 def _layout_tree(layers, order, valid, _max_dev_w):
     """Hierarchical top-to-bottom tiers, barycenter-ordered, wrapped into rows."""
     MAX_PER_ROW = 6
-    SLOT_W = _max_dev_w + 120.0
+    # Generous slot width leaves a clear vertical lane between a device's side
+    # label and the next column so cables can detour without crossing anything.
+    SLOT_W = _max_dev_w + 210.0
     neigh = {}
     for l in valid:
         a, b = l["source"], l["target"]

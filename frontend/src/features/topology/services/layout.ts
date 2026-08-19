@@ -43,8 +43,8 @@ export function freeLayout(nodes: IdNode[], links: IdLink[]) {
   const adjacency = buildAdjacency(nodes, links)
   const positions = new Map<string, { x: number; y: number }>()
   const visited = new Set<string>()
-  const SX = 260
-  const SY = 220
+  const SX = 360
+  const SY = 280
   let col = 0
 
   function dfs(id: string, row: number) {
@@ -65,8 +65,8 @@ export function freeLayout(nodes: IdNode[], links: IdLink[]) {
 
 export function treeLayout(nodes: IdNode[], links: IdLink[]) {
   const adjacency = buildAdjacency(nodes, links)
-  const SX = 260
-  const SY = 200
+  const SX = 360
+  const SY = 260
 
   const root = pickRoot(nodes, adjacency)
 
@@ -118,7 +118,7 @@ export function circleLayout(nodes: IdNode[], links: IdLink[]) {
   const count = nodes.length
   if (count === 0) return positions
 
-  const radius = Math.max(200, count * 22)
+  const radius = Math.max(220, count * 30)
   const root = pickRoot(nodes, adjacency)
   const levels = bfsLevels(root, adjacency)
 
@@ -171,8 +171,8 @@ export function radialLayout(nodes: IdNode[], links: IdLink[]) {
   positions.set(root, { x: 0, y: 0 })
 
   // Place each level in a concentric ring
-  const baseRadius = 180
-  const ringSpacing = 200
+  const baseRadius = 220
+  const ringSpacing = 260
   for (const [level, ids] of byLevel) {
     if (level === 0) continue
     const radius = baseRadius + (level - 1) * ringSpacing
