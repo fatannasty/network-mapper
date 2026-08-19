@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Modal from '../../../components/ui/Modal'
 import Button from '../../../components/ui/Button'
 import Input from '../../../components/ui/Input'
 import {
   exportTopologyDiagram,
+  exportTopologyPackage,
+  renderTopologyPreview,
   getDiagramPrefs,
   saveDiagramPrefs,
   apiErrorMessage,
   type TopologyData,
   type DiagramFormat,
   type DiagramLegendEntry,
+  type DiagramExportOptions,
 } from '../../../api'
 
 const DEFAULT_LEGEND: DiagramLegendEntry[] = [
@@ -61,6 +64,9 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
   const [legend, setLegend] = useState<DiagramLegendEntry[]>(DEFAULT_LEGEND)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [previewUrl, setPreviewUrl] = useState<string>('')
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!open || !scanId) return
@@ -71,6 +77,45 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
       })
       .catch(() => {})
   }, [open, scanId])
+
+  const buildOptions = (): DiagramExportOptions => ({
+    format,
+    nodes: topology.nodes,
+    links: topology.links,
+    title: title.trim() || 'AMTRAK NETWORK DIAGRAM',
+    drawn_by: drawnBy.trim(),
+    document_name: documentName.trim(),
+    revision: revision.trim(),
+    color_links: colorLinks,
+    exclude_endpoints: excludeEndpoints,
+    topology: topoMode,
+    link_detail: linkDetail,
+    legend: legend.filter((e) => e.label.trim()),
+  })
+
+  // Debounced live preview whenever the layout-relevant options change.
+  useEffect(() => {
+    if (!open) return
+    setPreviewLoading(true)
+    if (previewTimer.current) clearTimeout(previewTimer.current)
+    previewTimer.current = setTimeout(async () => {
+      try {
+        const url = await renderTopologyPreview(buildOptions())
+        setPreviewUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev)
+          return url
+        })
+      } catch {
+        // preview is best-effort; ignore failures
+      } finally {
+        setPreviewLoading(false)
+      }
+    }, 450)
+    return () => {
+      if (previewTimer.current) clearTimeout(previewTimer.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, title, topoMode, linkDetail, excludeEndpoints, colorLinks, legend, topology])
 
   const updateLegend = (i: number, patch: Partial<DiagramLegendEntry>) => {
     setLegend((prev) => prev.map((e, j) => (j === i ? { ...e, ...patch } : e)))
@@ -83,21 +128,20 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
       if (scanId) {
         await saveDiagramPrefs(scanId, { topology: topoMode, link_detail: linkDetail })
       }
-      await exportTopologyDiagram({
-        format,
-        nodes: topology.nodes,
-        links: topology.links,
-        title: title.trim() || 'AMTRAK NETWORK DIAGRAM',
-        drawn_by: drawnBy.trim(),
-        document_name: documentName.trim(),
-        revision: revision.trim(),
-        color_links: colorLinks,
-        exclude_endpoints: excludeEndpoints,
-        topology: topoMode,
-        link_detail: linkDetail,
-        legend: legend.filter((e) => e.label.trim()),
-      })
+      await exportTopologyDiagram(buildOptions())
       onClose()
+    } catch (err) {
+      setError(apiErrorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const onPackage = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await exportTopologyPackage({ ...buildOptions(), link_detail: 'backbone', format: 'pdf' })
     } catch (err) {
       setError(apiErrorMessage(err))
     } finally {
@@ -252,6 +296,23 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
           </div>
         </div>
 
+        <div>
+          <label className="block text-xs text-muted mb-1.5">Preview</label>
+          <div className="rounded-xl border border-border/40 bg-surface-2/40 overflow-hidden flex items-center justify-center min-h-[140px]">
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt="Diagram preview"
+                className="max-h-72 w-auto object-contain"
+              />
+            ) : (
+              <span className="text-xs text-muted py-6">
+                {previewLoading ? 'Rendering preview…' : 'Adjust options to preview'}
+              </span>
+            )}
+          </div>
+        </div>
+
         <p className="text-[11px] text-muted">
           The drawing sheet includes the Amtrak logo (top left) and the legend/title block at the
           bottom. Visio output stays fully editable — move devices, re-route links, restyle shapes.
@@ -263,13 +324,18 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
           </p>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>
-            Cancel
+        <div className="flex justify-between gap-2 pt-1">
+          <Button variant="secondary" size="sm" onClick={onPackage} disabled={busy} title="PDF + Word + port-table CSV in one ZIP">
+            Executive Package
           </Button>
-          <Button size="sm" onClick={onExport} disabled={busy}>
-            {busy ? 'Generating…' : 'Export'}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={onExport} disabled={busy}>
+              {busy ? 'Generating…' : 'Export'}
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>

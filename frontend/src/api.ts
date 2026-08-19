@@ -599,6 +599,7 @@ export interface DiagramExportOptions {
   exclude_endpoints?: boolean
   topology?: 'auto' | 'tree' | 'star' | 'ring' | 'bus'
   link_detail?: 'full' | 'backbone' | 'core'
+  scale?: number
 }
 
 export async function exportTopologyDiagram(opts: DiagramExportOptions) {
@@ -610,6 +611,22 @@ export async function exportTopologyDiagram(opts: DiagramExportOptions) {
   a.download = `${slug}.${opts.format}`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+export async function exportTopologyPackage(opts: DiagramExportOptions) {
+  const r = await api.post('/api/topology/package', opts, { responseType: 'blob' })
+  const url = URL.createObjectURL(r.data)
+  const a = document.createElement('a')
+  const slug = opts.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'diagram'
+  a.href = url
+  a.download = `${slug}-package.zip`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function renderTopologyPreview(opts: DiagramExportOptions): Promise<string> {
+  const r = await api.post('/api/topology/diagram', { ...opts, format: 'png', scale: 0.5 }, { responseType: 'blob' })
+  return URL.createObjectURL(r.data)
 }
 
 export interface DiagramPrefs {

@@ -156,6 +156,36 @@ def _port_label(interfaces) -> str:
     return f"({len(ifs)}x)"
 
 
+def build_port_table(nodes: list[dict], links: list[dict]) -> str:
+    """CSV companion table: device -> interface -> neighbor, one row per link
+    endpoint, sorted by device hostname then interface."""
+    import csv
+    import io
+
+    node_by_ip = {n["ip"]: n for n in nodes}
+    rows = []
+    for l in links:
+        a, b = l.get("source"), l.get("target")
+        ia = _shorten_interface(l.get("source_interface") or "")
+        ib = _shorten_interface(l.get("target_interface") or "")
+        proto = l.get("protocol") or ""
+        na, nb = node_by_ip.get(a), node_by_ip.get(b)
+        rows.append((na or {}, ia, proto, b, nb or {}, ib))
+        rows.append((nb or {}, ib, proto, a, na or {}, ia))
+    rows.sort(key=lambda r: ((r[0].get("hostname") or r[0].get("ip") or "").lower(), r[1]))
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["device_hostname", "device_ip", "device_model", "tier",
+                "interface", "protocol", "neighbor_hostname", "neighbor_ip",
+                "neighbor_interface"])
+    for dev, iface, proto, neigh_ip, neigh, neigh_if in rows:
+        w.writerow([dev.get("hostname") or "", dev.get("ip") or "",
+                    dev.get("model") or "", _layer_of(dev), iface, proto,
+                    neigh.get("hostname") or "", neigh_ip or "", neigh_if])
+    return buf.getvalue()
+
+
 def _icon_kind(device_type: str, model: str, hostname: str) -> str:
     dt, m, h = device_type.lower(), model.lower(), hostname.lower()
     if "access point" in dt or "accesspoint" in dt or m.startswith("mr") or m.startswith("air-"):
@@ -1122,13 +1152,23 @@ def _hex(color: str):
 
 
 _FONT_CANDIDATES = {
-    (False, False): ["/System/Library/Fonts/Helvetica.ttc",
+    # Arial first: it matches the VSDX font and avoids a FreeType divide-by-zero
+    # that Helvetica.ttc (index 0) hits at very small point sizes.
+    (False, False): ["/System/Library/Fonts/Supplemental/Arial.ttf",
+                     "/Library/Fonts/Arial.ttf",
+                     "/System/Library/Fonts/Helvetica.ttc",
                      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"],
-    (True, False): ["/System/Library/Fonts/Helvetica.ttc",
+    (True, False): ["/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+                    "/Library/Fonts/Arial Bold.ttf",
+                    "/System/Library/Fonts/Helvetica.ttc",
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"],
-    (False, True): ["/System/Library/Fonts/Helvetica.ttc",
+    (False, True): ["/System/Library/Fonts/Supplemental/Arial Italic.ttf",
+                    "/Library/Fonts/Arial Italic.ttf",
+                    "/System/Library/Fonts/Helvetica.ttc",
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf"],
-    (True, True): ["/System/Library/Fonts/Helvetica.ttc",
+    (True, True): ["/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
+                   "/Library/Fonts/Arial Bold Italic.ttf",
+                   "/System/Library/Fonts/Helvetica.ttc",
                    "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf"],
 }
 
@@ -1480,7 +1520,7 @@ def export_diagram(nodes: list[dict], links: list[dict], fmt: str, opts: dict) -
         o["title_block"] = True
         scenes.append(_build_ap_scene(aps, o))
     if fmt == "pdf": return render_pdf(scenes)
-    if fmt == "png": return render_png(scenes)
+    if fmt == "png": return render_png(scenes, scale=opts.get("scale", 2))
     if fmt == "vsdx": return render_vsdx(scenes)
     if fmt == "docx": return render_docx(scenes)
     raise ValueError(f"unsupported format: {fmt}")

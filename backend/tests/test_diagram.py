@@ -136,3 +136,23 @@ def test_diagram_rejects_bad_format():
 def test_diagram_rejects_empty_graph():
     resp = client.post("/api/topology/diagram", json={"format": "pdf", "nodes": [], "links": []})
     assert resp.status_code == 400
+
+
+def test_diagram_executive_package_zip():
+    resp = client.post("/api/topology/package", json={
+        "nodes": NODES, "links": LINKS, "title": "AMTRAK MIAMI STATION",
+    })
+    assert resp.status_code == 200
+    assert resp.content[:2] == b"PK"
+    assert resp.headers["content-type"] == "application/zip"
+
+    import io
+    import zipfile
+    z = zipfile.ZipFile(io.BytesIO(resp.content))
+    names = z.namelist()
+    assert any(n.endswith(".pdf") for n in names)
+    assert any(n.endswith(".docx") for n in names)
+    assert any(n.endswith("-port-table.csv") for n in names)
+    csv_data = z.read([n for n in names if n.endswith(".csv")][0]).decode()
+    assert "device_hostname" in csv_data
+    assert "MIFLST1SWC4" in csv_data

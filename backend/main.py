@@ -838,6 +838,7 @@ class DiagramExportRequest(BaseModel):
     exclude_endpoints: bool = False
     topology: str = "auto"                    # auto | tree | star | ring | bus
     link_detail: str = "full"                 # full | backbone | core
+    scale: float = 2.0                        # PNG render scale (lower = preview)
 
 
 @app.post("/api/topology/diagram", dependencies=[Depends(authenticated)])
@@ -871,6 +872,7 @@ def api_topology_diagram(req: DiagramExportRequest):
         "exclude_endpoints": req.exclude_endpoints,
         "topology": req.topology,
         "link_detail": req.link_detail,
+        "scale": req.scale,
     }
     data = diagram_export.export_diagram(req.nodes, req.links, fmt, opts)
 
@@ -912,37 +914,54 @@ def api_diagram_prefs_set(req: DiagramPrefsRequest, db: Session = Depends(get_db
 def api_port_table(scan_id: Optional[str] = Query(None), db: Session = Depends(get_db)):
     """Companion CSV: every device, its interfaces, and what each port connects
     to (device -> port -> neighbor), matching the topology diagram."""
-    import csv
-    from io import StringIO
-    from diagram_export import _layer_of, _shorten_interface
+    from diagram_export import build_port_table
 
     data = api_topology(scan_id=scan_id, focus=None, site=None, db=db)
-    nodes = data.get("nodes") or []
-    links = data.get("links") or []
-    node_by_ip = {n["ip"]: n for n in nodes}
-
-    rows = []
-    for l in links:
-        a, b = l.get("source"), l.get("target")
-        ia, ib = _shorten_interface(l.get("source_interface") or ""), _shorten_interface(l.get("target_interface") or "")
-        proto = l.get("protocol") or ""
-        na, nb = node_by_ip.get(a), node_by_ip.get(b)
-        rows.append((na or {}, ia, proto, b, nb or {}, ib))
-        rows.append((nb or {}, ib, proto, a, na or {}, ia))
-    rows.sort(key=lambda r: ((r[0].get("hostname") or r[0].get("ip") or "").lower(), r[1]))
-
-    buf = StringIO()
-    w = csv.writer(buf)
-    w.writerow(["device_hostname", "device_ip", "device_model", "tier",
-                "interface", "protocol", "neighbor_hostname", "neighbor_ip",
-                "neighbor_interface"])
-    for dev, iface, proto, neigh_ip, neigh, neigh_if in rows:
-        w.writerow([dev.get("hostname") or "", dev.get("ip") or "",
-                    dev.get("model") or "", _layer_of(dev), iface, proto,
-                    neigh.get("hostname") or "", neigh_ip or "", neigh_if])
-
-    return Response(content=buf.getvalue(), media_type="text/csv",
+    csv_text = build_port_table(data.get("nodes") or [], data.get("links") or [])
+    return Response(content=csv_text, media_type="text/csv",
                     headers={"Content-Disposition": 'attachment; filename="device-port-table.csv"'})
+
+
+@app.post("/api/topology/package", dependencies=[Depends(authenticated)])
+def api_topology_package(req: DiagramExportRequest):
+    """One-click executive package: PDF + Word + port-table CSV in a ZIP."""
+    import datetime
+    import io
+    import zipfile
+    import diagram_export
+
+    if not req.nodes:
+        raise HTTPException(status_code=400, detail="no topology nodes supplied")
+
+    now = datetime.datetime.now()
+    opts = {
+        "title": req.title,
+        "drawn_by": req.drawn_by,
+        "drawn_date": req.drawn_date or now.strftime("%m%d%Y"),
+        "drawing_title": req.drawing_title or req.title,
+        "document_name": req.document_name,
+        "revision": req.revision,
+        "rev_date": req.rev_date or now.strftime("%d %b %y"),
+        "rev_time": req.rev_time or now.strftime("%I:%M %p"),
+        "color_links": req.color_links,
+        "legend": [e.model_dump() for e in req.legend] or diagram_export.DEFAULT_LEGEND,
+        "exclude_endpoints": req.exclude_endpoints,
+        "topology": req.topology,
+        "link_detail": req.link_detail or "backbone",
+    }
+    slug = "".join(c if c.isalnum() else "-" for c in req.title.lower()).strip("-") or "diagram"
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr(f"{slug}.pdf", diagram_export.export_diagram(req.nodes, req.links, "pdf", opts))
+        z.writestr(f"{slug}.docx", diagram_export.export_diagram(req.nodes, req.links, "docx", opts))
+        z.writestr(f"{slug}-port-table.csv", diagram_export.build_port_table(req.nodes, req.links))
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{slug}-package.zip"'},
+    )
 
 
 @app.get("/api/topology/path", dependencies=[Depends(authenticated)])
