@@ -43,6 +43,7 @@ Roles:
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -162,11 +163,67 @@ def _keep_topology_link(link) -> bool:
     return link.protocol not in NON_TOPOLOGY_PROTOCOLS
 
 
+# Background reachability poller (feeds up/down/flapping state). Interval in
+# seconds; set to 0 (or negative) to disable.
+_LATENCY_POLL_INTERVAL = int(os.environ.get("LATENCY_POLL_INTERVAL", "60"))
+
+
+def _measure_latency_pass(db: Session, devices) -> tuple[int, int]:
+    """Ping `devices`, update latency and record reachability transitions."""
+    import datetime
+
+    latencies = scanner.measure_latencies([d.ip for d in devices])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    updated = 0
+    for device in devices:
+        latency = latencies.get(device.ip)
+        status = "up" if (latency is not None and latency > 0) else "down"
+        repositories.record_device_status(db, device.ip, status)
+        if latency is not None:
+            device.latency_ms = latency
+            device.latency_checked_at = now
+            updated += 1
+    return len(devices), updated
+
+
+def _run_latency_poll() -> dict:
+    from database import SessionLocal
+
+    with SessionLocal() as db:
+        devices = repositories.list_devices(db, limit=5000)
+        if not devices:
+            return {"measured": 0, "updated": 0}
+        measured, updated = _measure_latency_pass(db, devices)
+        db.commit()
+        return {"measured": measured, "updated": updated}
+
+
+async def _latency_poll_loop() -> None:
+    while True:
+        await asyncio.sleep(_LATENCY_POLL_INTERVAL)
+        try:
+            result = await run_in_threadpool(_run_latency_poll)
+            logger.info("latency poll: %s", result)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("latency poll failed: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
     _rename_old_scans()
-    yield
+    poll_task = None
+    if _LATENCY_POLL_INTERVAL > 0:
+        poll_task = asyncio.create_task(_latency_poll_loop())
+    try:
+        yield
+    finally:
+        if poll_task is not None:
+            poll_task.cancel()
+            try:
+                await poll_task
+            except asyncio.CancelledError:
+                pass
 
 
 def _rename_old_scans():
@@ -554,25 +611,13 @@ def api_discover(req: DiscoverRequest, db: Session = Depends(get_db)):
 def inventory_measure_latency(site: Optional[str] = Query(None),
                               db: Session = Depends(get_db)):
     """Ping every device and store the ICMP round-trip time (latency_ms)."""
-    import datetime
-
     devices = repositories.list_devices(db, site=site, limit=5000)
     if not devices:
         return {"measured": 0, "updated": 0}
 
-    latencies = scanner.measure_latencies([d.ip for d in devices])
-    now = datetime.datetime.now(datetime.timezone.utc)
-    updated = 0
-    for device in devices:
-        latency = latencies.get(device.ip)
-        status = "up" if (latency is not None and latency > 0) else "down"
-        repositories.record_device_status(db, device.ip, status)
-        if latency is not None:
-            device.latency_ms = latency
-            device.latency_checked_at = now
-            updated += 1
+    measured, updated = _measure_latency_pass(db, devices)
     db.commit()
-    return {"measured": len(devices), "updated": updated}
+    return {"measured": measured, "updated": updated}
 
 
 @app.get("/api/inventory/devices", dependencies=[Depends(authenticated)])
