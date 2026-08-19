@@ -126,6 +126,7 @@ export interface TopoNode {
   vendor: string
   model: string
   device_type: string
+  status?: 'up' | 'down' | 'degraded' | 'unknown'
 }
 
 export interface TopoLink {
@@ -136,6 +137,7 @@ export interface TopoLink {
   protocol: string
   source_hostname: string
   target_hostname: string
+  status?: 'up' | 'down'
 }
 
 export async function login(username: string, password: string) {

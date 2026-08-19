@@ -77,6 +77,7 @@ C_TEXT = "#000000"
 C_CORE = "#C00000"        # role label red
 C_PORT = "#444444"        # port labels
 C_LINK = "#333333"        # default link
+C_DOWN_LINK = "#DC2626"   # down link (operational state)
 C_GLYPH = "#2F3542"       # switch faceplate
 C_GLYPH_EDGE = "#111318"
 C_GLYPH_TICK = "#9AA3B2"
@@ -894,7 +895,8 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
                       "source_interface": src_ifs[0] if src_ifs else "",
                       "target_interface": dst_ifs[0] if dst_ifs else "",
                       "source_interfaces": src_ifs,
-                      "target_interfaces": dst_ifs})
+                      "target_interfaces": dst_ifs,
+                      "status": "down" if any(l.get("status") == "down" for l in group) else "up"})
 
     # Link detail: filter noisy links for dense sites.
     #   full     — draw every link.
@@ -1010,7 +1012,10 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     for li, l in enumerate(valid):
         a, b = l["source"], l["target"]
         role = _link_color_key(a, b, layer_of, l["source_interface"], l["target_interface"])
-        color = legend_color.get(role, C_LINK) if color_links else C_LINK
+        if l.get("status") == "down":
+            color = C_DOWN_LINK  # red, overriding the role colour
+        else:
+            color = legend_color.get(role, C_LINK) if color_links else C_LINK
         ia_s = _port_label(l.get("source_interfaces", [l["source_interface"]]))
         ib_s = _port_label(l.get("target_interfaces", [l["target_interface"]]))
         if abs(pos[a][1] - pos[b][1]) < 1.0:

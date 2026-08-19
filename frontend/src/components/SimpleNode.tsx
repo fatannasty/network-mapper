@@ -11,6 +11,7 @@ export type SimpleNodeData = {
   count?: number
   internalLinks?: number
   focus?: boolean
+  status?: 'up' | 'down' | 'degraded' | 'unknown'
 }
 
 interface NodeStyle {
@@ -36,12 +37,21 @@ const nodeStyle: Record<string, NodeStyle> = {
   unknown: { border: 'border-gray-500/60', bg: 'bg-gradient-to-br from-gray-500/25 via-gray-500/10 to-gray-500/5', glow: 'shadow-gray-500/15', iconBg: 'bg-gray-500/20', iconText: 'text-gray-200', bar: 'bg-gray-400' },
 }
 
+// State glyphs differ (not just color) so the status is readable for colorblind users.
+const statusConfig: Record<string, { bg: string; text: string; label: string; dot: string }> = {
+  up: { bg: 'bg-green-500', text: 'text-white', label: 'Up', dot: '●' },
+  down: { bg: 'bg-red-500', text: 'text-white', label: 'Down', dot: '▼' },
+  degraded: { bg: 'bg-amber-500', text: 'text-black', label: 'Degraded', dot: '◐' },
+  unknown: { bg: 'bg-gray-500', text: 'text-white', label: 'Unknown', dot: '○' },
+}
+
 export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
   const d = data as unknown as SimpleNodeData
   const type = d.device_type || 'unknown'
   const s = nodeStyle[type] || nodeStyle.unknown
   const icons = typeIcon(type)
   const name = shortName(d.hostname) || d.ip || d.id
+  const status = statusConfig[d.status || 'unknown']
 
   return (
     <div
@@ -52,6 +62,16 @@ export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
     >
       {/* Accent bar */}
       <span className={`absolute left-0 top-3 bottom-3 w-1.5 rounded-full ${s.bar} opacity-90`} />
+
+      {/* Operational status badge */}
+      <span
+        className={`absolute -top-1.5 -right-1.5 flex items-center justify-center w-5 h-5 rounded-full border border-black/40 text-[11px] leading-none ${status.bg} ${status.text}`}
+        role="img"
+        aria-label={`Status: ${d.status || 'unknown'}`}
+        title={status.label}
+      >
+        {status.dot}
+      </span>
 
       <Handle id="target" type="target" position={Position.Left} className="!bg-gray-500 !w-2.5 !h-2.5" />
       <Handle id="source" type="source" position={Position.Right} className="!bg-gray-500 !w-2.5 !h-2.5" />

@@ -888,9 +888,40 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
                 if key not in link_keys:
                     links.append(l)
 
+    # Enrich with operational state: per-device up/down derived from interface
+    # oper status (falling back to reachability latency when there are none).
+    from models import Interface as InterfaceModel
+
+    iface_counts: dict[int, dict[str, int]] = {}
+    device_ids = [d.id for d in devices if d.id is not None]
+    if device_ids:
+        for dev_id, status in db.query(InterfaceModel.device_id, InterfaceModel.if_oper_status).filter(
+            InterfaceModel.device_id.in_(device_ids)
+        ).all():
+            c = iface_counts.setdefault(dev_id, {"up": 0, "down": 0})
+            if status == "up":
+                c["up"] += 1
+            elif status == "down":
+                c["down"] += 1
+
+    def _device_status(d) -> str:
+        c = iface_counts.get(d.id, {"up": 0, "down": 0})
+        if c["up"] and c["down"]:
+            return "degraded"
+        if c["up"]:
+            return "up"
+        if c["down"]:
+            return "down"
+        if d.latency_checked_at:
+            return "up" if (d.latency_ms or 0) > 0 else "down"
+        return "unknown"
+
     nodes: list[dict] = []
     seen: set[str] = set()
+    status_by_ip: dict[str, str] = {}
     for d in devices:
+        st = _device_status(d)
+        status_by_ip[d.ip] = st
         nodes.append({
             "id": d.ip,
             "ip": d.ip,
@@ -898,19 +929,27 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
             "vendor": d.vendor,
             "model": d.model,
             "device_type": d.device_type,
+            "status": st,
         })
         seen.add(d.ip)
     for link in links:
         for ep in (link.endpoint_a, link.endpoint_b):
             if ep not in seen:
                 nodes.append({"id": ep, "ip": ep, "hostname": "", "vendor": "",
-                              "model": "", "device_type": "unknown"})
+                              "model": "", "device_type": "unknown", "status": "unknown"})
                 seen.add(ep)
+
+    link_dicts = [l.to_dict() for l in links]
+    for ld in link_dicts:
+        if status_by_ip.get(ld.get("source")) == "down" or status_by_ip.get(ld.get("target")) == "down":
+            ld["status"] = "down"
+        else:
+            ld["status"] = "up"
 
     return {
         "scan_id": job.id,
         "nodes": nodes,
-        "links": [l.to_dict() for l in links],
+        "links": link_dicts,
         "scan_meta": {
             "subnet": job.subnet,
             "device_count": job.device_count,

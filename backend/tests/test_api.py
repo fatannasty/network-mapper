@@ -25,6 +25,35 @@ def test_discover_loopback():
     assert "connections" in data
 
 
+def test_topology_nodes_include_operational_status():
+    """The topology payload must carry per-device up/down/degraded/unknown state."""
+    import uuid
+    from datetime import datetime
+
+    from database import SessionLocal
+    from models import Device, Interface, ScanJob
+
+    scan_id = uuid.uuid4().hex[:12]
+    with SessionLocal() as db:
+        db.add(ScanJob(id=scan_id, subnet="10.7.7.0/24", status="completed",
+                       device_count=2, finished_at=datetime.utcnow()))
+        db.add(Device(ip="10.7.7.1", hostname="sw-down", model="C9300",
+                      device_type="switch", last_scan_id=scan_id))
+        db.add(Device(ip="10.7.7.2", hostname="sw-up", model="C9300",
+                      device_type="switch", last_scan_id=scan_id))
+        db.flush()
+        for d, status in [("10.7.7.1", "down"), ("10.7.7.2", "up")]:
+            dev = db.query(Device).filter(Device.ip == d).first()
+            db.add(Interface(device_id=dev.id, if_name="Gi0/0", if_oper_status=status))
+        db.commit()
+
+    resp = admin.get("/api/topology", params={"scan_id": scan_id})
+    assert resp.status_code == 200
+    by_ip = {n["ip"]: n for n in resp.json()["nodes"]}
+    assert by_ip["10.7.7.1"]["status"] == "down"
+    assert by_ip["10.7.7.2"]["status"] == "up"
+
+
 def test_discover_invalid_cidr():
     resp = admin.post("/api/discover", json={"subnet": "bogus"})
     assert resp.status_code == 400

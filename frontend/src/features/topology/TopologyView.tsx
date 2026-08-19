@@ -213,6 +213,7 @@ export default function TopologyView() {
           ip: n.ip,
           hostname: n.hostname || dev?.hostname || '',
           device_type: n.device_type || dev?.device_type || '',
+          status: n.status || 'unknown',
           focus: !!focusIp && n.id === focusIp,
         },
       }
@@ -227,6 +228,7 @@ export default function TopologyView() {
         : l.protocol.toUpperCase()
       const pathKey = `${l.source}->${l.target}-${i}`
       const isPath = pathEdgeIds.has(pathKey)
+      const isDown = l.status === 'down'
 
       return {
         id: `e-${l.source}-${l.target}-${i}`,
@@ -239,10 +241,15 @@ export default function TopologyView() {
         labelBgPadding: [6, 3] as [number, number],
         labelBgBorderRadius: 6,
         style: {
-          stroke: isPath ? '#22c55e' : l.protocol === 'cdp' ? '#f59e0b' : l.protocol === 'catalyst' ? '#38bdf8' : '#60a5fa',
+          stroke: isPath ? '#22c55e'
+            : isDown ? '#ef4444'
+            : l.protocol === 'cdp' ? '#f59e0b'
+            : l.protocol === 'catalyst' ? '#38bdf8'
+            : '#60a5fa',
           strokeWidth: isPath ? 3.5 : 2.25,
+          strokeDasharray: isDown ? '6 3' : undefined,
         },
-        animated: true,
+        animated: !isDown,
         type: 'smoothstep',
       }
     })
