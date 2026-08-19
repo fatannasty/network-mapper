@@ -134,6 +134,7 @@ export interface TopoNode {
   model: string
   device_type: string
   status?: 'up' | 'down' | 'degraded' | 'unknown'
+  spof?: boolean
 }
 
 export interface TopoLink {

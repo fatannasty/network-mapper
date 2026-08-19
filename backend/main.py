@@ -946,6 +946,12 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
         else:
             ld["status"] = "up"
 
+    # Mark single points of failure (articulation points) in the topology.
+    from path_tracer import articulation_points
+    spof_ips = articulation_points([n["ip"] for n in nodes], link_dicts)
+    for n in nodes:
+        n["spof"] = n["ip"] in spof_ips
+
     return {
         "scan_id": job.id,
         "nodes": nodes,

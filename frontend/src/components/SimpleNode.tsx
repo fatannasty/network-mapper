@@ -12,6 +12,7 @@ export type SimpleNodeData = {
   internalLinks?: number
   focus?: boolean
   status?: 'up' | 'down' | 'degraded' | 'unknown'
+  spof?: boolean
 }
 
 interface NodeStyle {
@@ -72,6 +73,18 @@ export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
       >
         {status.dot}
       </span>
+
+      {/* Single point of failure badge */}
+      {d.spof && (
+        <span
+          className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-black border border-black/40 text-[11px] leading-none"
+          role="img"
+          aria-label="Single point of failure"
+          title="Single point of failure — removing this device partitions the network"
+        >
+          ⚠
+        </span>
+      )}
 
       <Handle id="target" type="target" position={Position.Left} className="!bg-gray-500 !w-2.5 !h-2.5" />
       <Handle id="source" type="source" position={Position.Right} className="!bg-gray-500 !w-2.5 !h-2.5" />

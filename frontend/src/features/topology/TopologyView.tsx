@@ -214,6 +214,7 @@ export default function TopologyView() {
           hostname: n.hostname || dev?.hostname || '',
           device_type: n.device_type || dev?.device_type || '',
           status: n.status || 'unknown',
+          spof: !!n.spof,
           focus: !!focusIp && n.id === focusIp,
         },
       }

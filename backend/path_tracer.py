@@ -76,3 +76,49 @@ def build_path(
         cur = prev
     path.reverse()
     return {"path": path, "hops": len(path)}
+
+
+def articulation_points(nodes: list[str], links: list[dict]) -> set[str]:
+    """Return the set of articulation points (single points of failure).
+
+    A vertex is an articulation point if removing it splits the graph into
+    more connected components — i.e. that device's failure partitions the
+    network. Uses Tarjan's O(V + E) DFS.
+
+    *nodes* is a list of device IPs; *links* is a list of dicts with
+    ``source``/``target`` keys.
+    """
+    adj: dict[str, list[str]] = {n: [] for n in nodes}
+    for l in links:
+        s, t = l.get("source"), l.get("target")
+        if s in adj and t in adj and s != t:
+            adj[s].append(t)
+            adj[t].append(s)
+
+    disc: dict[str, int] = {}
+    low: dict[str, int] = {}
+    parent: dict[str, str] = {}
+    aps: set[str] = set()
+    timer = [0]
+
+    def dfs(u: str) -> None:
+        children = 0
+        disc[u] = low[u] = timer[0]
+        timer[0] += 1
+        for v in adj[u]:
+            if v not in disc:
+                parent[v] = u
+                children += 1
+                dfs(v)
+                low[u] = min(low[u], low[v])
+                if u not in parent and children > 1:
+                    aps.add(u)
+                if u in parent and low[v] >= disc[u]:
+                    aps.add(u)
+            elif v != parent.get(u):
+                low[u] = min(low[u], disc[v])
+
+    for n in nodes:
+        if n not in disc:
+            dfs(n)
+    return aps
