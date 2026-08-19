@@ -62,6 +62,33 @@ AUTH_PROTOCOLS = ("md5", "sha", "none")
 PRIVACY_PROTOCOLS = ("aes", "des", "none")
 ROLES = ("admin", "operator", "viewer")
 
+# Render cache: identical diagram/package requests (same nodes, links and
+# options) are served from memory so repeat exports are instant. LRU-bounded.
+import hashlib as _hashlib
+import json as _json
+from collections import OrderedDict as _OrderedDict
+
+_RENDER_CACHE: _OrderedDict = _OrderedDict()
+_RENDER_CACHE_MAX = 64
+
+
+def _render_cache_key(payload: dict) -> str:
+    return _hashlib.md5(_json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _render_cache_get(key: str):
+    if key in _RENDER_CACHE:
+        _RENDER_CACHE.move_to_end(key)
+        return _RENDER_CACHE[key]
+    return None
+
+
+def _render_cache_set(key: str, data: bytes) -> None:
+    _RENDER_CACHE[key] = data
+    _RENDER_CACHE.move_to_end(key)
+    while len(_RENDER_CACHE) > _RENDER_CACHE_MAX:
+        _RENDER_CACHE.popitem(last=False)
+
 # Experimental VeloCloud LAN-inference links. These connect an SD-WAN edge to
 # every LAN device in an inferred broadcast domain, are unverified, and bleed
 # across sites (a Montreal edge showing up in the Miami topology). Excluded
@@ -841,6 +868,30 @@ class DiagramExportRequest(BaseModel):
     scale: float = 2.0                        # PNG render scale (lower = preview)
 
 
+def _diagram_cache_payload(fmt: str, req: DiagramExportRequest) -> dict:
+    """Stable fields that determine the rendered output (excludes the
+    auto-generated timestamps so repeat exports hit the render cache)."""
+    return {
+        "fmt": fmt,
+        "nodes": req.nodes,
+        "links": req.links,
+        "title": req.title,
+        "drawn_by": req.drawn_by,
+        "drawn_date": req.drawn_date,
+        "drawing_title": req.drawing_title,
+        "document_name": req.document_name,
+        "revision": req.revision,
+        "rev_date": req.rev_date,
+        "rev_time": req.rev_time,
+        "color_links": req.color_links,
+        "legend": [e.model_dump() for e in req.legend],
+        "exclude_endpoints": req.exclude_endpoints,
+        "topology": req.topology,
+        "link_detail": req.link_detail,
+        "scale": req.scale,
+    }
+
+
 @app.post("/api/topology/diagram", dependencies=[Depends(authenticated)])
 def api_topology_diagram(req: DiagramExportRequest):
     """Render the topology as an Amtrak engineering drawing sheet.
@@ -857,24 +908,30 @@ def api_topology_diagram(req: DiagramExportRequest):
     if not req.nodes:
         raise HTTPException(status_code=400, detail="no topology nodes supplied")
 
-    now = datetime.datetime.now()
-    opts = {
-        "title": req.title,
-        "drawn_by": req.drawn_by,
-        "drawn_date": req.drawn_date or now.strftime("%m%d%Y"),
-        "drawing_title": req.drawing_title or req.title,
-        "document_name": req.document_name,
-        "revision": req.revision,
-        "rev_date": req.rev_date or now.strftime("%d %b %y"),
-        "rev_time": req.rev_time or now.strftime("%I:%M %p"),
-        "color_links": req.color_links,
-        "legend": [e.model_dump() for e in req.legend] or diagram_export.DEFAULT_LEGEND,
-        "exclude_endpoints": req.exclude_endpoints,
-        "topology": req.topology,
-        "link_detail": req.link_detail,
-        "scale": req.scale,
-    }
-    data = diagram_export.export_diagram(req.nodes, req.links, fmt, opts)
+    cache_key = _render_cache_key(_diagram_cache_payload(fmt, req))
+    cached = _render_cache_get(cache_key)
+    if cached is not None:
+        data = cached
+    else:
+        now = datetime.datetime.now()
+        opts = {
+            "title": req.title,
+            "drawn_by": req.drawn_by,
+            "drawn_date": req.drawn_date or now.strftime("%m%d%Y"),
+            "drawing_title": req.drawing_title or req.title,
+            "document_name": req.document_name,
+            "revision": req.revision,
+            "rev_date": req.rev_date or now.strftime("%d %b %y"),
+            "rev_time": req.rev_time or now.strftime("%I:%M %p"),
+            "color_links": req.color_links,
+            "legend": [e.model_dump() for e in req.legend] or diagram_export.DEFAULT_LEGEND,
+            "exclude_endpoints": req.exclude_endpoints,
+            "topology": req.topology,
+            "link_detail": req.link_detail,
+            "scale": req.scale,
+        }
+        data = diagram_export.export_diagram(req.nodes, req.links, fmt, opts)
+        _render_cache_set(cache_key, data)
 
     media_types = {
         "pdf": "application/pdf",
@@ -933,32 +990,39 @@ def api_topology_package(req: DiagramExportRequest):
     if not req.nodes:
         raise HTTPException(status_code=400, detail="no topology nodes supplied")
 
-    now = datetime.datetime.now()
-    opts = {
-        "title": req.title,
-        "drawn_by": req.drawn_by,
-        "drawn_date": req.drawn_date or now.strftime("%m%d%Y"),
-        "drawing_title": req.drawing_title or req.title,
-        "document_name": req.document_name,
-        "revision": req.revision,
-        "rev_date": req.rev_date or now.strftime("%d %b %y"),
-        "rev_time": req.rev_time or now.strftime("%I:%M %p"),
-        "color_links": req.color_links,
-        "legend": [e.model_dump() for e in req.legend] or diagram_export.DEFAULT_LEGEND,
-        "exclude_endpoints": req.exclude_endpoints,
-        "topology": req.topology,
-        "link_detail": req.link_detail or "backbone",
-    }
     slug = "".join(c if c.isalnum() else "-" for c in req.title.lower()).strip("-") or "diagram"
+    cache_key = _render_cache_key(_diagram_cache_payload("package", req))
+    cached = _render_cache_get(cache_key)
+    if cached is not None:
+        data = cached
+    else:
+        now = datetime.datetime.now()
+        opts = {
+            "title": req.title,
+            "drawn_by": req.drawn_by,
+            "drawn_date": req.drawn_date or now.strftime("%m%d%Y"),
+            "drawing_title": req.drawing_title or req.title,
+            "document_name": req.document_name,
+            "revision": req.revision,
+            "rev_date": req.rev_date or now.strftime("%d %b %y"),
+            "rev_time": req.rev_time or now.strftime("%I:%M %p"),
+            "color_links": req.color_links,
+            "legend": [e.model_dump() for e in req.legend] or diagram_export.DEFAULT_LEGEND,
+            "exclude_endpoints": req.exclude_endpoints,
+            "topology": req.topology,
+            "link_detail": req.link_detail or "backbone",
+        }
 
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr(f"{slug}.pdf", diagram_export.export_diagram(req.nodes, req.links, "pdf", opts))
-        z.writestr(f"{slug}.docx", diagram_export.export_diagram(req.nodes, req.links, "docx", opts))
-        z.writestr(f"{slug}-port-table.csv", diagram_export.build_port_table(req.nodes, req.links))
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr(f"{slug}.pdf", diagram_export.export_diagram(req.nodes, req.links, "pdf", opts))
+            z.writestr(f"{slug}.docx", diagram_export.export_diagram(req.nodes, req.links, "docx", opts))
+            z.writestr(f"{slug}-port-table.csv", diagram_export.build_port_table(req.nodes, req.links))
+        data = buf.getvalue()
+        _render_cache_set(cache_key, data)
 
     return Response(
-        content=buf.getvalue(),
+        content=data,
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{slug}-package.zip"'},
     )

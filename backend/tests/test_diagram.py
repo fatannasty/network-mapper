@@ -156,3 +156,25 @@ def test_diagram_executive_package_zip():
     csv_data = z.read([n for n in names if n.endswith(".csv")][0]).decode()
     assert "device_hostname" in csv_data
     assert "MIFLST1SWC4" in csv_data
+
+
+def test_diagram_render_cache_serves_repeat_requests(monkeypatch):
+    """Identical requests must be served from the render cache without
+    re-rendering."""
+    import diagram_export
+
+    calls = {"n": 0}
+    real_export = diagram_export.export_diagram
+
+    def counting_export(*args, **kwargs):
+        calls["n"] += 1
+        return real_export(*args, **kwargs)
+
+    monkeypatch.setattr(diagram_export, "export_diagram", counting_export)
+
+    payload = {"format": "pdf", "nodes": NODES, "links": LINKS, "title": "CACHE TEST"}
+    r1 = client.post("/api/topology/diagram", json=payload)
+    r2 = client.post("/api/topology/diagram", json=payload)
+    assert r1.status_code == 200 and r2.status_code == 200
+    assert r1.content == r2.content
+    assert calls["n"] == 1  # second request served from cache
