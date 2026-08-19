@@ -29,6 +29,17 @@ engine = create_engine(DATABASE_URL, connect_args=_connect_args, poolclass=_pool
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 Base = declarative_base()
 
+if DATABASE_URL.startswith("sqlite"):
+    from sqlalchemy import event
+
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_conn, _record):
+        """WAL improves concurrent read/write behaviour for the SQLite backend."""
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
+
 
 def init_db() -> None:
     """Create all tables. Imports models so they register with Base."""

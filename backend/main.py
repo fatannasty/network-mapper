@@ -43,16 +43,18 @@ Roles:
 
 from __future__ import annotations
 
+import os
 import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from prometheus_client import CollectorRegistry, Gauge, generate_latest
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 import repositories
 import scanner
@@ -63,13 +65,15 @@ PRIVACY_PROTOCOLS = ("aes", "des", "none")
 ROLES = ("admin", "operator", "viewer")
 
 # Render cache: identical diagram/package requests (same nodes, links and
-# options) are served from memory so repeat exports are instant. LRU-bounded.
+# options) are served from memory so repeat exports are instant. LRU-bounded
+# by total bytes (not entry count) so large PNGs/VSDXs can't balloon memory.
 import hashlib as _hashlib
 import json as _json
 from collections import OrderedDict as _OrderedDict
 
 _RENDER_CACHE: _OrderedDict = _OrderedDict()
-_RENDER_CACHE_MAX = 64
+_RENDER_CACHE_MAX_BYTES = int(os.environ.get("RENDER_CACHE_MAX_BYTES", 128 * 1024 * 1024))
+_RENDER_CACHE_BYTES = 0
 
 
 def _render_cache_key(payload: dict) -> str:
@@ -84,10 +88,50 @@ def _render_cache_get(key: str):
 
 
 def _render_cache_set(key: str, data: bytes) -> None:
+    global _RENDER_CACHE_BYTES
+    if len(data) > _RENDER_CACHE_MAX_BYTES:
+        return  # single artifact exceeds the whole budget — don't cache it
     _RENDER_CACHE[key] = data
     _RENDER_CACHE.move_to_end(key)
-    while len(_RENDER_CACHE) > _RENDER_CACHE_MAX:
-        _RENDER_CACHE.popitem(last=False)
+    _RENDER_CACHE_BYTES += len(data)
+    while _RENDER_CACHE_BYTES > _RENDER_CACHE_MAX_BYTES and _RENDER_CACHE:
+        _, oldest = _RENDER_CACHE.popitem(last=False)
+        _RENDER_CACHE_BYTES -= len(oldest)
+
+
+# Lightweight in-memory rate limiter for the expensive export endpoints.
+import logging as _logging
+import time as _time
+
+logger = _logging.getLogger("network_mapper")
+
+_EXPORT_RATE_MAX = int(os.environ.get("EXPORT_RATE_LIMIT", 30))  # requests / window
+_EXPORT_RATE_WINDOW = 60.0
+_rate_hits: dict[str, list[float]] = {}
+
+
+def _enforce_export_rate(request) -> None:
+    key = getattr(request.client, "host", "unknown")
+    now = _time.monotonic()
+    hits = [t for t in _rate_hits.get(key, []) if now - t < _EXPORT_RATE_WINDOW]
+    if len(hits) >= _EXPORT_RATE_MAX:
+        raise HTTPException(status_code=429, detail="Too many export requests; try again shortly.")
+    hits.append(now)
+    _rate_hits[key] = hits
+
+
+# Hard caps on diagram/package input so a huge payload can't exhaust the renderer.
+MAX_DIAGRAM_NODES = int(os.environ.get("MAX_DIAGRAM_NODES", 2000))
+MAX_DIAGRAM_LINKS = int(os.environ.get("MAX_DIAGRAM_LINKS", 10000))
+
+
+def _validate_export_input(req) -> None:
+    if not req.nodes:
+        raise HTTPException(status_code=400, detail="no topology nodes supplied")
+    if len(req.nodes) > MAX_DIAGRAM_NODES:
+        raise HTTPException(status_code=400, detail=f"too many nodes (max {MAX_DIAGRAM_NODES})")
+    if len(req.links) > MAX_DIAGRAM_LINKS:
+        raise HTTPException(status_code=400, detail=f"too many links (max {MAX_DIAGRAM_LINKS})")
 
 # Experimental VeloCloud LAN-inference links. These connect an SD-WAN edge to
 # every LAN device in an inferred broadcast domain, are unverified, and bleed
@@ -893,7 +937,7 @@ def _diagram_cache_payload(fmt: str, req: DiagramExportRequest) -> dict:
 
 
 @app.post("/api/topology/diagram", dependencies=[Depends(authenticated)])
-def api_topology_diagram(req: DiagramExportRequest):
+async def api_topology_diagram(req: DiagramExportRequest, request: Request):
     """Render the topology as an Amtrak engineering drawing sheet.
 
     PDF and Word are static renders; the Visio (.vsdx) output is built from
@@ -902,11 +946,12 @@ def api_topology_diagram(req: DiagramExportRequest):
     import datetime
     import diagram_export
 
+    _enforce_export_rate(request)
+    _validate_export_input(req)
+
     fmt = req.format.lower()
     if fmt not in ("pdf", "vsdx", "docx", "png"):
         raise HTTPException(status_code=400, detail=f"unsupported format: {req.format}")
-    if not req.nodes:
-        raise HTTPException(status_code=400, detail="no topology nodes supplied")
 
     cache_key = _render_cache_key(_diagram_cache_payload(fmt, req))
     cached = _render_cache_get(cache_key)
@@ -930,7 +975,9 @@ def api_topology_diagram(req: DiagramExportRequest):
             "link_detail": req.link_detail,
             "scale": req.scale,
         }
-        data = diagram_export.export_diagram(req.nodes, req.links, fmt, opts)
+        started = _time.monotonic()
+        data = await run_in_threadpool(diagram_export.export_diagram, req.nodes, req.links, fmt, opts)
+        logger.info("rendered %s (%d nodes) in %.2fs", fmt, len(req.nodes), _time.monotonic() - started)
         _render_cache_set(cache_key, data)
 
     media_types = {
@@ -980,15 +1027,15 @@ def api_port_table(scan_id: Optional[str] = Query(None), db: Session = Depends(g
 
 
 @app.post("/api/topology/package", dependencies=[Depends(authenticated)])
-def api_topology_package(req: DiagramExportRequest):
+async def api_topology_package(req: DiagramExportRequest, request: Request):
     """One-click executive package: PDF + Word + port-table CSV in a ZIP."""
     import datetime
     import io
     import zipfile
     import diagram_export
 
-    if not req.nodes:
-        raise HTTPException(status_code=400, detail="no topology nodes supplied")
+    _enforce_export_rate(request)
+    _validate_export_input(req)
 
     slug = "".join(c if c.isalnum() else "-" for c in req.title.lower()).strip("-") or "diagram"
     cache_key = _render_cache_key(_diagram_cache_payload("package", req))
@@ -1013,12 +1060,17 @@ def api_topology_package(req: DiagramExportRequest):
             "link_detail": req.link_detail or "backbone",
         }
 
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-            z.writestr(f"{slug}.pdf", diagram_export.export_diagram(req.nodes, req.links, "pdf", opts))
-            z.writestr(f"{slug}.docx", diagram_export.export_diagram(req.nodes, req.links, "docx", opts))
-            z.writestr(f"{slug}-port-table.csv", diagram_export.build_port_table(req.nodes, req.links))
-        data = buf.getvalue()
+        def _build_package():
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                z.writestr(f"{slug}.pdf", diagram_export.export_diagram(req.nodes, req.links, "pdf", opts))
+                z.writestr(f"{slug}.docx", diagram_export.export_diagram(req.nodes, req.links, "docx", opts))
+                z.writestr(f"{slug}-port-table.csv", diagram_export.build_port_table(req.nodes, req.links))
+            return buf.getvalue()
+
+        started = _time.monotonic()
+        data = await run_in_threadpool(_build_package)
+        logger.info("built package (%d nodes) in %.2fs", len(req.nodes), _time.monotonic() - started)
         _render_cache_set(cache_key, data)
 
     return Response(

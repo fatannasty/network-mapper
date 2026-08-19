@@ -86,7 +86,10 @@ C_SUBNET_STROKE = "#B7C7DD"
 C_SUBNET_TEXT = "#4A6A8A"
 
 AMTRAK_BLUE = "#003A70"
-PROPRIETARY = "AMTRAK - Proprietary\nUse Pursuant to Company\nInstructions"
+PROPRIETARY = os.environ.get(
+    "AMTRAK_PROPRIETARY_TEXT",
+    "AMTRAK - Proprietary\nUse Pursuant to Company\nInstructions",
+)
 
 DEFAULT_LEGEND = [
     {"key": "wan", "label": "WAN / Internet", "color": LINK_COLORS["wan"]},
@@ -106,7 +109,7 @@ LINK_LAYERS = {
     "fiber": "Connector",
 }
 
-ASSET_LOGO = os.path.join(os.path.dirname(__file__), "assets", "amtrak-logo.png")
+ASSET_LOGO = os.environ.get("AMTRAK_LOGO_PATH") or os.path.join(os.path.dirname(__file__), "assets", "amtrak-logo.png")
 ICON_DIR = os.path.join(os.path.dirname(__file__), "assets", "icons")
 EMF_DIR = os.path.join(os.path.dirname(__file__), "assets", "emf")
 
@@ -600,7 +603,7 @@ def _build_ap_scene(aps: list[dict], opts: dict) -> Scene:
             scene.text(66 + bx, ey, e.get("label") or "", size=8.5, align="left"); ey += 16
         mid_x = c1 + (c2 - c1) / 2
         if os.path.exists(ASSET_LOGO): scene.image(mid_x - 32, by + 10, 64, 36, ASSET_LOGO)
-        rows_data = [[("Drawn By: ", opts.get("drawn_by") or ""), ("Drawn Date: ", opts.get("drawn_date") or "08142026")], [("Drawing Title: ", opts.get("drawing_title") or title)], [("Document Name: ", opts.get("document_name") or "")], [("Revision: ", opts.get("revision") or ""), ("Rev. Date: ", "14 Aug 26"), ("Rev. Time: ", "07:45 PM")]]
+        rows_data = [[("Drawn By: ", opts.get("drawn_by") or ""), ("Drawn Date: ", opts.get("drawn_date") or "")], [("Drawing Title: ", opts.get("drawing_title") or title)], [("Document Name: ", opts.get("document_name") or "")], [("Revision: ", opts.get("revision") or ""), ("Rev. Date: ", opts.get("rev_date") or ""), ("Rev. Time: ", opts.get("rev_time") or "")]]
         rh = LEGEND_H / 4
         for i, row in enumerate(rows_data):
             ry = by + i * rh
@@ -1092,7 +1095,7 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
         if os.path.exists(ASSET_LOGO): scene.image(mid_x - 32, by + 10, 64, 36, ASSET_LOGO)
         text_y = by + 56
         for i, ln in enumerate(PROPRIETARY.split("\n")): scene.text(mid_x, text_y + i * 13, ln, size=9, bold=True, italic=True, align="center")
-        rows = [[("Drawn By: ", opts.get("drawn_by") or ""), ("Drawn Date: ", opts.get("drawn_date") or "08142026")], [("Drawing Title: ", opts.get("drawing_title") or title)], [("Document Name: ", opts.get("document_name") or "")], [("Revision: ", opts.get("revision") or ""), ("Rev. Date: ", "14 Aug 26"), ("Rev. Time: ", "07:45 PM")]]
+        rows = [[("Drawn By: ", opts.get("drawn_by") or ""), ("Drawn Date: ", opts.get("drawn_date") or "")], [("Drawing Title: ", opts.get("drawing_title") or title)], [("Document Name: ", opts.get("document_name") or "")], [("Revision: ", opts.get("revision") or ""), ("Rev. Date: ", opts.get("rev_date") or ""), ("Rev. Time: ", opts.get("rev_time") or "")]]
         rh = LEGEND_H / 4
         for i, row in enumerate(rows):
             ry = by + i * rh

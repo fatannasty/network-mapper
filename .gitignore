@@ -3,11 +3,17 @@ frontend/dist/
 .DS_Store
 *.log
 
+# Raw icon source material (mixed .jpg/.png working files) at the repo root;
+# the app uses backend/assets/icons/*.png which stays tracked.
+/icons/
+
 # Python
 backend/.venv/
 __pycache__/
 *.pyc
 backend/.pytest_cache/
 backend/network_mapper.db
+backend/*.db-wal
+backend/*.db-shm
 backend/.secret_key
 network_mapper.db

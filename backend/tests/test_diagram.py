@@ -138,6 +138,15 @@ def test_diagram_rejects_empty_graph():
     assert resp.status_code == 400
 
 
+def test_diagram_rejects_oversized_input(monkeypatch):
+    import main
+
+    monkeypatch.setattr(main, "MAX_DIAGRAM_NODES", 3)
+    many = [{"ip": f"10.0.0.{i}", "hostname": f"h{i}", "model": "C9300", "device_type": "switch"} for i in range(4)]
+    resp = client.post("/api/topology/diagram", json={"format": "pdf", "nodes": many, "links": []})
+    assert resp.status_code == 400
+
+
 def test_diagram_executive_package_zip():
     resp = client.post("/api/topology/package", json={
         "nodes": NODES, "links": LINKS, "title": "AMTRAK MIAMI STATION",

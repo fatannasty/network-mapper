@@ -315,7 +315,8 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
 
         <p className="text-[11px] text-muted">
           The drawing sheet includes the Amtrak logo (top left) and the legend/title block at the
-          bottom. Visio output stays fully editable — move devices, re-route links, restyle shapes.
+          bottom. Visio (.vsdx) stays fully editable — move devices, re-route links, restyle shapes.
+          PDF and Word are static renders (Word embeds the drawing as an image).
         </p>
 
         {error && (
