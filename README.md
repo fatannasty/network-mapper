@@ -32,8 +32,23 @@ backend/
 
 ```bash
 npm run setup        # or: cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-npm run api          # uvicorn on http://localhost:8000 (reload enabled)
+npm run api          # uvicorn on http://localhost:8000 (dev, reload enabled)
+npm run start        # uvicorn on http://localhost:8000 (production, no reload)
 ```
+
+### Run with Docker
+
+The app ships as two images (FastAPI backend + nginx-served React frontend):
+
+```bash
+SECRET_KEY="$(openssl rand -base64 32)" docker compose up -d --build
+```
+
+- API: `http://localhost:8000` (also `/health`, `/metrics`)
+- Web: `http://localhost:8080` (proxies `/api` to the backend)
+
+The SQLite database and secret key persist in the `app-data` volume. Set
+`SECRET_KEY` to a stable value in production.
 
 ### Grafana Operations Dashboard
 

@@ -10,6 +10,7 @@ PostgreSQL connection string to switch engines (no code changes):
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -104,6 +105,39 @@ def _run_migrations() -> None:
             conn.execute(text("ALTER TABLE scan_jobs ADD COLUMN diagram_topology VARCHAR(16) DEFAULT 'auto'"))
         if "diagram_link_detail" not in cols:
             conn.execute(text("ALTER TABLE scan_jobs ADD COLUMN diagram_link_detail VARCHAR(16) DEFAULT 'full'"))
+
+        # Data hygiene: dedupe comma-separated model strings left by an import
+        # bug (e.g. "C9300L-24P-4X, C9300L-24P-4X" -> "C9300L-24P-4X"). Only
+        # touches rows with an exact duplicate part — printer descriptions with
+        # legitimate multi-value model strings are left untouched.
+        for ip, model in conn.execute(text("SELECT ip, model FROM devices WHERE model LIKE '%,%'")).fetchall():
+            parts = [p.strip() for p in (model or "").split(",") if p.strip()]
+            if len(parts) == len(set(parts)):
+                continue
+            seen, uniq = set(), []
+            for part in parts:
+                if part not in seen:
+                    seen.add(part)
+                    uniq.append(part)
+            cleaned = ", ".join(uniq)
+            if cleaned != model:
+                conn.execute(text("UPDATE devices SET model = :m WHERE ip = :ip"),
+                             {"m": cleaned, "ip": ip})
+
+        # Data hygiene: auto-fail scan jobs that have been stuck "running" for
+        # over a day (crashed workers never cleaned them up).
+        cutoff = datetime.utcnow() - timedelta(days=1)
+        for sid, started in conn.execute(text("SELECT id, started_at FROM scan_jobs WHERE status='running'")).fetchall():
+            if isinstance(started, str):
+                try:
+                    started = datetime.fromisoformat(started)
+                except ValueError:
+                    started = None
+            if started is None or started < cutoff:
+                conn.execute(text(
+                    "UPDATE scan_jobs SET status='failed', error='auto-failed: stale running scan' "
+                    "WHERE id = :id"
+                ), {"id": sid})
 
 
 def get_db():
