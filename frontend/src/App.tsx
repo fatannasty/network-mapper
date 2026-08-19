@@ -8,7 +8,7 @@ import DeviceInventory from './components/DeviceInventory'
 import DataQuality from './components/DataQuality'
 import OperationsDashboard from './components/OperationsDashboard'
 import AdminPage from './components/AdminPage'
-import { getMe, logout } from './api'
+import { getMe, logout, setToken } from './api'
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false)
@@ -39,7 +39,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AppShell onLogout={() => { void logout(); setLoggedIn(false) }}>
+      <AppShell onLogout={() => { setToken(null); void logout(); setLoggedIn(false) }}>
         <Routes>
           <Route path="/" element={<Navigate to="/topology" replace />} />
           <Route path="/dashboard" element={<OperationsDashboard />} />

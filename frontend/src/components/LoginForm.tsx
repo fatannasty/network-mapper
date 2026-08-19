@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react'
-import { login } from '../api'
+import { login, setToken } from '../api'
 import Input from './ui/Input'
 import Button from './ui/Button'
 
@@ -21,7 +21,8 @@ export default function LoginForm({ onSuccess }: Props) {
     setError('')
     setPending(true)
     try {
-      await login(username.trim(), password)
+      const data = await login(username.trim(), password)
+      setToken(data.token)
       onSuccess()
     } catch {
       setError('Invalid username or password')

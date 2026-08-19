@@ -2,10 +2,14 @@ import axios from 'axios'
 
 const api = axios.create({ withCredentials: true })
 
-// Auth is delivered via an httpOnly cookie set by POST /api/auth/login, so the
-// token never lives in JS/localStorage. `setToken` is a no-op kept for any
-// call sites that still reference it.
-export function setToken(_t: string | null) {}
+// Auth is primarily an httpOnly cookie set by POST /api/auth/login. We also
+// keep the token in memory only (never localStorage) and send it as an
+// Authorization header as a fallback, so the session works across environments.
+let token: string | null = null
+
+export function setToken(t: string | null) {
+  token = t
+}
 
 // Track the initial auth check so a 401 from /api/auth/me (not logged in yet)
 // doesn't trigger a reload loop.
@@ -29,10 +33,18 @@ export async function logout() {
   }
 }
 
+api.interceptors.request.use((config) => {
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
 api.interceptors.response.use(
   (r) => r,
   (err) => {
-    if (err.response?.status === 401 && !authChecking) {
+    const url = err.config?.url || ''
+    const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/logout')
+    if (err.response?.status === 401 && !authChecking && !isAuthEndpoint) {
+      setToken(null)
       window.location.reload()
     }
     return Promise.reject(err)
