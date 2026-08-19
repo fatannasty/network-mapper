@@ -567,6 +567,8 @@ def _build_ap_scene(aps: list[dict], opts: dict) -> Scene:
         for e in (opts.get("legend") or DEFAULT_LEGEND):
             scene.rect(bx + 10, ey + 3, 48, 5, fill=e.get("color") or C_LINK, stroke=None, sw=0)
             scene.text(66 + bx, ey, e.get("label") or "", size=8.5, align="left"); ey += 16
+        mid_x = c1 + (c2 - c1) / 2
+        if os.path.exists(ASSET_LOGO): scene.image(mid_x - 32, by + 10, 64, 36, ASSET_LOGO)
         rows_data = [[("Drawn By: ", opts.get("drawn_by") or ""), ("Drawn Date: ", opts.get("drawn_date") or "08142026")], [("Drawing Title: ", opts.get("drawing_title") or title)], [("Document Name: ", opts.get("document_name") or "")], [("Revision: ", opts.get("revision") or ""), ("Rev. Date: ", "14 Aug 26"), ("Rev. Time: ", "07:45 PM")]]
         rh = LEGEND_H / 4
         for i, row in enumerate(rows_data):
@@ -1226,6 +1228,23 @@ def _scene_shapes(scene: Scene, media_n: list[int]) -> tuple[str, list[str], lis
             w,h=max(0.3, len(p["v"])*p["size"]*0.62/72), p["size"]*1.6/72
             ang_cell = f'<Cell N="TxtAngle" V="{angle * 3.14159265358979 / 180:.4f}"/>' if angle else ""
             shapes.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{p["x"]/72:.4f}"/><Cell N="PinY" V="{flip_y(p["y"]):.4f}"/><Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/><Cell N="LocPinX" V="{w/2:.4f}"/><Cell N="LocPinY" V="{h/2:.4f}"/>{ang_cell}<Section N="Character"><Row IX="0"><Cell N="Size" V="{p["size"]/72:.4f}"/><Cell N="Style" V="{"1" if p["bold"] else "0"}"/><Cell N="Color" V="{p["color"]}"/></Row></Section><Text>{_xml_escape(p["v"])}</Text></Shape>'); sid+=1
+        elif k=="image":
+            # Standalone images (e.g. the Amtrak logo) embedded as PNG bitmaps.
+            try:
+                with open(p["path"], "rb") as fh:
+                    img_bytes = fh.read()
+            except OSError:
+                img_bytes = None
+            if img_bytes:
+                media_n[0] += 1; img_idx = media_n[0]
+                rid = f"rId{len(rels)+1}"
+                w, h = p["w"] / 72, p["h"] / 72
+                px = (p["x"] + p["w"] / 2) / 72
+                py = (H - (p["y"] + p["h"] / 2)) / 72
+                media.append((f"visio/media/image{img_idx}.png", img_bytes))
+                rels.append(f'<Relationship Id="{rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image{img_idx}.png"/>')
+                shapes.append(f'<Shape ID="{sid}" Type="Foreign"><Cell N="PinX" V="{px:.4f}"/><Cell N="PinY" V="{py:.4f}"/><Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/><Cell N="LocPinX" V="{w/2:.4f}"/><Cell N="LocPinY" V="{h/2:.4f}"/><Cell N="ImgWidth" V="{w:.4f}"/><Cell N="ImgHeight" V="{h:.4f}"/><ForeignData ForeignType="Bitmap" CompressionType="PNG" DisplayFormat="24-bit RGB"><Rel r:id="{rid}"/></ForeignData><Section N="Geometry" IX="0"><Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="2"><Cell N="X" V="{w:.4f}"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="3"><Cell N="X" V="{w:.4f}"/><Cell N="Y" V="{h:.4f}"/></Row><Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="{h:.4f}"/></Row><Row T="LineTo" IX="5"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row></Section></Shape>')
+                sid += 1
 
     device_box = {}
     for dev in scene.devices:
@@ -1250,8 +1269,8 @@ def _scene_shapes(scene: Scene, media_n: list[int]) -> tuple[str, list[str], lis
             children.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{iw/144:.4f}"/><Cell N="PinY" V="{ih/144:.4f}"/><Cell N="Width" V="{iw/72:.4f}"/><Cell N="Height" V="{ih/72:.4f}"/><Cell N="FillForegnd" V="{C_GLYPH}"/><Cell N="FillPattern" V="1"/><Cell N="LineColor" V="{C_GLYPH_EDGE}"/><Section N="Geometry" IX="0"><Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="2"><Cell N="X" V="{iw/72:.4f}"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="3"><Cell N="X" V="{iw/72:.4f}"/><Cell N="Y" V="{ih/72:.4f}"/></Row><Row T="LineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="{ih/72:.4f}"/></Row><Row T="LineTo" IX="5"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row></Section></Shape>'); sid+=1
         for i, (txt, sz, bold, col) in enumerate(dev["labels"]):
             n = len(dev["labels"])
-            lx_l = (iw / 2 + 8) / 72
-            ly_l = ((n - 1) / 2 - i) * 13 / 72
+            lx_l = (iw + 8) / 72
+            ly_l = (ih / 2 + ((n - 1) / 2 - i) * 13) / 72
             tw = max(0.3, len(txt) * sz * 0.62 / 72)
             children.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{lx_l:.4f}"/><Cell N="PinY" V="{ly_l:.4f}"/><Cell N="Width" V="{tw:.4f}"/><Cell N="Height" V="{sz * 1.6 / 72:.4f}"/><Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="{sz * 0.8 / 72:.4f}"/><Section N="Character"><Row IX="0"><Cell N="Size" V="{sz / 72:.4f}"/><Cell N="Style" V="{"1" if bold else "0"}"/><Cell N="Color" V="{col}"/></Row></Section><Section N="Paragraph"><Row IX="0"><Cell N="HorzAlign" V="0"/></Row></Section><Text>{_xml_escape(txt)}</Text></Shape>')
             sid += 1
