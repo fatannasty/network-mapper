@@ -11,18 +11,9 @@ export function setToken(t: string | null) {
   token = t
 }
 
-// Track the initial auth check so a 401 from /api/auth/me (not logged in yet)
-// doesn't trigger a reload loop.
-let authChecking = false
-
 export async function getMe(): Promise<{ username: string; role: string }> {
-  authChecking = true
-  try {
-    const r = await api.get('/api/auth/me')
-    return r.data
-  } finally {
-    authChecking = false
-  }
+  const r = await api.get('/api/auth/me')
+  return r.data
 }
 
 export async function logout() {
@@ -38,12 +29,16 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Auth endpoints handle their own 401s (App re-renders the login form for
+// /api/auth/me; the login form shows an error for /api/auth/login), so a full
+// reload is only needed when a *data* endpoint reports an expired session.
+const AUTH_ENDPOINTS = ['/api/auth/me', '/api/auth/login', '/api/auth/logout']
+
 api.interceptors.response.use(
   (r) => r,
   (err) => {
     const url = err.config?.url || ''
-    const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/logout')
-    if (err.response?.status === 401 && !authChecking && !isAuthEndpoint) {
+    if (err.response?.status === 401 && !AUTH_ENDPOINTS.some((e) => url.includes(e))) {
       setToken(null)
       window.location.reload()
     }
