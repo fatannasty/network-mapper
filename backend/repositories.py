@@ -6,12 +6,12 @@ touches SQLAlchemy directly.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from models import Credential, Device, DeviceConfig, Interface, Link, ScanJob, Site, SiteMapping, User
+from models import Credential, Device, DeviceConfig, DeviceStatusHistory, Interface, Link, ScanJob, Site, SiteMapping, User
 from security import create_token, hash_password, verify_password
 
 
@@ -119,6 +119,38 @@ def device_counts(db: Session, column) -> dict:
         .all()
     )
     return {k or "unknown": v for k, v in rows}
+
+
+def record_device_status(db: Session, ip: str, status: str) -> bool:
+    """Record a reachability transition for a device.
+
+    Returns True only when a new row was written (i.e. the status changed from
+    the previously recorded value), so the table stores transitions only.
+    """
+    last = (
+        db.query(DeviceStatusHistory)
+        .filter(DeviceStatusHistory.ip == ip)
+        .order_by(DeviceStatusHistory.id.desc())
+        .first()
+    )
+    if last is not None and last.status == status:
+        return False
+    db.add(DeviceStatusHistory(ip=ip, status=status))
+    return True
+
+
+def flapping_ips(db: Session, window_minutes: int = 10, threshold: int = 3) -> set[str]:
+    """Return the IPs that have been flapping (>= threshold up/down transitions
+    within the last `window_minutes`)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+    rows = (
+        db.query(DeviceStatusHistory.ip, func.count(DeviceStatusHistory.id))
+        .filter(DeviceStatusHistory.observed_at >= cutoff)
+        .group_by(DeviceStatusHistory.ip)
+        .having(func.count(DeviceStatusHistory.id) >= threshold)
+        .all()
+    )
+    return {ip for ip, _ in rows}
 
 
 # ── Scan jobs ─────────────────────────────────────────────────────────────────

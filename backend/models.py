@@ -135,6 +135,17 @@ class Interface(Base):
         }
 
 
+class DeviceStatusHistory(Base):
+    """Reachability status transitions, used to detect up/down flapping."""
+
+    __tablename__ = "device_status_history"
+
+    id = Column(Integer, primary_key=True)
+    ip = Column(String(45), nullable=False, index=True)
+    status = Column(String(16), nullable=False)  # up | down
+    observed_at = Column(DateTime, default=_utcnow, index=True)
+
+
 class ScanJob(Base):
     """A discovery run: status, targets, and result counts."""
 

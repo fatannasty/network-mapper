@@ -11,7 +11,7 @@ export type SimpleNodeData = {
   count?: number
   internalLinks?: number
   focus?: boolean
-  status?: 'up' | 'down' | 'degraded' | 'unknown'
+  status?: 'up' | 'down' | 'degraded' | 'flapping' | 'unknown'
   spof?: boolean
 }
 
@@ -39,10 +39,11 @@ const nodeStyle: Record<string, NodeStyle> = {
 }
 
 // State glyphs differ (not just color) so the status is readable for colorblind users.
-const statusConfig: Record<string, { bg: string; text: string; label: string; dot: string }> = {
+const statusConfig: Record<string, { bg: string; text: string; label: string; dot: string; pulse?: boolean }> = {
   up: { bg: 'bg-green-500', text: 'text-white', label: 'Up', dot: '●' },
   down: { bg: 'bg-red-500', text: 'text-white', label: 'Down', dot: '▼' },
   degraded: { bg: 'bg-amber-500', text: 'text-black', label: 'Degraded', dot: '◐' },
+  flapping: { bg: 'bg-orange-500', text: 'text-black', label: 'Flapping', dot: '◍', pulse: true },
   unknown: { bg: 'bg-gray-500', text: 'text-white', label: 'Unknown', dot: '○' },
 }
 
@@ -66,7 +67,7 @@ export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
 
       {/* Operational status badge */}
       <span
-        className={`absolute -top-1.5 -right-1.5 flex items-center justify-center w-5 h-5 rounded-full border border-black/40 text-[11px] leading-none ${status.bg} ${status.text}`}
+        className={`absolute -top-1.5 -right-1.5 flex items-center justify-center w-5 h-5 rounded-full border border-black/40 text-[11px] leading-none ${status.bg} ${status.text} ${status.pulse ? 'animate-pulse motion-safe:animate-pulse' : ''}`}
         role="img"
         aria-label={`Status: ${d.status || 'unknown'}`}
         title={status.label}

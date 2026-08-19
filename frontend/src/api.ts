@@ -133,7 +133,7 @@ export interface TopoNode {
   vendor: string
   model: string
   device_type: string
-  status?: 'up' | 'down' | 'degraded' | 'unknown'
+  status?: 'up' | 'down' | 'degraded' | 'flapping' | 'unknown'
   spof?: boolean
 }
 

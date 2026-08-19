@@ -565,6 +565,8 @@ def inventory_measure_latency(site: Optional[str] = Query(None),
     updated = 0
     for device in devices:
         latency = latencies.get(device.ip)
+        status = "up" if (latency is not None and latency > 0) else "down"
+        repositories.record_device_status(db, device.ip, status)
         if latency is not None:
             device.latency_ms = latency
             device.latency_checked_at = now
@@ -916,11 +918,15 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
             return "up" if (d.latency_ms or 0) > 0 else "down"
         return "unknown"
 
+    flapping = repositories.flapping_ips(db)
+
     nodes: list[dict] = []
     seen: set[str] = set()
     status_by_ip: dict[str, str] = {}
     for d in devices:
         st = _device_status(d)
+        if d.ip in flapping:
+            st = "flapping"
         status_by_ip[d.ip] = st
         nodes.append({
             "id": d.ip,
