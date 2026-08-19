@@ -39,6 +39,7 @@ MAX_PER_ROW = 8           # rows wrap downward past this (uniform vertical flow)
 LEGEND_H = 130            # legend / title block height
 TOP_PAD = 20              # extra headroom above the first row (keeps labels clear)
 LARGE_SITE_THRESHOLD = 30  # infra devices above this use overview + drill-down pages
+VSDX_FONT = "Arial"        # font pinned in the Visio text Character cells
 
 # Hierarchy: Internet -> VeloCloud -> Router/Firewall -> Core -> Distribution
 # -> Access -> End Users & Devices, drawn top to bottom. Each band is a row of
@@ -940,13 +941,12 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
     rect_by_ip = {ip: _device_rects({ip: pos[ip]}, half_w, half_h)[0] for ip in pos}
 
     # Reserve each device's label block (name/IP/model to the right of the icon)
-    def _txt_w(text, size): return len(text) * size * 0.62
     label_block = {}
     for ip in pos:
         hn = (nodes_by_ip[ip].get("hostname") or "").split(".")[0] or ip
         model = (nodes_by_ip[ip].get("model") or "").strip()
         lines = [hn] + [ip] + ([model] if model else [])
-        w = max(_txt_w(t, 9 if i == 0 else 7.5) for i, t in enumerate(lines)) if lines else 10.0
+        w = max(_text_width(t, 9 if i == 0 else 7.5, i == 0) for i, t in enumerate(lines)) if lines else 10.0
         iw, ih = device_shape.get(ip, _DFLT)[0] * 2, device_shape.get(ip, _DFLT)[1] * 2
         lx = pos[ip][0] + iw / 2 + 8
         y0 = pos[ip][1] - (len(lines) - 1) * 13 / 2 + 4
@@ -1009,9 +1009,9 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
             ly = hseg[1]
         else:
             lx, ly = (sx + tx) / 2, (sy + ty) / 2
-        if ia_s and _label_ok(lx, ly - 14, _txt_w(ia_s, 8), 9):
+        if ia_s and _label_ok(lx, ly - 14, _text_width(ia_s, 8, True), 9):
             scene.text(lx, ly - 8, ia_s, size=8, bold=True, color=C_PORT, align="left", tag="link")
-        if ib_s and _label_ok(lx, ly + 6, _txt_w(ib_s, 8), 9):
+        if ib_s and _label_ok(lx, ly + 6, _text_width(ib_s, 8, True), 9):
             scene.text(lx, ly + 8, ib_s, size=8, bold=True, color=C_PORT, align="left", tag="link")
         scene.vlinks.append({"a": a, "b": b, "color": color, "width": lw, "role": role,
                              "src_if": ia_s, "dst_if": ib_s, "pts": pts,
@@ -1145,6 +1145,32 @@ def _pil_font(size: int, bold: bool, italic: bool):
     return ImageFont.load_default()
 
 
+_FONT_CACHE = {}
+
+
+def _text_width(text: str, size: float, bold: bool = False) -> float:
+    """Accurate text width in points, using the same font family the PNG/PDF
+    renderers use (Helvetica/DejaVu) instead of a per-character estimate.
+
+    Measures at a large reference size and scales down, because FreeType
+    raises a divide-by-zero on this font at very small point sizes."""
+    if not text:
+        return 0.0
+    key = bool(bold)
+    font = _FONT_CACHE.get(key)
+    if font is None:
+        font = _pil_font(100, key, False)
+        _FONT_CACHE[key] = font
+    try:
+        return float(font.getlength(text)) * size / 100.0
+    except (AttributeError, OSError):
+        try:
+            bbox = font.getbbox(text)
+            return float(bbox[2] - bbox[0]) * size / 100.0 if bbox else 0.0
+        except Exception:
+            return len(text) * size * 0.6
+
+
 def _render_png_image(scene: Scene, scale: int = 2):
     from PIL import Image, ImageDraw
     W, H = int(scene.width * scale), int(scene.height * scale)
@@ -1225,9 +1251,9 @@ def _scene_shapes(scene: Scene, media_n: list[int]) -> tuple[str, list[str], lis
             shapes.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{piny:.4f}"/><Cell N="Width" V="{abs(w):.4f}"/><Cell N="Height" V="{abs(h):.4f}"/><Cell N="LocPinX" V="{w/2:.4f}"/><Cell N="LocPinY" V="{h/2:.4f}"/><Cell N="LineColor" V="{p["color"]}"/><Cell N="LineWeight" V="{p["width"]/72:.4f}"/><Section N="Geometry" IX="0"><Row T="MoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row><Row T="LineTo" IX="2"><Cell N="X" V="{w:.4f}"/><Cell N="Y" V="{h:.4f}"/></Row></Section></Shape>'); sid+=1
         elif k=="text":
             angle = p.get("angle", 0.0)
-            w,h=max(0.3, len(p["v"])*p["size"]*0.62/72), p["size"]*1.6/72
+            w,h=max(0.3, _text_width(p["v"], p["size"], p["bold"])/72), p["size"]*1.6/72
             ang_cell = f'<Cell N="TxtAngle" V="{angle * 3.14159265358979 / 180:.4f}"/>' if angle else ""
-            shapes.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{p["x"]/72:.4f}"/><Cell N="PinY" V="{flip_y(p["y"]):.4f}"/><Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/><Cell N="LocPinX" V="{w/2:.4f}"/><Cell N="LocPinY" V="{h/2:.4f}"/>{ang_cell}<Section N="Character"><Row IX="0"><Cell N="Size" V="{p["size"]/72:.4f}"/><Cell N="Style" V="{"1" if p["bold"] else "0"}"/><Cell N="Color" V="{p["color"]}"/></Row></Section><Text>{_xml_escape(p["v"])}</Text></Shape>'); sid+=1
+            shapes.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{p["x"]/72:.4f}"/><Cell N="PinY" V="{flip_y(p["y"]):.4f}"/><Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/><Cell N="LocPinX" V="{w/2:.4f}"/><Cell N="LocPinY" V="{h/2:.4f}"/>{ang_cell}<Section N="Character"><Row IX="0"><Cell N="Font" V="{VSDX_FONT}"/><Cell N="Size" V="{p["size"]/72:.4f}"/><Cell N="Style" V="{"1" if p["bold"] else "0"}"/><Cell N="Color" V="{p["color"]}"/></Row></Section><Text>{_xml_escape(p["v"])}</Text></Shape>'); sid+=1
         elif k=="image":
             # Standalone images (e.g. the Amtrak logo) embedded as PNG bitmaps.
             try:
@@ -1271,8 +1297,8 @@ def _scene_shapes(scene: Scene, media_n: list[int]) -> tuple[str, list[str], lis
             n = len(dev["labels"])
             lx_l = (iw + 8) / 72
             ly_l = (ih / 2 + ((n - 1) / 2 - i) * 13) / 72
-            tw = max(0.3, len(txt) * sz * 0.62 / 72)
-            children.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{lx_l:.4f}"/><Cell N="PinY" V="{ly_l:.4f}"/><Cell N="Width" V="{tw:.4f}"/><Cell N="Height" V="{sz * 1.6 / 72:.4f}"/><Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="{sz * 0.8 / 72:.4f}"/><Section N="Character"><Row IX="0"><Cell N="Size" V="{sz / 72:.4f}"/><Cell N="Style" V="{"1" if bold else "0"}"/><Cell N="Color" V="{col}"/></Row></Section><Section N="Paragraph"><Row IX="0"><Cell N="HorzAlign" V="0"/></Row></Section><Text>{_xml_escape(txt)}</Text></Shape>')
+            tw = max(0.3, _text_width(txt, sz, bold) / 72)
+            children.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{lx_l:.4f}"/><Cell N="PinY" V="{ly_l:.4f}"/><Cell N="Width" V="{tw:.4f}"/><Cell N="Height" V="{sz * 1.6 / 72:.4f}"/><Cell N="LocPinX" V="0"/><Cell N="LocPinY" V="{sz * 0.8 / 72:.4f}"/><Section N="Character"><Row IX="0"><Cell N="Font" V="{VSDX_FONT}"/><Cell N="Size" V="{sz / 72:.4f}"/><Cell N="Style" V="{"1" if bold else "0"}"/><Cell N="Color" V="{col}"/></Row></Section><Section N="Paragraph"><Row IX="0"><Cell N="HorzAlign" V="0"/></Row></Section><Text>{_xml_escape(txt)}</Text></Shape>')
             sid += 1
         conn_rows = []
         for i, (lx, ly) in enumerate(conn_points.get(ip, [])):
@@ -1286,13 +1312,13 @@ def _scene_shapes(scene: Scene, media_n: list[int]) -> tuple[str, list[str], lis
         shapes.append(_connector_1d(cid, pts, vl["color"], vl["width"], (aid, aci) if aid and aci else None, (bid, bci) if bid and bci else None, "Connector"))
         for txt, (px, py), al, ang in [(vl["src_if"], vl["src_label_pos"], vl["src_align"], vl.get("src_angle", 0)), (vl["dst_if"], vl["dst_label_pos"], vl["dst_align"], vl.get("dst_angle", 0))]:
             if not txt: continue
-            w, h = max(0.3, len(txt)*8*0.62/72), 0.2
+            w, h = max(0.3, _text_width(txt, 8, True)/72), 0.2
             y_in = flip_y(py)
             pinx = px/72 + (w/2 if al=="left" else -w/2 if al=="right" else 0)
             ang_cell = f'<Cell N="TxtAngle" V="{ang*3.14159265358979/180:.4f}"/>' if ang else ""
             halign = {"left": 0, "center": 1, "right": 2}.get(al, 1)
             par_cell = f'<Section N="Paragraph"><Row IX="0"><Cell N="HorzAlign" V="{halign}"/></Row></Section>'
-            shapes.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{y_in:.4f}"/><Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/><Cell N="LocPinX" V="{w/2:.4f}"/><Cell N="LocPinY" V="{h/2:.4f}"/>{ang_cell}<Section N="Character"><Row IX="0"><Cell N="Size" V="{8/72:.4f}"/><Cell N="Style" V="1"/><Cell N="Color" V="{C_PORT}"/></Row></Section>{par_cell}<Text>{_xml_escape(txt)}</Text></Shape>'); sid+=1
+            shapes.append(f'<Shape ID="{sid}" Type="Shape"><Cell N="PinX" V="{pinx:.4f}"/><Cell N="PinY" V="{y_in:.4f}"/><Cell N="Width" V="{w:.4f}"/><Cell N="Height" V="{h:.4f}"/><Cell N="LocPinX" V="{w/2:.4f}"/><Cell N="LocPinY" V="{h/2:.4f}"/>{ang_cell}<Section N="Character"><Row IX="0"><Cell N="Font" V="{VSDX_FONT}"/><Cell N="Size" V="{8/72:.4f}"/><Cell N="Style" V="1"/><Cell N="Color" V="{C_PORT}"/></Row></Section>{par_cell}<Text>{_xml_escape(txt)}</Text></Shape>'); sid+=1
     return "".join(shapes), rels, media
 
 
