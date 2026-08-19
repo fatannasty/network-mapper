@@ -81,6 +81,13 @@ function scanAge(scan?: ScanHistoryEntry): string {
   return `${Math.floor(minutes / 1440)}d ago`
 }
 
+function formatTimestamp(value?: string | null): string {
+  if (!value) return '\u2014'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 function healthFor(report: Report): { state: Health; title: string; message: string } {
   const down = interfaceDownCount(report)
   const scan = latestScan(report)
@@ -128,7 +135,7 @@ function Sparkline({ values, color = 'currentColor', width = 80, height = 28 }: 
   const points = values.map((v, i) => `${(i / (values.length - 1)) * width},${height - ((v - min) / range) * (height - 4) - 2}`).join(' ')
   const area = `0,${height} ${points} ${width},${height}`
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible" role="img" aria-label={`Trend of ${values.length} points from ${values[0]} to ${values[values.length - 1]}`}>
       <polygon points={area} fill={color} opacity="0.15" />
       <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -139,13 +146,14 @@ function DonutChart({ data, size = 120, strokeWidth = 20, colorFor }: { data: Re
   const entries = Object.entries(data).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])
   const total = entries.reduce((sum, [, v]) => sum + v, 0)
   if (total === 0) return <p className="text-xs text-muted">No data.</p>
+  const summary = `${total.toLocaleString()} total — ${entries.slice(0, 6).map(([k, v]) => `${k} ${v.toLocaleString()}`).join(', ')}${entries.length > 6 ? `, +${entries.length - 6} more` : ''}`
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
   let offset = 0
   return (
     <div className="flex items-center gap-5">
       <div className="relative shrink-0" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90">
+        <svg width={size} height={size} className="-rotate-90" role="img" aria-label={summary}>
           <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgb(var(--surface-3))" strokeWidth={strokeWidth} />
           {entries.map(([key, value]) => {
             const pct = value / total
@@ -255,7 +263,7 @@ function KpiCard({ label, value, sub, accent, tooltip, href, sparkData, sparkCol
           </div>
           {sparkData && sparkData.length >= 2 && <Sparkline values={sparkData} color={sparkColor} />}
         </div>
-        <div className="mt-2 text-[11px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">View details &rarr;</div>
+        <div className="mt-2 text-[11px] text-accent">View details &rarr;</div>
       </Link>
     </Tooltip>
   )
@@ -345,7 +353,7 @@ function ScanTrend({ scans }: { scans: ScanHistoryEntry[] }) {
   const area = `M ${coords[0].x} 90 ${coords.map((p) => `L ${p.x} ${p.y}`).join(' ')} L ${coords[coords.length - 1].x} 90 Z`
   return (
     <div className="relative h-44">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible" role="img" aria-label={`Device count trend across ${points.length} scans, latest ${points[points.length - 1].device_count} devices`}>
         <path d="M 0 90 L 100 90" stroke="rgb(var(--border))" strokeWidth="0.5" strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
         <path d="M 0 45 L 100 45" stroke="rgb(var(--border))" strokeWidth="0.3" strokeDasharray="2 4" vectorEffect="non-scaling-stroke" />
         <path d={area} fill="rgb(var(--accent))" opacity="0.12" />
@@ -389,7 +397,9 @@ export default function OperationsDashboard() {
 
   useEffect(() => {
     void refresh(true)
-    const timer = window.setInterval(() => void refresh(), refreshMs)
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void refresh()
+    }, refreshMs)
     return () => window.clearInterval(timer)
   }, [refresh, refreshMs])
 
@@ -398,6 +408,27 @@ export default function OperationsDashboard() {
     return <PageState type="error" title="Dashboard unavailable" message={error} className="h-full" action={<Button variant="danger" size="sm" onClick={() => void refresh(true)}>Retry</Button>} />
   }
   if (!report) return null
+
+  if (report.total_devices === 0) {
+    return (
+      <div className="h-full overflow-auto">
+        <div className="p-6 max-w-7xl mx-auto">
+          <PageHeader
+            title="Operations Dashboard"
+            description="A live, interactive view of network health and potential outages."
+            actions={<Button variant="secondary" size="sm" onClick={() => void refresh()} disabled={refreshing}>Refresh</Button>}
+          />
+          <PageState
+            type="empty"
+            title="No devices discovered yet"
+            message="Run your first discovery scan to populate the network inventory and this dashboard."
+            className="min-h-[50vh]"
+            action={<Link to="/topology" className="text-accent text-sm font-medium hover:underline">Open Topology &rarr;</Link>}
+          />
+        </div>
+      </div>
+    )
+  }
 
   const health = healthFor(report)
   const down = interfaceDownCount(report)
@@ -434,8 +465,8 @@ export default function OperationsDashboard() {
         <div className={`rounded-2xl border px-4 py-3.5 flex items-center justify-between gap-4 backdrop-blur-xl ${hc.bg} ${hc.border} ${hc.text}`}>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <span className={`w-3 h-3 rounded-full ${hc.dot} animate-pulse`} />
-              <span className={`absolute inset-0 w-3 h-3 rounded-full ${hc.dot} ${hc.glow} shadow-lg animate-ping opacity-75`} />
+              <span className={`w-3 h-3 rounded-full ${hc.dot} animate-pulse motion-safe:animate-pulse`} />
+              <span className={`absolute inset-0 w-3 h-3 rounded-full ${hc.dot} ${hc.glow} shadow-lg animate-ping motion-safe:animate-ping opacity-75`} />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -498,14 +529,15 @@ export default function OperationsDashboard() {
           </div>
           <div className="overflow-auto max-h-80">
             <table className="w-full text-sm">
+              <caption className="sr-only">Recent network discovery scans</caption>
               <thead className="sticky top-0 bg-surface-2/80 backdrop-blur-xl z-10">
                 <tr className="text-left text-muted text-[11px] uppercase tracking-wider">
-                  <th className="px-5 py-2 font-medium">Scan</th>
-                  <th className="px-5 py-2 font-medium">Status</th>
-                  <th className="px-5 py-2 font-medium text-right">Devices</th>
-                  <th className="px-5 py-2 font-medium text-right">Links</th>
-                  <th className="px-5 py-2 font-medium">Started</th>
-                  <th className="px-5 py-2 font-medium">Finished</th>
+                  <th scope="col" className="px-5 py-2 font-medium">Scan</th>
+                  <th scope="col" className="px-5 py-2 font-medium">Status</th>
+                  <th scope="col" className="px-5 py-2 font-medium text-right">Devices</th>
+                  <th scope="col" className="px-5 py-2 font-medium text-right">Links</th>
+                  <th scope="col" className="px-5 py-2 font-medium">Started</th>
+                  <th scope="col" className="px-5 py-2 font-medium">Finished</th>
                 </tr>
               </thead>
               <tbody>
@@ -518,8 +550,8 @@ export default function OperationsDashboard() {
                     <td className="px-5 py-2"><Badge label={s.status} /></td>
                     <td className="px-5 py-2 text-right tabular-nums text-xs">{s.device_count}</td>
                     <td className="px-5 py-2 text-right tabular-nums text-xs text-muted">{s.links}</td>
-                    <td className="px-5 py-2 text-xs text-muted">{s.started_at?.slice(0, 16) || '\u2014'}</td>
-                    <td className="px-5 py-2 text-xs text-muted">{s.finished_at?.slice(0, 16) || '\u2014'}</td>
+                    <td className="px-5 py-2 text-xs text-muted">{formatTimestamp(s.started_at)}</td>
+                    <td className="px-5 py-2 text-xs text-muted">{formatTimestamp(s.finished_at)}</td>
                   </tr>
                 ))}
               </tbody>

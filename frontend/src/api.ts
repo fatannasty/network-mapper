@@ -1,25 +1,38 @@
 import axios from 'axios'
 
-const api = axios.create()
+const api = axios.create({ withCredentials: true })
 
-let token: string | null = localStorage.getItem('token')
+// Auth is delivered via an httpOnly cookie set by POST /api/auth/login, so the
+// token never lives in JS/localStorage. `setToken` is a no-op kept for any
+// call sites that still reference it.
+export function setToken(_t: string | null) {}
 
-export function setToken(t: string | null) {
-  token = t
-  if (t) localStorage.setItem('token', t)
-  else localStorage.removeItem('token')
+// Track the initial auth check so a 401 from /api/auth/me (not logged in yet)
+// doesn't trigger a reload loop.
+let authChecking = false
+
+export async function getMe(): Promise<{ username: string; role: string }> {
+  authChecking = true
+  try {
+    const r = await api.get('/api/auth/me')
+    return r.data
+  } finally {
+    authChecking = false
+  }
 }
 
-api.interceptors.request.use((config) => {
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
+export async function logout() {
+  try {
+    await api.post('/api/auth/logout')
+  } catch {
+    // ignore — the cookie is cleared server-side regardless
+  }
+}
 
 api.interceptors.response.use(
   (r) => r,
   (err) => {
-    if (err.response?.status === 401) {
-      setToken(null)
+    if (err.response?.status === 401 && !authChecking) {
       window.location.reload()
     }
     return Promise.reject(err)

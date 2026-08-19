@@ -8,14 +8,26 @@ import DeviceInventory from './components/DeviceInventory'
 import DataQuality from './components/DataQuality'
 import OperationsDashboard from './components/OperationsDashboard'
 import AdminPage from './components/AdminPage'
-import { setToken } from './api'
+import { getMe, logout } from './api'
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false)
+  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    setLoggedIn(!!localStorage.getItem('token'))
+    getMe()
+      .then(() => setLoggedIn(true))
+      .catch(() => setLoggedIn(false))
+      .finally(() => setChecking(false))
   }, [])
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted text-sm">
+        Checking session…
+      </div>
+    )
+  }
 
   if (!loggedIn) {
     return (
@@ -27,7 +39,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AppShell onLogout={() => { setToken(null); setLoggedIn(false) }}>
+      <AppShell onLogout={() => { void logout(); setLoggedIn(false) }}>
         <Routes>
           <Route path="/" element={<Navigate to="/topology" replace />} />
           <Route path="/dashboard" element={<OperationsDashboard />} />

@@ -18,6 +18,29 @@ def test_login_success_returns_token():
     assert data["token_type"] == "bearer"
 
 
+def test_login_sets_httponly_cookie_and_cookie_auths():
+    client = public_client()
+    resp = client.post("/api/auth/login", json={"username": "admin", "password": "admin"})
+    assert resp.status_code == 200
+    set_cookie = resp.headers.get("set-cookie", "")
+    assert "token=" in set_cookie
+    assert "HttpOnly" in set_cookie
+    # The cookie (no Authorization header) must authenticate subsequent calls.
+    me = client.get("/api/auth/me")
+    assert me.status_code == 200
+    assert me.json()["username"] == "admin"
+
+
+def test_logout_clears_cookie():
+    client = public_client()
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin"})
+    resp = client.post("/api/auth/logout")
+    assert resp.status_code == 200
+    # After logout the cookie is cleared, so /api/auth/me is unauthenticated.
+    me = client.get("/api/auth/me")
+    assert me.status_code == 401
+
+
 def test_login_wrong_password():
     resp = public_client().post("/api/auth/login", json={"username": "admin", "password": "nope"})
     assert resp.status_code == 401

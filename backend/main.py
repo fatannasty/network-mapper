@@ -48,7 +48,8 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Response, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from prometheus_client import CollectorRegistry, Gauge, generate_latest
@@ -118,6 +119,22 @@ def _enforce_export_rate(request) -> None:
         raise HTTPException(status_code=429, detail="Too many export requests; try again shortly.")
     hits.append(now)
     _rate_hits[key] = hits
+
+
+# Stricter limiter for login (brute-force protection).
+_LOGIN_RATE_MAX = int(os.environ.get("LOGIN_RATE_LIMIT", 10))  # attempts / window
+_LOGIN_RATE_WINDOW = 60.0
+_login_hits: dict[str, list[float]] = {}
+
+
+def _enforce_login_rate(request) -> None:
+    key = getattr(request.client, "host", "unknown")
+    now = _time.monotonic()
+    hits = [t for t in _login_hits.get(key, []) if now - t < _LOGIN_RATE_WINDOW]
+    if len(hits) >= _LOGIN_RATE_MAX:
+        raise HTTPException(status_code=429, detail="Too many login attempts; try again shortly.")
+    hits.append(now)
+    _login_hits[key] = hits
 
 
 # Hard caps on diagram/package input so a huge payload can't exhaust the renderer.
@@ -246,10 +263,16 @@ class SiteRequest(BaseModel):
 
 # ── Authentication / RBAC ────────────────────────────────────────────────────
 
-def _bearer(authorization: str = Header(default="")) -> str:
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="missing bearer token")
-    return authorization[len("Bearer "):].strip()
+def _bearer(request: Request) -> str:
+    # Accept the token from either the Authorization header (API clients) or an
+    # httpOnly cookie (browser). The header takes precedence.
+    authorization = request.headers.get("Authorization", "")
+    if authorization.startswith("Bearer "):
+        return authorization[len("Bearer "):].strip()
+    cookie = request.cookies.get("token")
+    if cookie:
+        return cookie.strip()
+    raise HTTPException(status_code=401, detail="missing bearer token")
 
 
 def get_current_user(token: str = Depends(_bearer)) -> dict:
@@ -363,11 +386,28 @@ def metrics(db: Session = Depends(get_db)):
 # ── Auth ─────────────────────────────────────────────────────────────────────
 
 @app.post("/api/auth/login")
-def auth_login(req: LoginRequest, db: Session = Depends(get_db)):
+def auth_login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    _enforce_login_rate(request)
     result = repositories.issue_token(db, req.username, req.password)
     if result is None:
         raise HTTPException(status_code=401, detail="invalid username or password")
-    return result
+    resp = JSONResponse(content=result)
+    # Also deliver the token as an httpOnly cookie so the browser never has to
+    # hold it in JS/localStorage (mitigates XSS token theft).
+    resp.set_cookie(
+        "token", result["token"],
+        httponly=True, samesite="lax", path="/",
+        secure=os.environ.get("COOKIE_SECURE", "") == "1",
+        max_age=12 * 3600,
+    )
+    return resp
+
+
+@app.post("/api/auth/logout")
+def auth_logout():
+    resp = JSONResponse(content={"ok": True})
+    resp.delete_cookie("token", path="/")
+    return resp
 
 
 @app.get("/api/auth/me")
