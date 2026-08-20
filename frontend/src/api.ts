@@ -135,6 +135,11 @@ export interface TopoNode {
   device_type: string
   status?: 'up' | 'down' | 'degraded' | 'flapping' | 'unknown'
   spof?: boolean
+  subnet?: string
+  device_count?: number
+  up?: number
+  down?: number
+  flapping?: number
 }
 
 export interface TopoLink {
@@ -255,6 +260,21 @@ export async function getTopology(scanId?: string, focus?: string, site?: string
   if (site) params.site = site
   const r = await api.get('/api/topology', { params })
   return r.data as TopologyData
+}
+
+export interface TopologySummaryData {
+  scan_id: string | null
+  nodes: TopoNode[]
+  links: (TopoLink & { count?: number })[]
+  summary: boolean
+}
+
+export async function getTopologySummary(scanId?: string, site?: string) {
+  const params: Record<string, string> = {}
+  if (scanId) params.scan_id = scanId
+  if (site) params.site = site
+  const r = await api.get('/api/topology/summary', { params })
+  return r.data as TopologySummaryData
 }
 
 export async function getDevices(params?: Record<string, string>) {

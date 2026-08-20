@@ -35,6 +35,7 @@ const nodeStyle: Record<string, NodeStyle> = {
   'velocloud-edge': { border: 'border-teal-400/70', bg: 'bg-gradient-to-br from-teal-500/30 via-teal-500/10 to-teal-500/5', glow: 'shadow-teal-500/30', iconBg: 'bg-teal-500/25', iconText: 'text-teal-200', bar: 'bg-teal-400' },
   'wireless-controller': { border: 'border-cyan-400/70', bg: 'bg-gradient-to-br from-cyan-500/30 via-cyan-500/10 to-cyan-500/5', glow: 'shadow-cyan-500/30', iconBg: 'bg-cyan-500/25', iconText: 'text-cyan-200', bar: 'bg-cyan-400' },
   'load-balancer': { border: 'border-pink-400/70', bg: 'bg-gradient-to-br from-pink-500/30 via-pink-500/10 to-pink-500/5', glow: 'shadow-pink-500/30', iconBg: 'bg-pink-500/25', iconText: 'text-pink-200', bar: 'bg-pink-400' },
+  subnet: { border: 'border-teal-400/70', bg: 'bg-gradient-to-br from-teal-500/30 via-teal-500/10 to-teal-500/5', glow: 'shadow-teal-500/30', iconBg: 'bg-teal-500/25', iconText: 'text-teal-200', bar: 'bg-teal-400' },
   unknown: { border: 'border-gray-500/60', bg: 'bg-gradient-to-br from-gray-500/25 via-gray-500/10 to-gray-500/5', glow: 'shadow-gray-500/15', iconBg: 'bg-gray-500/20', iconText: 'text-gray-200', bar: 'bg-gray-400' },
 }
 

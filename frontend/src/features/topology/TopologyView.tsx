@@ -10,7 +10,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useTopology } from './hooks/useTopology'
 import { treeLayout, freeLayout, circleLayout, radialLayout } from './services/layout'
 import { normalizeType, pluralLabel } from './services/friendly'
-import { measureLatency, downloadPortTable } from '../../api'
+import { measureLatency, downloadPortTable, getTopologySummary, type TopologySummaryData } from '../../api'
 import TopologyToolbar from './components/TopologyToolbar'
 import TopologyCanvas from './components/TopologyCanvas'
 import TopologyGroupDetail from './components/TopologyGroupDetail'
@@ -64,6 +64,8 @@ export default function TopologyView() {
 
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
   const [simplified, setSimplified] = useState(true)
+  const [clusterMode, setClusterMode] = useState<'type' | 'subnet'>('type')
+  const [summary, setSummary] = useState<TopologySummaryData | null>(null)
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [measuringLatency, setMeasuringLatency] = useState(false)
@@ -71,6 +73,16 @@ export default function TopologyView() {
   // A focused device view should always show individual devices so the
   // connections around the selected device are visible.
   const showSimple = simplified && !focusIp
+
+  // Fetch the clustered (subnet block) view when requested.
+  useEffect(() => {
+    if (!showSimple || clusterMode !== 'subnet') { setSummary(null); return }
+    let cancelled = false
+    getTopologySummary(scanId, siteFilter)
+      .then((s) => { if (!cancelled) setSummary(s) })
+      .catch(() => { if (!cancelled) setSummary(null) })
+    return () => { cancelled = true }
+  }, [showSimple, clusterMode, scanId, siteFilter])
 
   // Auto-select the focused device when arriving from inventory
   useEffect(() => {
@@ -126,6 +138,38 @@ export default function TopologyView() {
 
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!topology) return { initialNodes: [], initialEdges: [] }
+
+    if (showSimple && clusterMode === 'subnet' && summary) {
+      const positions = freeLayout(summary.nodes as IdNode[], summary.links as IdLink[])
+      const sn: Node[] = summary.nodes.map((n) => ({
+        id: n.id,
+        type: 'device',
+        position: positions.get(n.id) || { x: 0, y: 0 },
+        data: {
+          id: n.id,
+          ip: n.ip,
+          hostname: n.hostname,
+          device_type: n.device_type,
+          status: n.status || 'unknown',
+          group: n.device_type === 'subnet',
+          count: n.device_count ?? 0,
+        },
+      }))
+      const se: Edge[] = summary.links.map((l, i) => ({
+        id: `s-${l.source}-${l.target}-${i}`,
+        source: l.source,
+        target: l.target,
+        label: `${l.count ?? 1}`,
+        data: { link: l },
+        labelStyle: { fill: '#94a3b8', fontSize: 10, fontWeight: 600 },
+        labelBgStyle: { fill: '#0f172a', fillOpacity: 0.9 },
+        labelBgPadding: [6, 3] as [number, number],
+        labelBgBorderRadius: 6,
+        style: { stroke: l.status === 'down' ? '#ef4444' : '#60a5fa', strokeWidth: 2.25 },
+        type: 'smoothstep',
+      }))
+      return { initialNodes: sn, initialEdges: se }
+    }
 
     if (showSimple) {
       const groups = new Map<string, { count: number; internal: number }>()
@@ -256,7 +300,7 @@ export default function TopologyView() {
     })
 
     return { initialNodes: rn, initialEdges: re }
-  }, [topology, filteredLinks, deviceByIp, layoutMode, pathEdgeIds, showSimple, typeByIp, focusIp])
+  }, [topology, filteredLinks, deviceByIp, layoutMode, pathEdgeIds, showSimple, clusterMode, summary, typeByIp, focusIp])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -334,6 +378,8 @@ export default function TopologyView() {
         sites={sites}
         simplified={showSimple}
         onSimplifiedChange={setSimplified}
+        clusterMode={clusterMode}
+        onClusterModeChange={setClusterMode}
         protocolFilter={protocolFilter}
         onProtocolFilterChange={setProtocolFilter}
         layoutMode={layoutMode}

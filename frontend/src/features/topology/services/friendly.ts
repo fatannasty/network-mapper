@@ -104,6 +104,14 @@ export const DEVICE_TYPE_INFO: Record<string, DeviceTypeInfo> = {
       'M12 16.5h.01',
     ],
   },
+  subnet: {
+    label: 'Subnet Block',
+    description: 'A group of devices on the same subnet, collapsed for readability.',
+    icon: [
+      'M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Z',
+      'M8 9h8M8 13h8M8 17h4',
+    ],
+  },
 }
 
 const BLANK_ALIASES: Record<string, string> = {
@@ -120,6 +128,7 @@ const BLANK_ALIASES: Record<string, string> = {
   sdwan: 'sd-wan',
   'velocloud edge': 'velocloud-edge',
   velocloud: 'velocloud-edge',
+  subnet: 'subnet',
 }
 
 export function normalizeType(t: string): string {

@@ -54,6 +54,36 @@ def test_topology_nodes_include_operational_status():
     assert by_ip["10.7.7.2"]["status"] == "up"
 
 
+def test_topology_summary_groups_by_subnet():
+    import uuid
+    from datetime import datetime
+
+    from database import SessionLocal
+    from models import Device, ScanJob
+
+    scan_id = uuid.uuid4().hex[:12]
+    with SessionLocal() as db:
+        db.add(ScanJob(id=scan_id, subnet="10.8.8.0/24", status="completed",
+                       device_count=3, finished_at=datetime.utcnow()))
+        db.add(Device(ip="10.8.8.1", hostname="core1", model="C9500-24Y4C",
+                      device_type="switch", last_scan_id=scan_id))
+        db.add(Device(ip="10.8.9.1", hostname="dist1", model="C9300X-24Y",
+                      device_type="switch", last_scan_id=scan_id))
+        db.add(Device(ip="10.8.9.2", hostname="dist2", model="C9300X-24Y",
+                      device_type="switch", last_scan_id=scan_id))
+        db.commit()
+
+    resp = admin.get("/api/topology/summary", params={"scan_id": scan_id})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("summary") is True
+    ids = {n["id"] for n in data["nodes"]}
+    assert "10.8.8.1" in ids             # core stays individual
+    assert "subnet:10.8.9.0/24" in ids   # distribution collapsed into a block
+    block = next(n for n in data["nodes"] if n["id"] == "subnet:10.8.9.0/24")
+    assert block["device_count"] == 2
+
+
 def test_discover_invalid_cidr():
     resp = admin.post("/api/discover", json={"subnet": "bogus"})
     assert resp.status_code == 400

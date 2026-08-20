@@ -12,6 +12,8 @@ interface Props {
   sites: string[]
   simplified: boolean
   onSimplifiedChange: (v: boolean) => void
+  clusterMode: 'type' | 'subnet'
+  onClusterModeChange: (v: 'type' | 'subnet') => void
   protocolFilter: ProtocolFilter
   onProtocolFilterChange: (v: ProtocolFilter) => void
   layoutMode: LayoutMode
@@ -45,6 +47,8 @@ export default function TopologyToolbar({
   sites,
   simplified,
   onSimplifiedChange,
+  clusterMode,
+  onClusterModeChange,
   protocolFilter,
   onProtocolFilterChange,
   layoutMode,
@@ -81,6 +85,27 @@ export default function TopologyToolbar({
           Technical
         </button>
       </div>
+
+      {simplified && (
+        <div className="flex items-center gap-0.5 bg-surface-2/70 backdrop-blur rounded-xl p-0.5" role="group" aria-label="Cluster by">
+          <button
+            onClick={() => onClusterModeChange('type')}
+            className={`px-3 py-1 rounded-xl text-xs font-semibold transition-colors ${
+              clusterMode === 'type' ? 'bg-teal-600 text-white' : 'text-muted hover:text-text-primary'
+            }`}
+          >
+            By Type
+          </button>
+          <button
+            onClick={() => onClusterModeChange('subnet')}
+            className={`px-3 py-1 rounded-xl text-xs font-semibold transition-colors ${
+              clusterMode === 'subnet' ? 'bg-teal-600 text-white' : 'text-muted hover:text-text-primary'
+            }`}
+          >
+            By Subnet
+          </button>
+        </div>
+      )}
 
       <Select
         value={scanId || ''}

@@ -1017,6 +1017,90 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
     }
 
 
+def _summarize_topology(nodes: list[dict], links: list[dict], scan_id) -> dict:
+    """Collapse distribution/access/endpoint tiers into subnet super-nodes.
+
+    Top-tier devices (internet/velocloud/router/core) stay individual; every
+    other device is folded into its /24 subnet block. Links are bundled into
+    one edge per block pair with a count. Lets huge graphs render as a small,
+    readable block diagram (drill into a block for detail).
+    """
+    from diagram_export import _layer_of, _subnet24
+
+    top_tiers = {"internet", "velocloud", "router", "core"}
+    top_nodes: list[dict] = []
+    blocks: dict[str, dict] = {}
+    ip_block: dict[str, str] = {}
+
+    for n in nodes:
+        ip = n.get("ip") or ""
+        if _layer_of(n) in top_tiers:
+            top_nodes.append(dict(n))
+            continue
+        pfx = _subnet24(ip) or "unknown"
+        ip_block[ip] = pfx
+        b = blocks.setdefault(pfx, {"count": 0, "up": 0, "down": 0, "flapping": 0})
+        b["count"] += 1
+        st = n.get("status") or "unknown"
+        if st == "up":
+            b["up"] += 1
+        elif st == "down":
+            b["down"] += 1
+        elif st == "flapping":
+            b["flapping"] += 1
+
+    top_ips = {n["ip"] for n in top_nodes}
+    summary_nodes = top_nodes
+    for pfx in sorted(blocks):
+        b = blocks[pfx]
+        if b["flapping"]:
+            status = "flapping"
+        elif b["up"] == 0 and b["down"] > 0:
+            status = "down"
+        elif b["up"] > 0 and b["down"] > 0:
+            status = "degraded"
+        elif b["up"] > 0:
+            status = "up"
+        else:
+            status = "unknown"
+        summary_nodes.append({
+            "id": f"subnet:{pfx}", "ip": "", "hostname": pfx,
+            "vendor": "", "model": "", "device_type": "subnet",
+            "subnet": pfx, "device_count": b["count"],
+            "up": b["up"], "down": b["down"], "flapping": b["flapping"],
+            "status": status,
+        })
+
+    block_id: dict[str, str] = {ip: ip for ip in top_ips}
+    block_id.update({ip: f"subnet:{pfx}" for ip, pfx in ip_block.items()})
+
+    bundle: dict[tuple[str, str], dict] = {}
+    for l in links:
+        s, t = l.get("source"), l.get("target")
+        bs, bt = block_id.get(s), block_id.get(t)
+        if not bs or not bt or bs == bt:
+            continue
+        key = tuple(sorted((bs, bt)))
+        e = bundle.setdefault(key, {"source": key[0], "target": key[1], "count": 0, "down": 0})
+        e["count"] += 1
+        if l.get("status") == "down":
+            e["down"] += 1
+
+    summary_links = [
+        {"source": e["source"], "target": e["target"], "count": e["count"],
+         "status": "down" if e["down"] == e["count"] else "up"}
+        for e in bundle.values()
+    ]
+    return {"scan_id": scan_id, "nodes": summary_nodes, "links": summary_links, "summary": True}
+
+
+@app.get("/api/topology/summary", dependencies=[Depends(authenticated)])
+def api_topology_summary(scan_id: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    """Clustered topology: subnet super-nodes + bundled edges (for large sites)."""
+    data = api_topology(scan_id=scan_id, focus=None, site=None, db=db)
+    return _summarize_topology(data.get("nodes") or [], data.get("links") or [], data.get("scan_id"))
+
+
 class DiagramLegendEntry(BaseModel):
     key: str = ""
     label: str
