@@ -11,6 +11,10 @@ MIBs walked (dot1q / BRIDGE):
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger("network_mapper")
+
 VLAN_NAME_TABLE = "1.3.6.1.2.1.17.7.1.4.3.1.1"
 VLAN_UNTAGGED_TABLE = "1.3.6.1.2.1.17.7.1.4.3.1.4"
 BRIDGE_PORT_IFINDEX = "1.3.6.1.2.1.17.1.4.1.2"
@@ -86,17 +90,25 @@ def walk_vlans_v2c(host: str, communities: list[str], port: int = 161,
     """Collect VLAN assignments for a device over SNMP v2c (best-effort)."""
     from snmp import snmp_walk, SNMP_PORT
 
-    for community in communities:
+    for i, community in enumerate(communities):
         names = snmp_walk(host, VLAN_NAME_TABLE, community, port=port or SNMP_PORT,
                           timeout=timeout, max_oids=max_oids)
+        logger.info("[vlan-debug] %s v2c community#%d names=%d %s",
+                    host, i, len(names), _sample_oids(names))
         if not names:
             continue
         untagged = snmp_walk(host, VLAN_UNTAGGED_TABLE, community, port=port or SNMP_PORT,
                              timeout=timeout, max_oids=max_oids)
         bridge = snmp_walk(host, BRIDGE_PORT_IFINDEX, community, port=port or SNMP_PORT,
                            timeout=timeout, max_oids=max_oids)
+        logger.info("[vlan-debug] %s untagged=%d %s", host, len(untagged), _sample_oids(untagged))
+        logger.info("[vlan-debug] %s bridge=%d %s", host, len(bridge), _sample_oids(bridge))
         if untagged and bridge:
-            return parse_vlan_assignments(names, untagged, bridge)
+            result = parse_vlan_assignments(names, untagged, bridge)
+            logger.info("[vlan-debug] %s mapped %d interfaces to VLANs", host, len(result))
+            return result
+        logger.info("[vlan-debug] %s missing untagged/bridge data (untagged=%d bridge=%d)",
+                    host, len(untagged), len(bridge))
     return {}
 
 
@@ -117,8 +129,19 @@ def walk_vlans_v3(host: str, params: dict, snmp_port: int = 161,
         names = snmpv3_walk(host, VLAN_NAME_TABLE, **kwargs)
         untagged = snmpv3_walk(host, VLAN_UNTAGGED_TABLE, **kwargs)
         bridge = snmpv3_walk(host, BRIDGE_PORT_IFINDEX, **kwargs)
-    except Exception:
+    except Exception as exc:
+        logger.info("[vlan-debug] %s v3 walk failed: %s", host, exc)
         return {}
+    logger.info("[vlan-debug] %s v3 names=%d untagged=%d bridge=%d",
+                host, len(names), len(untagged), len(bridge))
     if not (names and untagged and bridge):
         return {}
-    return parse_vlan_assignments(names, untagged, bridge)
+    result = parse_vlan_assignments(names, untagged, bridge)
+    logger.info("[vlan-debug] %s mapped %d interfaces to VLANs", host, len(result))
+    return result
+
+
+def _sample_oids(walk_result: dict, n: int = 3) -> str:
+    """First few OIDs from a walk (for debug logging)."""
+    keys = list(walk_result.keys())[:n]
+    return ", ".join(keys) if keys else "(none)"
