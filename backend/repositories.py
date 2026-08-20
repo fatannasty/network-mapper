@@ -80,6 +80,9 @@ def _sync_interfaces(db: Session, device: Device, interfaces: list[dict]) -> Non
         row.if_oper_status = iface.get("ifOperStatus", "")
         row.if_high_speed = iface.get("ifHighSpeed", "")
         row.if_alias = iface.get("ifAlias", "")
+        if iface.get("vlanId") is not None:
+            row.vlan_id = int(iface["vlanId"])
+            row.vlan_name = iface.get("vlanName", "")
     for idx, row in existing.items():
         if idx not in seen:
             db.delete(row)

@@ -300,7 +300,14 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
                   <span className="text-muted block mb-1">Interfaces ({device.interfaces.length})</span>
                   <ul className="text-text-secondary font-mono space-y-0.5 max-h-28 overflow-y-auto">
                     {device.interfaces.map((itf, i) => (
-                      <li key={i}>{itf.ifName || itf.ifDescr}</li>
+                      <li key={i} className="flex items-center gap-2">
+                        <span>{itf.ifName || itf.ifDescr}</span>
+                        {itf.vlanId != null && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-300">
+                            VLAN {itf.vlanId}{itf.vlanName ? ` · ${itf.vlanName}` : ''}
+                          </span>
+                        )}
+                      </li>
                     ))}
                   </ul>
                 </div>

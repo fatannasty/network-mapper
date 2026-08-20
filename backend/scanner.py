@@ -174,6 +174,25 @@ def snmpv3_interfaces(host: str, params: dict, snmp_port: int = SNMP_PORT,
         return []
 
 
+def _attach_vlan_info(ip: str, interfaces: list[dict], snmpv3: dict | None,
+                      communities: list[str], snmp_port: int) -> list[dict]:
+    """Merge access-VLAN id/name into each interface dict (by ifIndex)."""
+    if not interfaces:
+        return interfaces
+    try:
+        from vlan import walk_vlans_v2c, walk_vlans_v3
+        assignments = walk_vlans_v3(ip, snmpv3, snmp_port=snmp_port) if snmpv3 \
+            else walk_vlans_v2c(ip, communities, port=snmp_port)
+    except Exception:
+        return interfaces
+    for iface in interfaces:
+        vlans = assignments.get(str(iface.get("ifIndex", "")))
+        if vlans:
+            iface["vlanId"] = vlans[0]["vlan_id"]
+            iface["vlanName"] = vlans[0]["vlan_name"]
+    return interfaces
+
+
 def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT,
                   snmpv3: dict | None = None) -> dict:
     """Port-scan one host, optionally SNMP-poll it (v2c or v3), and classify."""
@@ -217,6 +236,7 @@ def identify_host(ip: str, communities: list[str], snmp_port: int = SNMP_PORT,
     interfaces: list[dict] = []
     if snmp_data and snmpv3:
         interfaces = snmpv3_interfaces(ip, snmpv3, snmp_port=snmp_port)
+        interfaces = _attach_vlan_info(ip, interfaces, snmpv3, [], snmp_port)
 
     device = {
         "ip": ip,

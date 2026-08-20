@@ -30,6 +30,13 @@ def walk_device_interfaces(device, communities: list[str], timeout: float = DEFA
         return device, [], "no ip"
     try:
         interfaces = walk_if_table(ip, communities, timeout=timeout)
+        from vlan import walk_vlans_v2c
+        assignments = walk_vlans_v2c(ip, communities, timeout=timeout)
+        for iface in interfaces:
+            vlans = assignments.get(str(iface.get("ifIndex", "")))
+            if vlans:
+                iface["vlanId"] = vlans[0]["vlan_id"]
+                iface["vlanName"] = vlans[0]["vlan_name"]
         return device, interfaces, ""
     except (socket.timeout, OSError, ValueError) as e:
         return device, [], str(e)

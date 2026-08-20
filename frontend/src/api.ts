@@ -101,6 +101,8 @@ export interface Interface {
   ifOperStatus: string
   ifHighSpeed: string
   ifAlias: string
+  vlanId?: number | null
+  vlanName?: string
 }
 
 export interface Link {

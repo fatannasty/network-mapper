@@ -119,6 +119,8 @@ class Interface(Base):
     if_oper_status = Column(String(16), default="")
     if_high_speed = Column(String(32), default="")
     if_alias = Column(String(255), default="")
+    vlan_id = Column(Integer, nullable=True)
+    vlan_name = Column(String(128), default="")
 
     def to_dict(self) -> dict:
         return {
@@ -132,6 +134,8 @@ class Interface(Base):
             "ifOperStatus": self.if_oper_status,
             "ifHighSpeed": self.if_high_speed,
             "ifAlias": self.if_alias,
+            "vlanId": self.vlan_id,
+            "vlanName": self.vlan_name,
         }
 
 

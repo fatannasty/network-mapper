@@ -92,6 +92,13 @@ def _run_migrations() -> None:
         if "latency_checked_at" not in cols:
             conn.execute(text("ALTER TABLE devices ADD COLUMN latency_checked_at DATETIME"))
 
+        # VLAN: access VLAN id/name for each interface.
+        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(interfaces)"))}
+        if "vlan_id" not in cols:
+            conn.execute(text("ALTER TABLE interfaces ADD COLUMN vlan_id INTEGER"))
+        if "vlan_name" not in cols:
+            conn.execute(text("ALTER TABLE interfaces ADD COLUMN vlan_name VARCHAR(128) DEFAULT ''"))
+
         # Sprint 13: relabel legacy Catalyst topology links from 'unknown' to 'catalyst'.
         cols = {row[1] for row in conn.execute(text("PRAGMA table_info(links)"))}
         if "protocol" in cols:
