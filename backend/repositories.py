@@ -622,12 +622,32 @@ def save_device_config(db: Session, device_id: int, config_text: str,
     return cfg
 
 
+def get_running_configs_by_ip(db: Session) -> dict[str, str]:
+    """Map device IP -> most recent stored running-config text.
+
+    Used by the Catalyst import to flag VLAN 90 from locally collected
+    configs (SSH backups) before falling back to the DNAC config API.
+    """
+    out: dict[str, str] = {}
+    rows = (
+        db.query(DeviceConfig, Device.ip)
+        .join(Device, Device.id == DeviceConfig.device_id)
+        .filter(DeviceConfig.config_type == "running",
+                DeviceConfig.error.is_(None) | (DeviceConfig.error == ""))
+        .order_by(DeviceConfig.collected_at.desc())
+        .all()
+    )
+    for cfg, ip in rows:
+        if ip and ip not in out and cfg.config_text:
+            out[ip] = cfg.config_text
+    return out
+
+
 def get_device_configs(db: Session, device_id: int,
                        limit: int = 20) -> list[DeviceConfig]:
     return (
         db.query(DeviceConfig)
-        .filter(DeviceConfig.device_id == device_id)
-        .order_by(DeviceConfig.collected_at.desc())
+        .filter(DeviceConfig.device_id == device_id)        .order_by(DeviceConfig.collected_at.desc())
         .limit(limit)
         .all()
     )

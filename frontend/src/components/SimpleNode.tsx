@@ -86,10 +86,10 @@ export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
 
       {/* Operational status badge */}
       <span
-        className={`absolute -top-1.5 -right-1.5 flex items-center justify-center w-5 h-5 rounded-full border border-black/40 text-[11px] leading-none ${status.bg} ${status.text} ${status.pulse ? 'animate-pulse motion-safe:animate-pulse' : ''}`}
+        className={`absolute -top-1.5 -right-1.5 flex items-center justify-center w-5 h-5 rounded-full border border-black/40 text-[11px] leading-none ${status.bg} ${status.text} ${status.pulse ? 'animate-pulse motion-safe:animate-pulse' : ''} ${d.vlan90 ? 'ring-2 ring-teal-400 ring-offset-1 ring-offset-black/40' : ''}`}
         role="img"
-        aria-label={`Status: ${d.status || 'unknown'}`}
-        title={status.label}
+        aria-label={`Status: ${d.status || 'unknown'}${d.vlan90 ? ', VLAN 90 configured' : ''}`}
+        title={d.vlan90 ? `${status.label} — VLAN 90 configured` : status.label}
       >
         {status.dot}
       </span>
@@ -97,10 +97,10 @@ export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
       {/* Single point of failure badge */}
       {d.spof && (
         <span
-          className="absolute -top-1.5 -left-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-black border border-black/40 text-[11px] leading-none"
+          className={`absolute -top-1.5 -left-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-black border border-black/40 text-[11px] leading-none ${d.vlan90 ? 'ring-2 ring-teal-400 ring-offset-1 ring-offset-black/40' : ''}`}
           role="img"
-          aria-label="Single point of failure"
-          title="Single point of failure — removing this device partitions the network"
+          aria-label={`Single point of failure${d.vlan90 ? ', VLAN 90 configured' : ''}`}
+          title={d.vlan90 ? 'Single point of failure — VLAN 90 configured' : 'Single point of failure — removing this device partitions the network'}
         >
           ⚠
         </span>

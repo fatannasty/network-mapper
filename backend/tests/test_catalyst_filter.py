@@ -247,3 +247,22 @@ def test_detect_vlan90():
     assert catalyst.detect_vlan90("vlan 900\n name Big") is False
     assert catalyst.detect_vlan90("vlan 190\n name Other") is False
     assert catalyst.detect_vlan90("") is False
+
+
+def test_vlan90_prefers_stored_configs_and_flags_fetch_errors():
+    devs = [_dev("aaa"), _dev("bbb"), _dev("ccc")]
+    for i, d in enumerate(devs):
+        d["managementIpAddress"] = f"10.9.0.{i + 1}"
+    with _patch_import(None, devs, [], set()), \
+         patch("catalyst.get_device_running_config",
+               side_effect=Exception("dnac config api down")):
+        devices, links, debug = catalyst.import_devices(
+            "https://cc", "u", "p", flag_vlan90=True,
+            stored_configs={"10.9.0.1": "interface Vlan90\n description mgmt"})
+    by_ip = {d["ip"]: d for d in devices}
+    assert by_ip["10.9.0.1"]["vlan_90"] is True   # detected via stored SSH config
+    assert by_ip["10.9.0.2"]["vlan_90"] is None   # fetch failure -> unflagged, never False
+    assert by_ip["10.9.0.3"]["vlan_90"] is None
+    assert debug["vlan90_detected"] == 1
+    assert debug["vlan90_from_stored"] == 1
+    assert debug["vlan90_fetch_errors"] == 2

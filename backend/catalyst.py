@@ -652,7 +652,9 @@ def import_devices(base_url: str, username: str, password: str,
                    timeout: float = 120.0, site_name: str = "",
                    site_id: str = "", device_filter: str = "",
                    skip_enrichment: bool = False,
-                   detect_vlan90: bool = False) -> tuple[list[dict], list[dict], dict]:
+                   flag_vlan90: bool = False,
+                   stored_configs: Optional[dict[str, str]] = None
+                   ) -> tuple[list[dict], list[dict], dict]:
     """Authenticate, fetch devices and topology, return (devices, links, debug).
 
     If site_name is given, filters devices by case-insensitive substring match
@@ -1087,23 +1089,38 @@ def import_devices(base_url: str, username: str, password: str,
     # Optional: flag switches whose running config references VLAN 90.
     vlan90_checked = 0
     vlan90_detected = 0
-    if detect_vlan90:
+    vlan90_from_stored = 0
+    vlan90_fetch_errors = 0
+    if flag_vlan90:
         switch_types = ("switch", "core-switch", "access-switch")
         candidates = [d for d in devices
                       if d.get("device_type") in switch_types and d.get("_id")]
 
-        def _check(dev: dict) -> bool:
+        def _check(dev: dict) -> tuple[str, Optional[bool]]:
+            """Return (source, detected); source: stored | dnac | error."""
+            ip = dev.get("managementIpAddress") or dev.get("ip") or ""
+            stored = (stored_configs or {}).get(ip)
+            if stored:
+                dev["vlan_90"] = detect_vlan90(stored)
+                return ("stored", bool(dev["vlan_90"]))
             try:
                 cfg = get_device_running_config(base_url, token, dev.get("_id", ""), timeout=timeout)
+                if not cfg:
+                    dev["vlan_90"] = None
+                    return ("error", None)
                 dev["vlan_90"] = detect_vlan90(cfg)
+                return ("dnac", bool(dev["vlan_90"]))
             except Exception:
-                dev["vlan_90"] = False
-            return bool(dev.get("vlan_90"))
+                # Leave unflagged (None) rather than a false "no VLAN 90".
+                dev["vlan_90"] = None
+                return ("error", None)
 
         with ThreadPoolExecutor(max_workers=8) as pool:
             results = list(pool.map(_check, candidates))
         vlan90_checked = len(candidates)
-        vlan90_detected = sum(1 for r in results if r)
+        vlan90_detected = sum(1 for _, ok in results if ok)
+        vlan90_from_stored = sum(1 for src, _ in results if src == "stored")
+        vlan90_fetch_errors = sum(1 for src, _ in results if src == "error")
 
     for d in devices:
         if "vlan_90" not in d:
@@ -1123,6 +1140,8 @@ def import_devices(base_url: str, username: str, password: str,
         "poe_skipped": poe_skipped,
         "vlan90_checked": vlan90_checked,
         "vlan90_detected": vlan90_detected,
+        "vlan90_from_stored": vlan90_from_stored,
+        "vlan90_fetch_errors": vlan90_fetch_errors,
         "neighbor_enrich_skipped": enrich_skipped,
         "ap_enrich_skipped": ap_enrich_skipped,
         "resolved_site_count": resolved_site_count,

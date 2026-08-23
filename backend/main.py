@@ -1586,12 +1586,15 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
     import catalyst
 
     try:
+        stored = (repositories.get_running_configs_by_ip(db)
+                  if req.detect_vlan90 else None)
         devices, links, debug = catalyst.import_devices(
             req.base_url, req.username, req.password,
             site_name=req.site_name, site_id=req.site_id,
             device_filter=req.device_filter,
             skip_enrichment=req.skip_enrichment,
-            detect_vlan90=req.detect_vlan90)
+            flag_vlan90=req.detect_vlan90,
+            stored_configs=stored)
     except catalyst.CatalystError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:

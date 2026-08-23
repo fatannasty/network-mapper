@@ -505,7 +505,15 @@ export default function CatalystForm() {
               </p>
               {typeof result.debug?.vlan90_detected === 'number' && (
                 <div className="bg-teal-900/40 border border-teal-700 rounded px-3 py-2 text-xs text-teal-200">
-                  VLAN 90 configured on <strong>{result.debug.vlan90_detected}</strong> of {result.debug.vlan90_checked as number} switches checked.
+                  VLAN 90 configured on <strong>{result.debug.vlan90_detected}</strong> of {result.debug.vlan90_checked as number} switches checked
+                  {typeof result.debug?.vlan90_from_stored === 'number' && result.debug.vlan90_from_stored > 0 &&
+                    <> ({result.debug.vlan90_from_stored as number} via stored configs)</>}
+                  .
+                  {typeof result.debug?.vlan90_fetch_errors === 'number' && result.debug.vlan90_fetch_errors > 0 && (
+                    <div className="mt-1 text-amber-300">
+                      {result.debug.vlan90_fetch_errors as number} switch(es) could not be checked (config fetch failed) — left unflagged.
+                    </div>
+                  )}
                 </div>
               )}
               {result.debug && (result.debug.skipped_no_ip as number) > 0 && (
