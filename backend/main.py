@@ -1575,6 +1575,7 @@ class CatalystImportRequest(BaseModel):
     site_id: str = ""
     device_filter: str = ""
     skip_enrichment: bool = False  # skip CDP/LLDP/POE per-device walk for faster imports
+    detect_vlan90: bool = False     # fetch running configs to flag VLAN 90 switches
 
 
 @app.post("/api/catalyst/import", dependencies=[Depends(operator)])
@@ -1586,7 +1587,8 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
             req.base_url, req.username, req.password,
             site_name=req.site_name, site_id=req.site_id,
             device_filter=req.device_filter,
-            skip_enrichment=req.skip_enrichment)
+            skip_enrichment=req.skip_enrichment,
+            detect_vlan90=req.detect_vlan90)
     except catalyst.CatalystError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:

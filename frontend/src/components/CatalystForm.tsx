@@ -128,6 +128,7 @@ export default function CatalystForm() {
   const [selectedLocation, setSelectedLocation] = useState('')
   const [siteText, setSiteText] = useState('')
   const [skipEnrichment, setSkipEnrichment] = useState(false)
+  const [detectVlan90, setDetectVlan90] = useState(false)
   const navigate = useNavigate()
 
   const siteTree = useMemo(() => parseSiteTree(sites), [sites])
@@ -200,7 +201,7 @@ export default function CatalystForm() {
       const data = await importFromCatalyst(
         baseUrl, username, password,
         siteFilter || undefined, selectedSiteId || undefined,
-        undefined, skipEnrichment)
+        undefined, skipEnrichment, detectVlan90)
       setResult(data)
     } catch (err: unknown) {
       setError(errDetail(err))
@@ -219,7 +220,7 @@ export default function CatalystForm() {
     setResult(null)
     setError('')
     try {
-      const data = await importFromCatalyst(baseUrl, username, password, undefined, undefined, undefined, skipEnrichment)
+      const data = await importFromCatalyst(baseUrl, username, password, undefined, undefined, undefined, skipEnrichment, detectVlan90)
       setResult(data)
     } catch (err: unknown) {
       setError(errDetail(err))
@@ -401,6 +402,20 @@ export default function CatalystForm() {
             Site imports already have topology from Catalyst; use this for faster results.
           </p>
 
+          <label className="flex items-center gap-2 text-sm text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={detectVlan90}
+              onChange={(e) => setDetectVlan90(e.target.checked)}
+              className="rounded"
+            />
+            <span>Flag switches with VLAN 90 configured</span>
+          </label>
+          <p className="text-gray-600 text-[11px] -mt-3 ml-6">
+            Fetches each switch's running config and marks those referencing VLAN 90.
+            Adds a few seconds per switch, so it's best combined with the fast import.
+          </p>
+
           {selectedSiteId && (
             <Button
               type="button"
@@ -488,6 +503,11 @@ export default function CatalystForm() {
               <p className="text-green-300 text-sm">
                 Imported {result.device_count} devices, {result.links_found} topology links.
               </p>
+              {typeof result.debug?.vlan90_detected === 'number' && (
+                <div className="bg-teal-900/40 border border-teal-700 rounded px-3 py-2 text-xs text-teal-200">
+                  VLAN 90 configured on <strong>{result.debug.vlan90_detected}</strong> of {result.debug.vlan90_checked as number} switches checked.
+                </div>
+              )}
               {result.debug && (result.debug.skipped_no_ip as number) > 0 && (
                 <div className="bg-amber-900/30 border border-amber-800 rounded px-3 py-2 text-xs text-amber-300">
                   {result.debug.skipped_no_ip as number} device(s) were skipped — no IP address found.

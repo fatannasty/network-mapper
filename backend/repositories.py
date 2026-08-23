@@ -47,6 +47,8 @@ def upsert_device(db: Session, data: dict, scan_id: str) -> Device:
     if data.get("latency_ms") is not None:
         device.latency_ms = data["latency_ms"]
         device.latency_checked_at = now
+    if "vlan_90" in data:
+        device.vlan_90 = data["vlan_90"]
     db.commit()
     db.refresh(device)
 

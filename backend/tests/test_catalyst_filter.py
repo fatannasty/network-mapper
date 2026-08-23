@@ -236,3 +236,14 @@ def test_poe_data_links_access_points_to_their_switch():
         and l["source_interface"] == "GigabitEthernet1/0/24"
         for l in links
     )
+
+
+def test_detect_vlan90():
+    assert catalyst.detect_vlan90("interface Vlan90\n description mgmt") is True
+    assert catalyst.detect_vlan90("switchport access vlan 90") is True
+    assert catalyst.detect_vlan90("vlan 90\n name Voice") is True
+    assert catalyst.detect_vlan90("switchport trunk allowed vlan 90,100,200") is True
+    assert catalyst.detect_vlan90("vlan 100\n name Data\n vlan 200\n name Guest") is False
+    assert catalyst.detect_vlan90("vlan 900\n name Big") is False
+    assert catalyst.detect_vlan90("vlan 190\n name Other") is False
+    assert catalyst.detect_vlan90("") is False

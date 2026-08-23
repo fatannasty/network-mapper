@@ -70,6 +70,7 @@ class Device(Base):
     last_seen = Column(DateTime, default=_utcnow, onupdate=_utcnow)
     latency_ms = Column(Float, default=0.0)
     latency_checked_at = Column(DateTime, nullable=True)
+    vlan_90 = Column(Boolean, nullable=True)  # running-config references VLAN 90
 
     interfaces = relationship(
         "Interface",
@@ -98,6 +99,7 @@ class Device(Base):
             "last_seen": self.last_seen.isoformat() if self.last_seen else None,
             "latency_ms": self.latency_ms or 0.0,
             "latency_checked_at": self.latency_checked_at.isoformat() if self.latency_checked_at else None,
+            "vlan_90": self.vlan_90,
         }
 
 

@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import ssl
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 
@@ -561,6 +563,14 @@ def get_device_running_config(base_url: str, token: str, device_id: str,
     return ""
 
 
+_VLAN90_RE = re.compile(r"\bvlan\s*90\b", re.IGNORECASE)
+
+
+def detect_vlan90(config: str) -> bool:
+    """True if the running config references VLAN 90 (SVI, access, trunk, or vlan definition)."""
+    return bool(config) and bool(_VLAN90_RE.search(config))
+
+
 def get_device_neighbors(base_url: str, token: str, device_id: str,
                          timeout: float = 30.0, max_interfaces: int = 500) -> list[dict]:
     """Fetch CDP/LLDP neighbors for a device via per-interface lookup.
@@ -641,7 +651,8 @@ def get_poe_interfaces(base_url: str, token: str, device_id: str,
 def import_devices(base_url: str, username: str, password: str,
                    timeout: float = 120.0, site_name: str = "",
                    site_id: str = "", device_filter: str = "",
-                   skip_enrichment: bool = False) -> tuple[list[dict], list[dict], dict]:
+                   skip_enrichment: bool = False,
+                   detect_vlan90: bool = False) -> tuple[list[dict], list[dict], dict]:
     """Authenticate, fetch devices and topology, return (devices, links, debug).
 
     If site_name is given, filters devices by case-insensitive substring match
@@ -1073,6 +1084,31 @@ def import_devices(base_url: str, username: str, password: str,
         if len(poe_candidates) > max_poe_devices:
             poe_skipped = len(poe_candidates) - max_poe_devices
 
+    # Optional: flag switches whose running config references VLAN 90.
+    vlan90_checked = 0
+    vlan90_detected = 0
+    if detect_vlan90:
+        switch_types = ("switch", "core-switch", "access-switch")
+        candidates = [d for d in devices
+                      if d.get("device_type") in switch_types and d.get("_id")]
+
+        def _check(dev: dict) -> bool:
+            try:
+                cfg = get_device_running_config(base_url, token, dev.get("_id", ""), timeout=timeout)
+                dev["vlan_90"] = detect_vlan90(cfg)
+            except Exception:
+                dev["vlan_90"] = False
+            return bool(dev.get("vlan_90"))
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(_check, candidates))
+        vlan90_checked = len(candidates)
+        vlan90_detected = sum(1 for r in results if r)
+
+    for d in devices:
+        if "vlan_90" not in d:
+            d["vlan_90"] = None
+
     debug = {
         "debug_sample": debug_sample,
         "skipped_no_ip": skipped_no_ip,
@@ -1085,6 +1121,8 @@ def import_devices(base_url: str, username: str, password: str,
         "poe_devices_walked": poe_devices_walked,
         "poe_links_added": poe_links_added,
         "poe_skipped": poe_skipped,
+        "vlan90_checked": vlan90_checked,
+        "vlan90_detected": vlan90_detected,
         "neighbor_enrich_skipped": enrich_skipped,
         "ap_enrich_skipped": ap_enrich_skipped,
         "resolved_site_count": resolved_site_count,

@@ -99,6 +99,11 @@ def _run_migrations() -> None:
         if "vlan_name" not in cols:
             conn.execute(text("ALTER TABLE interfaces ADD COLUMN vlan_name VARCHAR(128) DEFAULT ''"))
 
+        # Catalyst import: does the device's running-config reference VLAN 90?
+        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(devices)"))}
+        if "vlan_90" not in cols:
+            conn.execute(text("ALTER TABLE devices ADD COLUMN vlan_90 BOOLEAN"))
+
         # Sprint 13: relabel legacy Catalyst topology links from 'unknown' to 'catalyst'.
         cols = {row[1] for row in conn.execute(text("PRAGMA table_info(links)"))}
         if "protocol" in cols:
