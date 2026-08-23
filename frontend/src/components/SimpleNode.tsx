@@ -62,10 +62,27 @@ export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
       className={`group relative flex items-center gap-4 pl-5 pr-5 py-3.5 rounded-2xl border-2 ${s.border} ${s.bg} ${s.glow}
         shadow-xl backdrop-blur-xl text-white cursor-pointer select-none
         transition-all duration-200 hover:-translate-y-1 hover:scale-[1.03] hover:shadow-2xl hover:border-white/40
-        ${d.focus ? 'ring-2 ring-white ring-offset-2 ring-offset-black/40' : ''}`}
+        ${d.focus ? 'ring-2 ring-white ring-offset-2 ring-offset-black/40' : ''}
+        ${d.vlan90 && !d.focus ? 'ring-2 ring-teal-400/60 ring-offset-1 ring-offset-black/30' : ''}`}
     >
       {/* Accent bar */}
       <span className={`absolute left-0 top-3 bottom-3 w-1.5 rounded-full ${s.bar} opacity-90`} />
+
+      {/* VLAN 90 badge */}
+      {d.vlan90 && (
+        <span
+          className="absolute -bottom-2 -left-1.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-teal-500 text-white text-[9px] font-bold leading-none border border-black/30 shadow"
+          role="img"
+          aria-label="VLAN 90 configured"
+          title="VLAN 90 configured"
+        >
+          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Z" />
+            <path d="M8 9h8M8 13h8" />
+          </svg>
+          V90
+        </span>
+      )}
 
       {/* Operational status badge */}
       <span
@@ -105,11 +122,6 @@ export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
           <span className="text-xs text-white/85 mt-1 font-semibold">
             {d.count ?? 0} {d.count === 1 ? 'device' : 'devices'}
             {d.internalLinks ? ` \u00b7 ${d.internalLinks} link${d.internalLinks === 1 ? '' : 's'}` : ''}
-          </span>
-        )}
-        {d.vlan90 && (
-          <span className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 text-[10px] font-semibold w-fit">
-            VLAN 90
           </span>
         )}
       </span>
