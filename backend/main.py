@@ -625,10 +625,12 @@ def inventory_devices(device_type: Optional[str] = Query(None),
                       vendor: Optional[str] = Query(None),
                       site: Optional[str] = Query(None),
                       search: Optional[str] = Query(None),
+                      vlan_90: Optional[bool] = Query(None),
                       limit: int = Query(200, ge=1, le=5000),
                       db: Session = Depends(get_db)):
     devices = repositories.list_devices(db, device_type=device_type, vendor=vendor,
-                                        site=site, search=search, limit=limit)
+                                        site=site, search=search, vlan_90=vlan_90,
+                                        limit=limit)
     return {"count": len(devices), "devices": [d.to_dict() for d in devices]}
 
 
@@ -981,6 +983,7 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
             "model": d.model,
             "device_type": d.device_type,
             "status": st,
+            "vlan_90": d.vlan_90,
         })
         seen.add(d.ip)
     for link in links:

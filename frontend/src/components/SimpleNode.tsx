@@ -13,6 +13,7 @@ export type SimpleNodeData = {
   focus?: boolean
   status?: 'up' | 'down' | 'degraded' | 'flapping' | 'unknown'
   spof?: boolean
+  vlan90?: boolean
 }
 
 interface NodeStyle {
@@ -104,6 +105,11 @@ export default function SimpleNode({ data }: NodeProps<Node<SimpleNodeData>>) {
           <span className="text-xs text-white/85 mt-1 font-semibold">
             {d.count ?? 0} {d.count === 1 ? 'device' : 'devices'}
             {d.internalLinks ? ` \u00b7 ${d.internalLinks} link${d.internalLinks === 1 ? '' : 's'}` : ''}
+          </span>
+        )}
+        {d.vlan90 && (
+          <span className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 text-[10px] font-semibold w-fit">
+            VLAN 90
           </span>
         )}
       </span>

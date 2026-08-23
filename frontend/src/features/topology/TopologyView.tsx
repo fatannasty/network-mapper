@@ -259,6 +259,7 @@ export default function TopologyView() {
           device_type: n.device_type || dev?.device_type || '',
           status: n.status || 'unknown',
           spof: !!n.spof,
+          vlan90: n.vlan_90 === true,
           focus: !!focusIp && n.id === focusIp,
         },
       }

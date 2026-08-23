@@ -23,6 +23,7 @@ export default function DeviceInventory() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [vlan90Filter, setVlan90Filter] = useState<'all' | 'yes' | 'no'>('all')
   const [sortKey, setSortKey] = useState<SortField>('hostname')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [linkSortKey, setLinkSortKey] = useState<LinkSortField>('source')
@@ -49,13 +50,15 @@ export default function DeviceInventory() {
     try {
       const params: Record<string, string> = { limit: '5000' }
       if (typeFilter) params.device_type = typeFilter
+      if (vlan90Filter === 'yes') params.vlan_90 = 'true'
+      else if (vlan90Filter === 'no') params.vlan_90 = 'false'
       if (debouncedSearch) params.search = debouncedSearch
       const [devResp, lnks] = await Promise.all([getDevices(params), getInventoryLinks()])
       setDevices(devResp.devices || [])
       setRawLinks(Array.isArray(lnks) ? lnks : [])
     } catch (err) { setError(err instanceof Error ? err.message : 'Failed') }
     finally { setLoading(false); initialLoad.current = false }
-  }, [debouncedSearch, typeFilter])
+  }, [debouncedSearch, typeFilter, vlan90Filter])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -150,6 +153,19 @@ export default function DeviceInventory() {
       <div className="px-5 pt-3 bg-surface-1/50 backdrop-blur-2xl border-b border-border/30 shrink-0">
         <div className="flex items-center gap-3 pb-3">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search hostname, IP, model..." className="w-64" />
+          <div className="flex items-center gap-0.5 bg-surface-2/70 backdrop-blur rounded-xl p-0.5" role="group" aria-label="VLAN 90 filter">
+            {([['all', 'All'], ['yes', 'VLAN 90'], ['no', 'No VLAN 90']] as const).map(([v, label]) => (
+              <button
+                key={v}
+                onClick={() => setVlan90Filter(v)}
+                className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-colors ${
+                  vlan90Filter === v ? 'bg-teal-600 text-white' : 'text-muted hover:text-text-primary'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="flex-1" />
           <span className="text-xs text-muted tabular-nums">
             {devices.length} devices &middot; {rawLinks.length} links
@@ -289,6 +305,13 @@ export default function DeviceInventory() {
                       <div className="text-[11px] font-mono text-muted truncate">{d.ip}</div>
                       {d.vendor && <div className="text-[11px] text-muted truncate">{d.vendor}{d.model ? ` ${d.model}` : ''}</div>}
                       {d.site && <div className="text-[11px] text-accent/70 truncate">{d.site}</div>}
+                      {d.vlan_90 === true && (
+                        <div className="mt-1.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-teal-500/15 text-teal-300 text-[10px] font-semibold">
+                            VLAN 90
+                          </span>
+                        </div>
+                      )}
                     </button>
                   )
                 })}

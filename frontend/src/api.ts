@@ -88,6 +88,7 @@ export interface Device {
   catalyst_id?: string
   latency_ms?: number
   latency_checked_at?: string
+  vlan_90?: boolean | null
 }
 
 export interface Interface {
@@ -137,6 +138,7 @@ export interface TopoNode {
   device_type: string
   status?: 'up' | 'down' | 'degraded' | 'flapping' | 'unknown'
   spof?: boolean
+  vlan_90?: boolean | null
   subnet?: string
   device_count?: number
   up?: number
