@@ -233,7 +233,7 @@ export async function importFromCatalyst(baseUrl: string, username: string, pass
 
 export async function backfillVlan90() {
   const r = await api.post('/api/backfill/vlan90')
-  return r.data as { devices_with_config: number; updated: number; vlan90_detected: number; backfilled: boolean }
+  return r.data as { devices_with_config: number; updated: number; vlan90_detected: number; from_config: number; from_vlan_walk: number; backfilled: boolean }
 }
 
 export async function debugSiteMembership(baseUrl: string, username: string, password: string, siteId: string) {
@@ -384,6 +384,7 @@ export async function collectConfigs(
   sshPassword?: string,
   sshPort?: number,
   deviceId?: number,
+  vlan90Unflagged?: boolean,
 ) {
   const r = await api.post('/api/inventory/collect-config', {
     site_pattern: sitePattern || '',
@@ -391,6 +392,7 @@ export async function collectConfigs(
     ssh_password: sshPassword || '',
     ssh_port: sshPort || 22,
     device_id: deviceId,
+    vlan90_unflagged: vlan90Unflagged ?? false,
   })
   return r.data as CollectResult
 }

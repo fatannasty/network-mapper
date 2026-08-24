@@ -654,7 +654,8 @@ def get_device_configs(db: Session, device_id: int,
 
 
 def get_devices_by_type(db: Session, device_type: str = "switch",
-                        limit: int = 500, site_pattern: str = "") -> list[Device]:
+                        limit: int = 500, site_pattern: str = "",
+                        vlan90_unflagged: bool = False) -> list[Device]:
     from sqlalchemy import or_
 
     q = db.query(Device).filter(
@@ -678,6 +679,8 @@ def get_devices_by_type(db: Session, device_type: str = "switch",
                 Device.site.ilike(f"%{pat}%"),
             )
         )
+    if vlan90_unflagged:
+        q = q.filter(Device.vlan_90.is_(None))
     if limit:
         q = q.limit(limit)
     return q.all()

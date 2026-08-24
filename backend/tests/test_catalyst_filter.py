@@ -270,7 +270,7 @@ def test_vlan90_prefers_stored_configs_and_flags_fetch_errors():
 
 def test_backfill_vlan90_from_stored_configs():
     from database import SessionLocal
-    from models import Device, DeviceConfig
+    from models import Device, DeviceConfig, Interface
     from fastapi.testclient import TestClient
     import main
 
@@ -281,8 +281,15 @@ def test_backfill_vlan90_from_stored_configs():
         db.flush()
         db.add(DeviceConfig(device_id=d.id, config_text="interface Vlan90\n",
                             config_type="running"))
+        # SNMP VLAN signal: no config, but an interface tagged VLAN 90.
+        d2 = Device(ip="10.9.0.51", hostname="sw-vlan-walk", device_type="switch",
+                    site="Test")
+        db.add(d2)
+        db.flush()
+        db.add(Interface(device_id=d2.id, if_name="Gi1/0/1", vlan_id=90))
         db.commit()
         dev_id = d.id
+        dev2_id = d2.id
 
     client = TestClient(main.app)
     client.post("/api/auth/login", json={"username": "admin", "password": "admin"})
@@ -290,16 +297,17 @@ def test_backfill_vlan90_from_stored_configs():
     assert resp.status_code == 200
     data = resp.json()
     assert data["backfilled"] is True
-    assert data["vlan90_detected"] >= 1
+    assert data["vlan90_detected"] >= 2
 
     with SessionLocal() as db:
-        flagged = db.get(Device, dev_id)
-        assert flagged is not None
-        assert flagged.vlan_90 is True
+        assert db.get(Device, dev_id).vlan_90 is True     # from stored config
+        assert db.get(Device, dev2_id).vlan_90 is True    # from SNMP VLAN walk
 
     with SessionLocal() as db:
-        db.query(DeviceConfig).filter(DeviceConfig.device_id == dev_id).delete()
-        flagged = db.get(Device, dev_id)
-        if flagged is not None:
-            db.delete(flagged)
+        db.query(DeviceConfig).filter(DeviceConfig.device_id.in_([dev_id, dev2_id])).delete()
+        db.query(Interface).filter(Interface.device_id.in_([dev_id, dev2_id])).delete()
+        for did in (dev_id, dev2_id):
+            flagged = db.get(Device, did)
+            if flagged is not None:
+                db.delete(flagged)
         db.commit()

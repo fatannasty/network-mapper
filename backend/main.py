@@ -1566,14 +1566,16 @@ def backfill_links(req: BackfillRequest, db: Session = Depends(get_db)):
 
 @app.post("/api/backfill/vlan90", dependencies=[Depends(operator)])
 def backfill_vlan90(limit: int = 0, db: Session = Depends(get_db)):
-    """Recompute VLAN 90 flags from locally stored running configs.
+    """Recompute VLAN 90 flags from stored running configs AND SNMP VLAN data.
 
     Fixes devices imported before the flag existed (or while the detector
     was shadowed) without requiring a fresh Catalyst import. Devices with
-    no stored config are left unflagged (vlan_90 = NULL).
+    no signal (no stored config, no interface VLAN 90) are left unflagged
+    (vlan_90 = NULL).
     """
     import catalyst
-    from models import Device, DeviceConfig
+    from models import Device, DeviceConfig, Interface
+    from sqlalchemy import or_
 
     rows = (
         db.query(DeviceConfig, Device.id, Device.ip)
@@ -1588,15 +1590,30 @@ def backfill_vlan90(limit: int = 0, db: Session = Depends(get_db)):
         if dev_id not in latest_by_id and cfg.config_text:
             latest_by_id[dev_id] = cfg.config_text
 
-    targets = db.query(Device).filter(Device.id.in_(latest_by_id.keys()))
+    vlan90_by_iface = {
+        did for (did,) in
+        db.query(Interface.device_id)
+        .filter(Interface.vlan_id == 90)
+        .distinct()
+        .all()
+    }
+
+    targets = db.query(Device).filter(
+        or_(Device.id.in_(latest_by_id.keys()),
+            Device.id.in_(vlan90_by_iface)))
     if limit:
         targets = targets.limit(limit)
     devices = targets.all()
 
-    updated = detected = 0
+    updated = detected = from_config = from_vlan = 0
     for d in devices:
-        cfg = latest_by_id.get(d.id, "")
-        flag = catalyst.detect_vlan90(cfg)
+        has_config = d.id in latest_by_id
+        has_vlan90 = d.id in vlan90_by_iface
+        flag = bool(has_config and catalyst.detect_vlan90(latest_by_id[d.id])) or has_vlan90
+        if flag and has_config:
+            from_config += 1
+        if has_vlan90:
+            from_vlan += 1
         if d.vlan_90 != flag:
             d.vlan_90 = flag
             updated += 1
@@ -1608,6 +1625,8 @@ def backfill_vlan90(limit: int = 0, db: Session = Depends(get_db)):
         "devices_with_config": len(devices),
         "updated": updated,
         "vlan90_detected": detected,
+        "from_config": from_config,
+        "from_vlan_walk": from_vlan,
         "backfilled": True,
     }
 
@@ -1853,6 +1872,7 @@ class ConfigCollectRequest(BaseModel):
     ssh_password: str = ""
     ssh_port: int = 22
     use_vault: bool = True  # fall back to vault SSH credentials when empty
+    vlan90_unflagged: bool = False  # only devices still lacking a VLAN 90 flag
 
 
 @app.post("/api/inventory/collect-config")
@@ -1868,7 +1888,8 @@ def inventory_collect_config(req: ConfigCollectRequest,
     else:
         devices = repositories.get_devices_by_type(
             db, device_type=req.device_type, limit=req.limit,
-            site_pattern=req.site_pattern)
+            site_pattern=req.site_pattern,
+            vlan90_unflagged=req.vlan90_unflagged)
 
     # Vault fallback: when no SSH creds are supplied, try each stored SSH
     # credential until authentication succeeds.

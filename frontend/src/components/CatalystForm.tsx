@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AxiosError } from 'axios'
-import { importFromCatalyst, testCatalyst, fetchSites, debugSiteMembership, backfillVlan90, type SiteInfo } from '../api'
+import { importFromCatalyst, testCatalyst, fetchSites, debugSiteMembership, backfillVlan90, collectConfigs, type SiteInfo } from '../api'
 import Input from './ui/Input'
 import Select from './ui/Select'
 import Button from './ui/Button'
@@ -130,7 +130,9 @@ export default function CatalystForm() {
   const [skipEnrichment, setSkipEnrichment] = useState(false)
   const [detectVlan90, setDetectVlan90] = useState(false)
   const [syncingVlan90, setSyncingVlan90] = useState(false)
-  const [vlan90SyncResult, setVlan90SyncResult] = useState<{ devices_with_config: number; updated: number; vlan90_detected: number } | null>(null)
+  const [collectingVlan90, setCollectingVlan90] = useState(false)
+  const [vlan90SyncResult, setVlan90SyncResult] = useState<{ devices_with_config: number; updated: number; vlan90_detected: number; from_config: number; from_vlan_walk: number } | null>(null)
+  const [vlan90Collect, setVlan90Collect] = useState<{ total: number; success: number; failed: number } | null>(null)
   const navigate = useNavigate()
 
   const siteTree = useMemo(() => parseSiteTree(sites), [sites])
@@ -418,31 +420,65 @@ export default function CatalystForm() {
             Adds a few seconds per switch, so it's best combined with the fast import.
           </p>
 
-          <div className="ml-6">
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={syncingVlan90}
-              onClick={async () => {
-                setSyncingVlan90(true)
-                setVlan90SyncResult(null)
-                setError('')
-                try {
-                  setVlan90SyncResult(await backfillVlan90())
-                } catch (e) {
-                  setError(`VLAN 90 sync failed: ${errDetail(e)}`)
-                } finally {
-                  setSyncingVlan90(false)
-                }
-              }}
-            >
-              {syncingVlan90 ? 'Syncing…' : 'Sync VLAN 90 from stored configs'}
-            </Button>
+          <div className="ml-6 flex flex-col items-start gap-2">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={collectingVlan90 || syncingVlan90}
+                onClick={async () => {
+                  setCollectingVlan90(true)
+                  setVlan90Collect(null)
+                  setVlan90SyncResult(null)
+                  setError('')
+                  try {
+                    const collected = await collectConfigs(undefined, '', '', 22, undefined, true)
+                    setVlan90Collect({
+                      total: collected.total, success: collected.success,
+                      failed: collected.failed,
+                    })
+                    setVlan90SyncResult(await backfillVlan90())
+                  } catch (e) {
+                    setError(`VLAN 90 config collection failed: ${errDetail(e)}`)
+                  } finally {
+                    setCollectingVlan90(false)
+                  }
+                }}
+              >
+                {collectingVlan90 ? 'Collecting configs…' : 'Collect configs for unflagged switches'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={syncingVlan90 || collectingVlan90}
+                onClick={async () => {
+                  setSyncingVlan90(true)
+                  setVlan90SyncResult(null)
+                  setError('')
+                  try {
+                    setVlan90SyncResult(await backfillVlan90())
+                  } catch (e) {
+                    setError(`VLAN 90 sync failed: ${errDetail(e)}`)
+                  } finally {
+                    setSyncingVlan90(false)
+                  }
+                }}
+              >
+                {syncingVlan90 ? 'Syncing…' : 'Sync VLAN 90 from stored data'}
+              </Button>
+            </div>
+            {vlan90Collect && (
+              <p className="text-xs text-white/75">
+                Collected configs: {vlan90Collect.success} ok / {vlan90Collect.failed} failed (of {vlan90Collect.total}).
+              </p>
+            )}
             {vlan90SyncResult && (
-              <p className="text-xs text-teal-300 mt-1">
-                Scanned {vlan90SyncResult.devices_with_config} stored configs —{' '}
+              <p className="text-xs text-teal-300">
+                Scanned {vlan90SyncResult.devices_with_config} devices —{' '}
                 <strong>{vlan90SyncResult.vlan90_detected}</strong> with VLAN 90
-                ({vlan90SyncResult.updated} flags updated).
+                ({vlan90SyncResult.updated} flags updated)
+                {vlan90SyncResult.from_vlan_walk > 0 &&
+                  <>; {vlan90SyncResult.from_vlan_walk} from SNMP VLAN data</>}.
               </p>
             )}
           </div>
