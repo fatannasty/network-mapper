@@ -249,6 +249,42 @@ def test_detect_vlan90():
     assert catalyst.detect_vlan90("") is False
 
 
+def test_backfill_sites_from_catalyst_membership():
+    from database import SessionLocal
+    from models import Device, SiteMapping
+    from fastapi.testclient import TestClient
+    import main
+    import catalyst
+
+    with SessionLocal() as db:
+        db.query(SiteMapping).delete()
+        db.add(Device(ip="10.9.1.1", hostname="SW1", device_type="switch",
+                      site="", catalyst_id="uuid-abc"))
+        db.add(Device(ip="10.9.1.2", hostname="SW2", device_type="switch",
+                      site="", catalyst_id="uuid-xyz"))
+        db.commit()
+
+    with patch.object(catalyst, "authenticate", return_value="token"), \
+         patch.object(catalyst, "build_site_membership_map",
+                      return_value={"uuid-abc": "Sacramento",
+                                    "uuid-xyz": "Denver"}):
+        client = TestClient(main.app)
+        client.post("/api/auth/login", json={"username": "admin", "password": "admin"})
+        resp = client.post("/api/catalyst/backfill-sites",
+                           json={"base_url": "https://cc", "username": "u", "password": "p"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["membership_matched"] == 2
+    assert data["membership_updated"] == 2
+
+    with SessionLocal() as db:
+        sites = {d.ip: d.site for d in db.query(Device).all()}
+        assert sites["10.9.1.1"] == "Sacramento"
+        assert sites["10.9.1.2"] == "Denver"
+        db.query(Device).filter(Device.ip.in_(["10.9.1.1", "10.9.1.2"])).delete()
+        db.commit()
+
+
 def test_vlan90_prefers_stored_configs_and_flags_fetch_errors():
     devs = [_dev("aaa"), _dev("bbb"), _dev("ccc")]
     for i, d in enumerate(devs):

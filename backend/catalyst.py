@@ -378,6 +378,29 @@ def get_site_members(base_url: str, token: str, site_id: str,
     return ids
 
 
+def build_site_membership_map(base_url: str, token: str,
+                              timeout: float = 30.0) -> dict[str, str]:
+    """Map Catalyst device UUID -> readable site name via the membership API.
+
+    Devices can appear at several hierarchy levels (area/building/floor); the
+    deepest site wins so we pick the most specific location, matching how the
+    site-scoped import derives `site` from siteHierarchy.
+    """
+    id_to_site: dict[str, str] = {}
+    sites = get_sites(base_url, token, timeout=timeout)["sites"]
+    ordered = sorted(
+        sites, key=lambda s: (s.get("hierarchy") or "").count("/"), reverse=True)
+    for s in ordered:
+        hier = (s.get("hierarchy") or "").strip("/")
+        readable = hier.split("/")[-1] if hier else (s.get("name") or "")
+        if not readable:
+            continue
+        for member_id in get_site_members(base_url, token, s["site_id"],
+                                          timeout=timeout):
+            id_to_site.setdefault(member_id, readable)
+    return id_to_site
+
+
 def device_location_stats(base_url: str, token: str, timeout: float = 30.0,
                           max_pages: int = 10) -> dict:
     """Fetch the device inventory and summarize how many devices carry site/location

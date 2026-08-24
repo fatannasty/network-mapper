@@ -1431,6 +1431,68 @@ def inventory_apply_site_mappings(limit: int = 0, db: Session = Depends(get_db))
     return repositories.apply_site_mappings(db, limit=limit)
 
 
+class CatalystBackfillSitesRequest(BaseModel):
+    base_url: str
+    username: str
+    password: str
+
+
+@app.post("/api/catalyst/backfill-sites", dependencies=[Depends(operator)])
+def catalyst_backfill_sites(req: CatalystBackfillSitesRequest, limit: int = 0,
+                            db: Session = Depends(get_db)):
+    """Resolve blank device.site values from Catalyst.
+
+    Two passes:
+      1. hostname-prefix rules (seed + apply, no API call),
+      2. Catalyst membership API (authoritative device->site by catalyst_id).
+    """
+    import catalyst
+    from models import Device
+    from sqlalchemy import func
+
+    try:
+        token = catalyst.authenticate(req.base_url, req.username, req.password)
+    except catalyst.CatalystError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    prefix_seed = repositories.seed_site_mappings_from_hostnames(db)
+    prefix_apply = repositories.apply_site_mappings(db, limit=0)
+
+    id_to_site = catalyst.build_site_membership_map(
+        req.base_url, token, timeout=30.0)
+
+    q = db.query(Device).filter(Device.site == "", Device.catalyst_id != "")
+    if limit:
+        q = q.limit(limit)
+    targets = q.all()
+
+    matched = updated = 0
+    samples: list[str] = []
+    for d in targets:
+        site = id_to_site.get(d.catalyst_id)
+        if not site:
+            continue
+        matched += 1
+        if d.site != site:
+            d.site = site
+            updated += 1
+            if len(samples) < 5:
+                samples.append(f"{d.hostname} -> {site}")
+    db.commit()
+
+    still_blank = db.query(func.count(Device.id)).filter(Device.site == "").scalar()
+    return {
+        "prefix_seed": prefix_seed,
+        "prefix_apply": prefix_apply,
+        "membership_sites": len(id_to_site),
+        "membership_targets": len(targets),
+        "membership_matched": matched,
+        "membership_updated": updated,
+        "samples": samples,
+        "still_blank_sites": still_blank,
+    }
+
+
 # ── Data-quality backfill jobs (Sprint 13) ───────────────────────────────────
 
 class BackfillRequest(BaseModel):

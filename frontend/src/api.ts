@@ -236,6 +236,19 @@ export async function backfillVlan90() {
   return r.data as { devices_with_config: number; updated: number; vlan90_detected: number; from_config: number; from_vlan_walk: number; backfilled: boolean }
 }
 
+export async function backfillSites(baseUrl: string, username: string, password: string) {
+  const r = await api.post('/api/catalyst/backfill-sites', { base_url: baseUrl, username, password })
+  return r.data as {
+    prefix_apply: { mappings: number; matched: number; updated: number; unchanged: number }
+    membership_sites: number
+    membership_targets: number
+    membership_matched: number
+    membership_updated: number
+    samples: string[]
+    still_blank_sites: number
+  }
+}
+
 export async function debugSiteMembership(baseUrl: string, username: string, password: string, siteId: string) {
   const r = await api.post('/api/catalyst/site-members-debug', {
     base_url: baseUrl, username, password, site_id: siteId,

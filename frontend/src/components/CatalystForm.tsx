@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AxiosError } from 'axios'
-import { importFromCatalyst, testCatalyst, fetchSites, debugSiteMembership, backfillVlan90, collectConfigs, type SiteInfo } from '../api'
+import { importFromCatalyst, testCatalyst, fetchSites, debugSiteMembership, backfillVlan90, collectConfigs, backfillSites, type SiteInfo } from '../api'
 import Input from './ui/Input'
 import Select from './ui/Select'
 import Button from './ui/Button'
@@ -133,6 +133,8 @@ export default function CatalystForm() {
   const [collectingVlan90, setCollectingVlan90] = useState(false)
   const [vlan90SyncResult, setVlan90SyncResult] = useState<{ devices_with_config: number; updated: number; vlan90_detected: number; from_config: number; from_vlan_walk: number } | null>(null)
   const [vlan90Collect, setVlan90Collect] = useState<{ total: number; success: number; failed: number } | null>(null)
+  const [backfillingSites, setBackfillingSites] = useState(false)
+  const [siteBackfillResult, setSiteBackfillResult] = useState<{ membership_matched: number; membership_updated: number; membership_targets: number; still_blank_sites: number; samples: string[] } | null>(null)
   const navigate = useNavigate()
 
   const siteTree = useMemo(() => parseSiteTree(sites), [sites])
@@ -552,6 +554,41 @@ export default function CatalystForm() {
           >
             Import Full Environment (all sites)
           </Button>
+
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={backfillingSites || !baseUrl || !username}
+            onClick={async () => {
+              setBackfillingSites(true)
+              setSiteBackfillResult(null)
+              setError('')
+              try {
+                const res = await backfillSites(baseUrl, username, password)
+                setSiteBackfillResult(res)
+              } catch (e) {
+                setError(`Site backfill failed: ${errDetail(e)}`)
+              } finally {
+                setBackfillingSites(false)
+              }
+            }}
+            className="w-full"
+          >
+            {backfillingSites ? 'Resolving site assignments…' : 'Backfill site assignments (blank sites)'}
+          </Button>
+
+          {siteBackfillResult && (
+            <div className="rounded-xl p-3 text-xs bg-teal-900/40 border border-teal-700 text-teal-200">
+              Site backfill: <strong>{siteBackfillResult.membership_updated}</strong> devices assigned
+              via Catalyst ({siteBackfillResult.membership_matched} of {siteBackfillResult.membership_targets} unresolved matched) —
+              {siteBackfillResult.still_blank_sites} device(s) still blank.
+              {siteBackfillResult.samples.length > 0 && (
+                <ul className="mt-1 list-disc list-inside">
+                  {siteBackfillResult.samples.map((s) => <li key={s}>{s}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
 
           {testResult && (
             <div className={`rounded-xl p-3 text-xs backdrop-blur ${testResult.startsWith('Connected') ? 'bg-green-900/50 border border-green-800/50 text-green-300' : 'bg-red-900/50 border border-red-800/50 text-red-300'}`}>
