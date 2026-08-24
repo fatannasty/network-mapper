@@ -1564,6 +1564,54 @@ def backfill_links(req: BackfillRequest, db: Session = Depends(get_db)):
     return {"scan_id": scan_id, "validation_links": len(links), **summary}
 
 
+@app.post("/api/backfill/vlan90", dependencies=[Depends(operator)])
+def backfill_vlan90(limit: int = 0, db: Session = Depends(get_db)):
+    """Recompute VLAN 90 flags from locally stored running configs.
+
+    Fixes devices imported before the flag existed (or while the detector
+    was shadowed) without requiring a fresh Catalyst import. Devices with
+    no stored config are left unflagged (vlan_90 = NULL).
+    """
+    import catalyst
+    from models import Device, DeviceConfig
+
+    rows = (
+        db.query(DeviceConfig, Device.id, Device.ip)
+        .join(Device, Device.id == DeviceConfig.device_id)
+        .filter(DeviceConfig.config_type == "running",
+                DeviceConfig.error.is_(None) | (DeviceConfig.error == ""))
+        .order_by(DeviceConfig.collected_at.desc())
+        .all()
+    )
+    latest_by_id: dict[int, str] = {}
+    for cfg, dev_id, _ip in rows:
+        if dev_id not in latest_by_id and cfg.config_text:
+            latest_by_id[dev_id] = cfg.config_text
+
+    targets = db.query(Device).filter(Device.id.in_(latest_by_id.keys()))
+    if limit:
+        targets = targets.limit(limit)
+    devices = targets.all()
+
+    updated = detected = 0
+    for d in devices:
+        cfg = latest_by_id.get(d.id, "")
+        flag = catalyst.detect_vlan90(cfg)
+        if d.vlan_90 != flag:
+            d.vlan_90 = flag
+            updated += 1
+        if flag:
+            detected += 1
+    db.commit()
+
+    return {
+        "devices_with_config": len(devices),
+        "updated": updated,
+        "vlan90_detected": detected,
+        "backfilled": True,
+    }
+
+
 def _neighbors_for_ip(raw: list[dict]) -> list[dict]:
     return raw or []
 

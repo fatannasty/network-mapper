@@ -231,6 +231,11 @@ export async function importFromCatalyst(baseUrl: string, username: string, pass
   return r.data as { scan_id: string; device_count: number; links_found: number; debug?: Record<string, unknown> }
 }
 
+export async function backfillVlan90() {
+  const r = await api.post('/api/backfill/vlan90')
+  return r.data as { devices_with_config: number; updated: number; vlan90_detected: number; backfilled: boolean }
+}
+
 export async function debugSiteMembership(baseUrl: string, username: string, password: string, siteId: string) {
   const r = await api.post('/api/catalyst/site-members-debug', {
     base_url: baseUrl, username, password, site_id: siteId,

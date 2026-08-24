@@ -266,3 +266,40 @@ def test_vlan90_prefers_stored_configs_and_flags_fetch_errors():
     assert debug["vlan90_detected"] == 1
     assert debug["vlan90_from_stored"] == 1
     assert debug["vlan90_fetch_errors"] == 2
+
+
+def test_backfill_vlan90_from_stored_configs():
+    from database import SessionLocal
+    from models import Device, DeviceConfig
+    from fastapi.testclient import TestClient
+    import main
+
+    with SessionLocal() as db:
+        d = Device(ip="10.9.0.50", hostname="sw-v90", device_type="switch",
+                   site="Test")
+        db.add(d)
+        db.flush()
+        db.add(DeviceConfig(device_id=d.id, config_text="interface Vlan90\n",
+                            config_type="running"))
+        db.commit()
+        dev_id = d.id
+
+    client = TestClient(main.app)
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin"})
+    resp = client.post("/api/backfill/vlan90")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["backfilled"] is True
+    assert data["vlan90_detected"] >= 1
+
+    with SessionLocal() as db:
+        flagged = db.get(Device, dev_id)
+        assert flagged is not None
+        assert flagged.vlan_90 is True
+
+    with SessionLocal() as db:
+        db.query(DeviceConfig).filter(DeviceConfig.device_id == dev_id).delete()
+        flagged = db.get(Device, dev_id)
+        if flagged is not None:
+            db.delete(flagged)
+        db.commit()

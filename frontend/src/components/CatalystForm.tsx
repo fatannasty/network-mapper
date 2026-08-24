@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AxiosError } from 'axios'
-import { importFromCatalyst, testCatalyst, fetchSites, debugSiteMembership, type SiteInfo } from '../api'
+import { importFromCatalyst, testCatalyst, fetchSites, debugSiteMembership, backfillVlan90, type SiteInfo } from '../api'
 import Input from './ui/Input'
 import Select from './ui/Select'
 import Button from './ui/Button'
@@ -129,6 +129,8 @@ export default function CatalystForm() {
   const [siteText, setSiteText] = useState('')
   const [skipEnrichment, setSkipEnrichment] = useState(false)
   const [detectVlan90, setDetectVlan90] = useState(false)
+  const [syncingVlan90, setSyncingVlan90] = useState(false)
+  const [vlan90SyncResult, setVlan90SyncResult] = useState<{ devices_with_config: number; updated: number; vlan90_detected: number } | null>(null)
   const navigate = useNavigate()
 
   const siteTree = useMemo(() => parseSiteTree(sites), [sites])
@@ -415,6 +417,35 @@ export default function CatalystForm() {
             Fetches each switch's running config and marks those referencing VLAN 90.
             Adds a few seconds per switch, so it's best combined with the fast import.
           </p>
+
+          <div className="ml-6">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={syncingVlan90}
+              onClick={async () => {
+                setSyncingVlan90(true)
+                setVlan90SyncResult(null)
+                setError('')
+                try {
+                  setVlan90SyncResult(await backfillVlan90())
+                } catch (e) {
+                  setError(`VLAN 90 sync failed: ${errDetail(e)}`)
+                } finally {
+                  setSyncingVlan90(false)
+                }
+              }}
+            >
+              {syncingVlan90 ? 'Syncing…' : 'Sync VLAN 90 from stored configs'}
+            </Button>
+            {vlan90SyncResult && (
+              <p className="text-xs text-teal-300 mt-1">
+                Scanned {vlan90SyncResult.devices_with_config} stored configs —{' '}
+                <strong>{vlan90SyncResult.vlan90_detected}</strong> with VLAN 90
+                ({vlan90SyncResult.updated} flags updated).
+              </p>
+            )}
+          </div>
 
           {selectedSiteId && (
             <Button
