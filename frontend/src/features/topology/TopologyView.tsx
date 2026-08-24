@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import {
   useNodesState,
   useEdgesState,
@@ -13,6 +13,7 @@ import { normalizeType, pluralLabel } from './services/friendly'
 import { measureLatency, downloadPortTable, getTopologySummary, type TopologySummaryData } from '../../api'
 import TopologyToolbar from './components/TopologyToolbar'
 import TopologyCanvas from './components/TopologyCanvas'
+import CanvasTopology from './components/CanvasTopology'
 import TopologyGroupDetail from './components/TopologyGroupDetail'
 import ExportDiagramDialog from './components/ExportDiagramDialog'
 import DeviceDetail from '../../components/DeviceDetail'
@@ -69,10 +70,23 @@ export default function TopologyView() {
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [measuringLatency, setMeasuringLatency] = useState(false)
+  const [canvasMode, setCanvasMode] = useState(false)
+  const canvasToggledRef = useRef(false)
 
   // A focused device view should always show individual devices so the
   // connections around the selected device are visible.
   const showSimple = simplified && !focusIp
+
+  // Large graphs default to the fast canvas renderer unless the user has
+  // explicitly picked a mode this session.
+  const largeGraph = !showSimple && (topology?.nodes.length ?? 0) > 1500
+  useEffect(() => {
+    if (largeGraph && !canvasToggledRef.current) setCanvasMode(true)
+  }, [largeGraph])
+  const setCanvasModeUser = (v: boolean) => {
+    canvasToggledRef.current = true
+    setCanvasMode(v)
+  }
 
   // Fetch the clustered (subnet block) view when requested.
   useEffect(() => {
@@ -386,6 +400,8 @@ export default function TopologyView() {
         onProtocolFilterChange={setProtocolFilter}
         layoutMode={layoutMode}
         onLayoutModeChange={setLayoutMode}
+        canvasMode={canvasMode}
+        onCanvasModeChange={setCanvasModeUser}
         pathSource={pathSource}
         onPathSourceChange={setPathSource}
         pathTarget={pathTarget}
@@ -452,22 +468,31 @@ export default function TopologyView() {
           </div>
         ) : (
           <>
-            <TopologyCanvas
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onNodeClick={(_e, node) => {
-                if (showSimple && node.data?.group) {
-                  setSelectedDevice(null)
-                  setExpandedGroup(node.data.device_type as string)
-                  return
-                }
-                if (showSimple) return
-                setSelectedDevice(node.id)
-              }}
-              deviceByIp={deviceByIp}
-            />
+            {canvasMode && !showSimple ? (
+              <CanvasTopology
+                nodes={topology.nodes}
+                links={filteredLinks}
+                layoutMode={layoutMode}
+                onNodeSelect={(id) => setSelectedDevice(id)}
+              />
+            ) : (
+              <TopologyCanvas
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onNodeClick={(_e, node) => {
+                  if (showSimple && node.data?.group) {
+                    setSelectedDevice(null)
+                    setExpandedGroup(node.data.device_type as string)
+                    return
+                  }
+                  if (showSimple) return
+                  setSelectedDevice(node.id)
+                }}
+                deviceByIp={deviceByIp}
+              />
+            )}
 
             {selectedDeviceData && (
               <DeviceDetail

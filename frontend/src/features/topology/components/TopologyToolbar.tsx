@@ -18,6 +18,8 @@ interface Props {
   onProtocolFilterChange: (v: ProtocolFilter) => void
   layoutMode: LayoutMode
   onLayoutModeChange: (v: LayoutMode) => void
+  canvasMode: boolean
+  onCanvasModeChange: (v: boolean) => void
   pathSource: string
   onPathSourceChange: (v: string) => void
   pathTarget: string
@@ -53,6 +55,8 @@ export default function TopologyToolbar({
   onProtocolFilterChange,
   layoutMode,
   onLayoutModeChange,
+  canvasMode,
+  onCanvasModeChange,
   pathSource,
   onPathSourceChange,
   pathTarget,
@@ -192,6 +196,27 @@ export default function TopologyToolbar({
           Free
         </button>
       </div>
+
+      {!simplified && (
+        <div className="flex items-center gap-1 bg-surface-2/70 backdrop-blur rounded-xl p-0.5" title="Canvas mode renders via WebGL-style canvas — smooth at thousands of nodes; Standard keeps rich per-node details">
+          <button
+            onClick={() => onCanvasModeChange(false)}
+            className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all duration-150 ${
+              !canvasMode ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/30' : 'text-muted hover:text-text-primary'
+            }`}
+          >
+            Standard
+          </button>
+          <button
+            onClick={() => onCanvasModeChange(true)}
+            className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all duration-150 ${
+              canvasMode ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/30' : 'text-muted hover:text-text-primary'
+            }`}
+          >
+            Canvas
+          </button>
+        </div>
+      )}
 
       {!simplified && (
         <>
