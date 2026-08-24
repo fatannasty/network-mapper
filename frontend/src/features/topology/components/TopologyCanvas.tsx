@@ -45,6 +45,7 @@ export default function TopologyCanvas({ nodes, edges, onNodesChange, onEdgesCha
   const onEdgeLeave: EdgeMouseHandler = () => setHover(null)
 
   const presentTypes = [...new Set(nodes.map((n) => (n.data?.device_type as string) || 'unknown'))]
+  const smallGraph = nodes.length <= 1500
   return (
     <div className="flex-1 relative overflow-hidden">
       <ReactFlow
@@ -59,6 +60,7 @@ export default function TopologyCanvas({ nodes, edges, onNodesChange, onEdgesCha
         onEdgeMouseLeave={onEdgeLeave}
         fitView
         fitViewOptions={{ padding: 0.3 }}
+        onlyRenderVisibleElements
         attributionPosition="bottom-left"
         connectionRadius={20}
         elevateEdgesOnSelect
@@ -71,13 +73,15 @@ export default function TopologyCanvas({ nodes, edges, onNodesChange, onEdgesCha
       >
         <Background color={topologyTokens.dotColor} gap={20} />
         <Controls className="!bg-surface-1 !border-border !fill-current !text-muted" />
-        <MiniMap
-          nodeColor={(n) => {
-            const type = (n.data?.device_type as string) || 'unknown'
-            return nodeColors[type] || '#6b7280'
-          }}
-          className="!bg-surface-1 !border-border"
-        />
+        {smallGraph && (
+          <MiniMap
+            nodeColor={(n) => {
+              const type = (n.data?.device_type as string) || 'unknown'
+              return nodeColors[type] || '#6b7280'
+            }}
+            className="!bg-surface-1 !border-border"
+          />
+        )}
       </ReactFlow>
       {showLegend && <TopologyLegend presentTypes={presentTypes} />}
       <TopologyLinkTooltip

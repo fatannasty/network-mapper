@@ -776,6 +776,35 @@ def download_configs(db: Session = Depends(get_db)):
     )
 
 
+# TTL cache for the (expensive) full-topology response. Topology data only
+# changes on imports/backfills or the 60s latency poll, so a short TTL is safe.
+_TOPO_CACHE: dict[tuple, tuple[float, dict]] = {}
+_TOPO_CACHE_TTL = 60.0
+_TOPO_CACHE_MAX = 32
+
+
+def _topo_cache_get(key: tuple) -> dict | None:
+    entry = _TOPO_CACHE.get(key)
+    if entry is None:
+        return None
+    ts, value = entry
+    if _time.time() - ts > _TOPO_CACHE_TTL:
+        _TOPO_CACHE.pop(key, None)
+        return None
+    return value
+
+
+def _topo_cache_put(key: tuple, value: dict) -> None:
+    if len(_TOPO_CACHE) >= _TOPO_CACHE_MAX:
+        now = _time.time()
+        oldest = min(_TOPO_CACHE, key=lambda k: _TOPO_CACHE[k][0])
+        if now - _TOPO_CACHE[oldest][0] > _TOPO_CACHE_TTL:
+            _TOPO_CACHE.pop(oldest, None)
+        else:
+            _TOPO_CACHE.pop(next(iter(_TOPO_CACHE)), None)
+    _TOPO_CACHE[key] = (_time.time(), value)
+
+
 @app.get("/api/topology", dependencies=[Depends(authenticated)])
 def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Query(None),
                  site: Optional[str] = Query(None),
@@ -799,6 +828,11 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
 
     if job is None:
         return {"scan_id": None, "nodes": [], "links": [], "scan_meta": None}
+
+    cache_key = ("topo", job.id, site or "", focus or "")
+    cached = _topo_cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     if site:
         # Site-focused topology: all devices at this site plus their
@@ -1006,7 +1040,7 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
     for n in nodes:
         n["spof"] = n["ip"] in spof_ips
 
-    return {
+    result = {
         "scan_id": job.id,
         "nodes": nodes,
         "links": link_dicts,
@@ -1018,6 +1052,8 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
         },
         "focus": focus,
     }
+    _topo_cache_put(cache_key, result)
+    return result
 
 
 def _summarize_topology(nodes: list[dict], links: list[dict], scan_id) -> dict:

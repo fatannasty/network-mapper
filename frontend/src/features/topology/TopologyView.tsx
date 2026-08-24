@@ -275,12 +275,13 @@ export default function TopologyView() {
       const pathKey = `${l.source}->${l.target}-${i}`
       const isPath = pathEdgeIds.has(pathKey)
       const isDown = l.status === 'down'
+      const large = filteredLinks.length > 1200
 
       return {
         id: `e-${l.source}-${l.target}-${i}`,
         source: l.source,
         target: l.target,
-        label: protocolLabel,
+        label: large ? undefined : protocolLabel,
         data: { link: l },
         labelStyle: { fill: isPath ? '#22c55e' : '#94a3b8', fontSize: 10, fontWeight: 600 },
         labelBgStyle: { fill: isPath ? '#064e3b' : '#0f172a', fillOpacity: 0.9 },
@@ -295,7 +296,7 @@ export default function TopologyView() {
           strokeWidth: isPath ? 3.5 : 2.25,
           strokeDasharray: isDown ? '6 3' : undefined,
         },
-        animated: !isDown,
+        animated: !isDown && filteredLinks.length <= 500,
         type: 'smoothstep',
       }
     })
