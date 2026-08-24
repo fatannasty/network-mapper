@@ -578,12 +578,22 @@ export async function applySiteMappings(limit = 0) {
   return r.data as { mappings: number; matched: number; updated: number; unchanged: number }
 }
 
+export interface SnmpV3Request {
+  username: string
+  auth_protocol?: string // md5 | sha | none
+  auth_password?: string
+  privacy_protocol?: string // aes | des | none
+  privacy_password?: string
+}
+
 export interface BackfillRequest {
   communities?: string[]
   max_workers?: number
   timeout?: number
   limit?: number
   device_type?: string
+  site?: string
+  snmpv3?: SnmpV3Request
 }
 
 export async function backfillInterfaces(req?: BackfillRequest) {

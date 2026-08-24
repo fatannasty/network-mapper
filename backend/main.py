@@ -1537,6 +1537,8 @@ class BackfillRequest(BaseModel):
     timeout: float = 8.0
     limit: int = 0           # cap the device set (0 = all eligible)
     device_type: str = ""     # restrict to a device type (e.g. "switch")
+    site: str = ""            # restrict to devices at this site ("" = every site)
+    snmpv3: Optional[SnmpV3Request] = None  # walk via SNMPv3 when provided
 
 
 def _vault_or_request_communities(db: Session, req: BackfillRequest) -> list[str]:
@@ -1555,6 +1557,8 @@ def _target_devices(db: Session, req: BackfillRequest,
     q = db.query(Device).filter(Device.device_type.in_(device_types))
     if req.device_type:
         q = q.filter(Device.device_type == req.device_type)
+    if req.site:
+        q = q.filter(Device.site == req.site)
     q = q.order_by(Device.ip)
     if req.limit:
         q = q.limit(req.limit)
@@ -1562,6 +1566,24 @@ def _target_devices(db: Session, req: BackfillRequest,
         "ip": d.ip, "hostname": d.hostname, "device_type": d.device_type,
         "id": d.id,
     } for d in q.all()]
+
+
+def _snmpv3_dict(req: BackfillRequest) -> Optional[dict]:
+    """Validate request SNMPv3 creds and return the params dict used by walkers."""
+    if not req.snmpv3:
+        return None
+    v3 = req.snmpv3
+    if v3.auth_protocol.lower() not in ("md5", "sha", "none"):
+        raise HTTPException(status_code=400, detail="snmpv3.auth_protocol must be md5, sha, or none")
+    if v3.privacy_protocol.lower() not in ("aes", "des", "none"):
+        raise HTTPException(status_code=400, detail="snmpv3.privacy_protocol must be aes, des, or none")
+    return {
+        "username": v3.username,
+        "auth_protocol": v3.auth_protocol.lower(),
+        "auth_password": v3.auth_password,
+        "privacy_protocol": v3.privacy_protocol.lower(),
+        "privacy_password": v3.privacy_password or v3.auth_password,
+    }
 
 
 @app.post("/api/backfill/classify-blanks", dependencies=[Depends(operator)])
@@ -1572,15 +1594,16 @@ def backfill_classify_blanks(limit: int = 0, db: Session = Depends(get_db)):
 
 @app.post("/api/backfill/interfaces", dependencies=[Depends(operator)])
 def backfill_interfaces(req: BackfillRequest, db: Session = Depends(get_db)):
-    """Walk IF-MIB on network devices (switch/router/core-switch) via SNMP."""
+    """Walk IF-MIB on network devices (switch/router/core-switch/firewall) via SNMP."""
     import backfill
 
     devices = _target_devices(
         db, req, ("switch", "router", "core-switch", "firewall"))
     communities = _vault_or_request_communities(db, req)
+    snmpv3 = _snmpv3_dict(req)
     summary = backfill.backfill_interfaces(
         devices, communities,
-        max_workers=req.max_workers, timeout=req.timeout)
+        max_workers=req.max_workers, timeout=req.timeout, snmpv3=snmpv3)
 
     # Persist walked interfaces onto the matching devices.
     from models import Device, Interface
@@ -1615,9 +1638,10 @@ def backfill_links(req: BackfillRequest, db: Session = Depends(get_db)):
     if not devices:
         devices = _target_devices(db, req, ("switch", "router", "core-switch"))
     communities = _vault_or_request_communities(db, req)
+    snmpv3 = _snmpv3_dict(req)
     summary = backfill.backfill_link_validation(
         devices, communities,
-        max_workers=req.max_workers, timeout=req.timeout)
+        max_workers=req.max_workers, timeout=req.timeout, snmpv3=snmpv3)
 
     # Persist validated neighbor links under their own scan so link-protocol
     # reports and topology show SNMP-validated connectivity alongside the

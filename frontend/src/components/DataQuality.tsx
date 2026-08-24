@@ -64,6 +64,26 @@ export default function DataQuality() {
   const [running, setRunning] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [walkSite, setWalkSite] = useState('')
+  const [v3Mode, setV3Mode] = useState(false)
+  const [v3Username, setV3Username] = useState('')
+  const [v3AuthProto, setV3AuthProto] = useState('sha')
+  const [v3AuthPassword, setV3AuthPassword] = useState('')
+  const [v3PrivProto, setV3PrivProto] = useState('aes')
+  const [v3PrivPassword, setV3PrivPassword] = useState('')
+
+  const walkRequest = () => ({
+    site: walkSite.trim() || undefined,
+    ...(v3Mode ? {
+      snmpv3: {
+        username: v3Username,
+        auth_protocol: v3AuthProto,
+        auth_password: v3AuthPassword,
+        privacy_protocol: v3PrivProto,
+        privacy_password: v3PrivPassword || v3AuthPassword,
+      },
+    } : {}),
+  })
 
   const refresh = useCallback(async () => {
     setError('')
@@ -193,13 +213,46 @@ export default function DataQuality() {
           )}
         </Card>
 
+        {/* SNMP Walk Scope */}
+        <Card>
+          <CardHeader title="SNMP Walk Scope" />
+          <p className="text-xs text-muted mb-4">
+            Scope the interface / link walks below to a site or the whole network, and walk
+            via SNMPv3 instead of the vaulted v2c communities when supplied.
+          </p>
+          <div className="grid md:grid-cols-4 gap-2">
+            <Input value={walkSite} onChange={(e) => setWalkSite(e.target.value)} placeholder="Site (blank = all devices)" />
+            <div className="flex items-center gap-1 bg-surface-2/70 backdrop-blur rounded-xl p-0.5">
+              <button type="button" onClick={() => setV3Mode(false)} className={`flex-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${!v3Mode ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'}`}>v2c</button>
+              <button type="button" onClick={() => setV3Mode(true)} className={`flex-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${v3Mode ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'}`}>v3</button>
+            </div>
+            {v3Mode && (
+              <>
+                <Input value={v3Username} onChange={(e) => setV3Username(e.target.value)} placeholder="v3 username" />
+                <Input type="password" value={v3AuthPassword} onChange={(e) => setV3AuthPassword(e.target.value)} placeholder="v3 auth password" />
+                <select value={v3AuthProto} onChange={(e) => setV3AuthProto(e.target.value)} className="px-3 py-2 bg-surface-2/50 backdrop-blur border border-border/40 rounded-xl text-sm text-text-primary focus:outline-none focus:border-accent transition-all duration-200">
+                  <option value="sha">Auth SHA</option>
+                  <option value="md5">Auth MD5</option>
+                  <option value="none">Auth none</option>
+                </select>
+                <select value={v3PrivProto} onChange={(e) => setV3PrivProto(e.target.value)} className="px-3 py-2 bg-surface-2/50 backdrop-blur border border-border/40 rounded-xl text-sm text-text-primary focus:outline-none focus:border-accent transition-all duration-200">
+                  <option value="aes">Priv AES</option>
+                  <option value="des">Priv DES</option>
+                  <option value="none">Priv none</option>
+                </select>
+                <Input type="password" value={v3PrivPassword} onChange={(e) => setV3PrivPassword(e.target.value)} placeholder="v3 priv password (defaults to auth)" />
+              </>
+            )}
+          </div>
+        </Card>
+
         {/* Backfill Jobs */}
         <Card>
           <CardHeader title="Backfill Jobs" />
           <div className="grid md:grid-cols-3 gap-4">
             {[
-              { title: 'Interface walks', desc: 'SNMP IF-MIB on switch/router/core-switch.', runKey: 'interfaces', action: async () => setInterfaceSummary(await backfillInterfaces()), summary: interfaceSummary, count: interfaceSummary?.persisted_interfaces },
-              { title: 'Link validation', desc: 'SNMP LLDP/CDP on core-switch and router.', runKey: 'links', action: async () => setLinkSummary(await backfillLinks()), summary: linkSummary, count: linkSummary?.neighbors_discovered },
+              { title: 'Interface walks', desc: 'SNMP IF-MIB + VLANs on switch/router/core-switch.', runKey: 'interfaces', action: async () => setInterfaceSummary(await backfillInterfaces(walkRequest())), summary: interfaceSummary, count: interfaceSummary?.persisted_interfaces },
+              { title: 'Link validation', desc: 'SNMP LLDP/CDP on core-switch and router.', runKey: 'links', action: async () => setLinkSummary(await backfillLinks(walkRequest())), summary: linkSummary, count: linkSummary?.neighbors_discovered },
               { title: 'Classify blanks', desc: 'AP hostnames → accesspoint; port 9100 → printer.', runKey: 'blanks', action: async () => { const r = await classifyBlanks(); setNotice(`Classified ${r.changed} devices`) }, count: undefined },
             ].map((job) => (
               <div key={job.runKey} className="bg-surface-3/60 backdrop-blur rounded-xl p-4 border border-border/40">

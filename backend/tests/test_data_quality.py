@@ -275,6 +275,39 @@ def test_backfill_interfaces_persists(monkeypatch):
         assert dev.interfaces[0].if_descr == "Gi0/0"
 
 
+def test_backfill_interfaces_v3(monkeypatch):
+    import backfill as backfill_mod
+    import snmpv3
+
+    def fake_v3_walk(host, username, auth_protocol="sha", auth_password="",
+                     privacy_protocol="none", privacy_password=None,
+                     timeout=2.0, port=161, max_oids=1024):
+        return [{"ifIndex": "1", "ifDescr": "Gi0/0", "ifName": "Gi0/0",
+                 "ifOperStatus": "up"}]
+
+    monkeypatch.setattr(snmpv3, "walk_if_table", fake_v3_walk)
+    import vlan as vlan_mod
+    monkeypatch.setattr(vlan_mod, "walk_vlans_v3", lambda *a, **k: {})
+
+    with SessionLocal() as db:
+        db.query(Device).delete()
+        repositories.upsert_device(db, {
+            "ip": "10.5.0.1", "hostname": "SW-V3", "device_type": "switch", "site": "X",
+        }, "scan-q")
+
+    resp = operator.post("/api/backfill/interfaces", json={
+        "snmpv3": {
+            "username": "monitor", "auth_protocol": "sha",
+            "auth_password": "secret", "privacy_protocol": "aes",
+        },
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["successful"] == 1
+    assert data["persisted_interfaces"] == 1
+
+
 def test_backfill_links_creates_validation_scan(monkeypatch):
     import backfill as backfill_mod
 

@@ -23,15 +23,33 @@ DEFAULT_TIMEOUT = 8.0
 
 # ── Interface walks ──────────────────────────────────────────────────────────
 
-def walk_device_interfaces(device, communities: list[str], timeout: float = DEFAULT_TIMEOUT):
-    """Walk IF-MIB for one device; returns (device, interfaces, error)."""
+def _v3_kwargs(snmpv3: dict, timeout: float) -> dict:
+    return {
+        "username": snmpv3["username"],
+        "auth_protocol": (snmpv3.get("auth_protocol") or "sha").lower(),
+        "auth_password": snmpv3.get("auth_password", ""),
+        "privacy_protocol": (snmpv3.get("privacy_protocol") or "none").lower(),
+        "privacy_password": snmpv3.get("privacy_password") or snmpv3.get("auth_password", ""),
+        "timeout": timeout,
+    }
+
+
+def walk_device_interfaces(device, communities: list[str], timeout: float = DEFAULT_TIMEOUT,
+                           snmpv3: dict | None = None):
+    """Walk IF-MIB + dot1q VLANs for one device (v2c or v3). Returns (device, interfaces, error)."""
     ip = device.get("ip", "")
     if not ip:
         return device, [], "no ip"
     try:
-        interfaces = walk_if_table(ip, communities, timeout=timeout)
-        from vlan import walk_vlans_v2c
-        assignments = walk_vlans_v2c(ip, communities, timeout=timeout)
+        if snmpv3:
+            from snmpv3 import walk_if_table as v3_walk_if_table
+            from vlan import walk_vlans_v3
+            interfaces = v3_walk_if_table(ip, **_v3_kwargs(snmpv3, timeout))
+            assignments = walk_vlans_v3(ip, snmpv3, timeout=timeout)
+        else:
+            interfaces = walk_if_table(ip, communities, timeout=timeout)
+            from vlan import walk_vlans_v2c
+            assignments = walk_vlans_v2c(ip, communities, timeout=timeout)
         for iface in interfaces:
             vlans = assignments.get(str(iface.get("ifIndex", "")))
             if vlans:
@@ -44,8 +62,9 @@ def walk_device_interfaces(device, communities: list[str], timeout: float = DEFA
 
 def backfill_interfaces(devices: list[dict], communities: list[str],
                         max_workers: int = DEFAULT_MAX_WORKERS,
-                        timeout: float = DEFAULT_TIMEOUT) -> dict:
-    """Walk interfaces on all given devices (threaded). Returns summary."""
+                        timeout: float = DEFAULT_TIMEOUT,
+                        snmpv3: dict | None = None) -> dict:
+    """Walk interfaces on all given devices (threaded, v2c or v3). Returns summary."""
     devices = list(devices)
     results: list[dict] = []
     successful = 0
@@ -53,7 +72,7 @@ def backfill_interfaces(devices: list[dict], communities: list[str],
     errors: list[str] = []
 
     def work(device):
-        return walk_device_interfaces(device, communities, timeout=timeout)
+        return walk_device_interfaces(device, communities, timeout=timeout, snmpv3=snmpv3)
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = [pool.submit(work, d) for d in devices]
@@ -88,11 +107,26 @@ def backfill_interfaces(devices: list[dict], communities: list[str],
 
 # ── Link validation (LLDP/CDP) ───────────────────────────────────────────────
 
-def validate_device_links(device, communities: list[str], timeout: float = DEFAULT_TIMEOUT):
-    """Walk LLDP + CDP on one device; returns (device, neighbors, error)."""
+def validate_device_links(device, communities: list[str], timeout: float = DEFAULT_TIMEOUT,
+                          snmpv3: dict | None = None):
+    """Walk LLDP + CDP on one device (v2c or v3); returns (device, neighbors, error)."""
     ip = device.get("ip", "")
     if not ip:
         return device, [], "no ip"
+    if snmpv3:
+        from topology import collect_lldp_v3, collect_cdp_v3
+        kwargs = {"host": ip, **_v3_kwargs(snmpv3, timeout)}
+        neighbors: list[dict] = []
+        try:
+            neighbors = collect_lldp_v3(**kwargs)
+        except (socket.timeout, OSError, ValueError) as e:
+            return device, [], f"lldp: {e}"
+        try:
+            neighbors += collect_cdp_v3(**kwargs)
+        except (socket.timeout, OSError, ValueError) as e:
+            neighbors = neighbors or []
+            return device, neighbors, f"cdp: {e}"
+        return device, neighbors, ""
     neighbors: list[dict] = []
     try:
         neighbors = collect_lldp_v2c(ip, communities[0], timeout=timeout) if communities else []
@@ -109,8 +143,9 @@ def validate_device_links(device, communities: list[str], timeout: float = DEFAU
 
 def backfill_link_validation(devices: list[dict], communities: list[str],
                              max_workers: int = DEFAULT_MAX_WORKERS,
-                             timeout: float = DEFAULT_TIMEOUT) -> dict:
-    """Walk LLDP/CDP on the given devices (threaded). Returns summary."""
+                             timeout: float = DEFAULT_TIMEOUT,
+                             snmpv3: dict | None = None) -> dict:
+    """Walk LLDP/CDP on the given devices (threaded, v2c or v3). Returns summary."""
     devices = list(devices)
     results: list[dict] = []
     total_neighbors = 0
@@ -118,7 +153,7 @@ def backfill_link_validation(devices: list[dict], communities: list[str],
     errors: list[str] = []
 
     def work(device):
-        return validate_device_links(device, communities, timeout=timeout)
+        return validate_device_links(device, communities, timeout=timeout, snmpv3=snmpv3)
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = [pool.submit(work, d) for d in devices]
