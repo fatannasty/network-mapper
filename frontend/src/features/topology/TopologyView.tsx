@@ -10,7 +10,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useTopology } from './hooks/useTopology'
 import { treeLayout, freeLayout, circleLayout, radialLayout } from './services/layout'
 import { normalizeType, pluralLabel } from './services/friendly'
-import { measureLatency, downloadPortTable, getTopologySummary, type TopologySummaryData } from '../../api'
+import { measureLatency, downloadPortTable, getTopologySummary, downloadWalkReport, type TopologySummaryData } from '../../api'
 import TopologyToolbar from './components/TopologyToolbar'
 import TopologyCanvas from './components/TopologyCanvas'
 import TopologyGroupDetail from './components/TopologyGroupDetail'
@@ -399,6 +399,7 @@ export default function TopologyView() {
         }}
         onExportDiagram={() => setExportOpen(true)}
         onExportTable={() => downloadPortTable(scanId)}
+        onExportWalkReport={() => downloadWalkReport(siteFilter)}
         onMeasureLatency={handleMeasureLatency}
         measuringLatency={measuringLatency}
       />

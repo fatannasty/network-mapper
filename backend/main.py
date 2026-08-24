@@ -1285,6 +1285,67 @@ def api_port_table(scan_id: Optional[str] = Query(None), db: Session = Depends(g
                     headers={"Content-Disposition": 'attachment; filename="device-port-table.csv"'})
 
 
+@app.get("/api/topology/walk-report", dependencies=[Depends(authenticated)])
+def api_walk_report(site: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    """Clean SNMP-walk report: per-device interfaces (with VLANs) and links.
+
+    Optionally scoped to a single site; otherwise covers the whole inventory.
+    Returns JSON so the client can render CSV (interface/VLAN + link reports).
+    """
+    from models import Device, Interface, Link as LinkModel
+
+    q = db.query(Device)
+    if site:
+        q = q.filter(Device.site == site)
+    devices = q.all()
+
+    dev_ids = [d.id for d in devices]
+    ip_by_id = {d.id: d.ip for d in devices}
+    host_by_id = {d.id: d.hostname for d in devices}
+
+    iface_rows: list[dict] = []
+    if dev_ids:
+        for iface in db.query(Interface).filter(
+                Interface.device_id.in_(dev_ids)).all():
+            iface_rows.append({
+                "device_ip": ip_by_id.get(iface.device_id, ""),
+                "hostname": host_by_id.get(iface.device_id, ""),
+                "interface": iface.if_name or iface.if_descr or iface.if_index or "",
+                "if_descr": iface.if_descr or "",
+                "vlan_id": iface.vlan_id,
+                "vlan_name": iface.vlan_name or "",
+                "if_oper_status": iface.if_oper_status or "",
+                "if_admin_status": iface.if_admin_status or "",
+                "if_speed": iface.if_speed or "",
+            })
+
+    host_by_ip = {d.ip: d.hostname for d in devices}
+    dev_ips = {d.ip for d in devices}
+    link_q = db.query(LinkModel).filter(LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS))
+    if site:
+        link_q = link_q.filter(
+            LinkModel.endpoint_a.in_(dev_ips) & LinkModel.endpoint_b.in_(dev_ips))
+    link_rows: list[dict] = []
+    for l in link_q.limit(50000).all():
+        link_rows.append({
+            "source": l.endpoint_a,
+            "source_hostname": host_by_ip.get(l.endpoint_a, ""),
+            "target": l.endpoint_b,
+            "target_hostname": host_by_ip.get(l.endpoint_b, ""),
+            "interface_a": l.interface_a or "",
+            "interface_b": l.interface_b or "",
+            "protocol": l.protocol or "",
+        })
+
+    return {
+        "site": site or "",
+        "interface_count": len(iface_rows),
+        "link_count": len(link_rows),
+        "interfaces": iface_rows,
+        "links": link_rows,
+    }
+
+
 @app.post("/api/topology/package", dependencies=[Depends(authenticated)])
 async def api_topology_package(req: DiagramExportRequest, request: Request):
     """One-click executive package: PDF + Word + port-table CSV in a ZIP."""

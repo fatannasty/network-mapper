@@ -730,6 +730,65 @@ export async function downloadPortTable(scanId?: string) {
   URL.revokeObjectURL(url)
 }
 
+export interface WalkReport {
+  site: string
+  interface_count: number
+  link_count: number
+  interfaces: {
+    device_ip: string
+    hostname: string
+    interface: string
+    if_descr: string
+    vlan_id: number | null
+    vlan_name: string
+    if_oper_status: string
+    if_admin_status: string
+    if_speed: string
+  }[]
+  links: {
+    source: string
+    source_hostname: string
+    target: string
+    target_hostname: string
+    interface_a: string
+    interface_b: string
+    protocol: string
+  }[]
+}
+
+export async function getWalkReport(site?: string) {
+  const r = await api.get('/api/topology/walk-report', { params: { site: site || '' } })
+  return r.data as WalkReport
+}
+
+function toCsv(rows: Record<string, unknown>[]): string {
+  if (!rows.length) return ''
+  const cols = Object.keys(rows[0])
+  const esc = (v: unknown) => {
+    const s = v == null ? '' : String(v)
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  return [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n')
+}
+
+function downloadCsv(text: string, filename: string) {
+  const blob = new Blob([text], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function downloadWalkReport(site?: string) {
+  const rep = await getWalkReport(site)
+  const suffix = site ? `-${site.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : '-all'
+  downloadCsv(toCsv(rep.interfaces), `walk-report${suffix}-interfaces.csv`)
+  downloadCsv(toCsv(rep.links), `walk-report${suffix}-links.csv`)
+  return rep
+}
+
 export async function saveDiagramPrefs(scanId: string, prefs: DiagramPrefs) {
   await api.post('/api/topology/diagram-prefs', { scan_id: scanId, ...prefs })
 }

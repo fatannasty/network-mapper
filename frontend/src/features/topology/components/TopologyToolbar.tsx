@@ -27,6 +27,7 @@ interface Props {
   onClearPath: () => void
   onExportDiagram: () => void
   onExportTable: () => void
+  onExportWalkReport: () => void
   onMeasureLatency: () => void
   measuringLatency: boolean
 }
@@ -62,6 +63,7 @@ export default function TopologyToolbar({
   onClearPath,
   onExportDiagram,
   onExportTable,
+  onExportWalkReport,
   onMeasureLatency,
   measuringLatency,
 }: Props) {
@@ -271,6 +273,15 @@ export default function TopologyToolbar({
         title="Download a CSV of every device, its ports, and what each port connects to"
       >
         Export Port Table
+      </button>
+
+      <button
+        onClick={onExportWalkReport}
+        disabled={!topology || topology.nodes.length === 0}
+        className="px-3 py-1.5 bg-surface-2/70 hover:bg-surface-3 disabled:opacity-50 border border-border/40 rounded-xl text-text-secondary text-xs font-medium transition-all duration-150"
+        title="Download clean CSVs of walked interfaces (with VLANs) and links for this site or the whole network"
+      >
+        Export Walk Report
       </button>
     </div>
   )

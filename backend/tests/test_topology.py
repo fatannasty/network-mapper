@@ -313,3 +313,41 @@ def test_scanner_collect_topology_v3(v3agent):
     assert "127.0.0.1" in neighbors
     protos = {n["protocol"] for n in neighbors["127.0.0.1"]}
     assert protos == {"lldp", "cdp"}
+
+
+def test_walk_report_returns_interfaces_and_links():
+    from database import SessionLocal
+    from models import Device, Interface, Link
+    from fastapi.testclient import TestClient
+    import main
+
+    with SessionLocal() as db:
+        db.query(Device).filter(Device.site == "WalkTestSite").delete()
+        d1 = Device(ip="10.20.0.1", hostname="SW-A", device_type="switch", site="WalkTestSite")
+        d2 = Device(ip="10.20.0.2", hostname="SW-B", device_type="switch", site="WalkTestSite")
+        d3 = Device(ip="10.20.0.3", hostname="SW-C", device_type="switch", site="Denver")
+        db.add_all([d1, d2, d3])
+        db.flush()
+        db.add_all([
+            Interface(device_id=d1.id, if_name="Gi1/0/1", if_oper_status="up", vlan_id=90, vlan_name="Voice"),
+            Interface(device_id=d3.id, if_name="Gi1/0/1", if_oper_status="up"),
+            Link(scan_id="scan-w", endpoint_a=d1.ip, endpoint_b=d2.ip, protocol="lldp", interface_a="Gi1/0/1", interface_b="Gi1/0/1"),
+            Link(scan_id="scan-w", endpoint_a=d1.ip, endpoint_b=d3.ip, protocol="lldp", interface_a="Gi1/0/2", interface_b="Gi1/0/2"),
+        ])
+        db.commit()
+
+    client = TestClient(main.app)
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin"})
+
+    resp = client.get("/api/topology/walk-report", params={"site": "WalkTestSite"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["interface_count"] == 1
+    assert data["link_count"] == 1
+    assert data["interfaces"][0]["vlan_id"] == 90
+    assert data["interfaces"][0]["vlan_name"] == "Voice"
+    assert data["links"][0]["protocol"] == "lldp"
+
+    resp_all = client.get("/api/topology/walk-report")
+    assert resp_all.json()["interface_count"] >= 2
+    assert resp_all.json()["link_count"] >= 2
