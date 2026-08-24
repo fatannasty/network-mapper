@@ -89,16 +89,17 @@ export default function CanvasTopology({ nodes, links, layoutMode, onNodeSelect 
           'background-opacity': 0.92,
           'border-width': 3,
           'border-color': 'data(border)',
-          width: 130,
-          height: 70,
+          width: 150,
+          height: 80,
           shape: 'round-rectangle',
           'label': 'data(label)',
-          'font-size': '11px',
+          'font-size': 12,
           'font-weight': 600,
+          'min-zoomed-font-size': 10,
           'text-valign': 'center',
           'text-halign': 'center',
           'text-wrap': 'wrap',
-          'text-max-width': '120px',
+          'text-max-width': '140px',
           'color': '#ffffff',
           'text-outline-width': 2,
           'text-outline-color': '#0b1220',
@@ -144,11 +145,23 @@ export default function CanvasTopology({ nodes, links, layoutMode, onNodeSelect 
       onSelectRef.current(evt.target.id())
     })
 
+    // Level-of-detail: hide node labels until zoomed in enough to read them,
+    // so the overview stays clean instead of a wall of overlapping text.
+    const updateLod = () => {
+      const z = cy.zoom()
+      cy.style()
+        .selector('node')
+        .style('label', z >= 0.2 ? 'data(label)' : '')
+        .update()
+    }
+    cy.on('zoom', updateLod)
+
     try {
       cy.fit(undefined, 48)
     } catch {
       /* empty graph */
     }
+    updateLod()
     cyRef.current = cy
 
     return () => {
