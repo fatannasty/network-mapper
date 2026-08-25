@@ -106,8 +106,135 @@ def build_exec_html(summary: dict) -> str:
 </body></html>"""
 
 
-def build_exec_pdf(summary: dict, path: str) -> None:
-    """Render the same report to PDF via reportlab."""
+def _status_donut(summary):
+    """Donut chart of device operational status."""
+    from reportlab.graphics.charts.piecharts import Pie
+    from reportlab.graphics.shapes import Drawing, String
+    from reportlab.lib import colors
+
+    k = summary.get("kpis", {})
+    pairs = [
+        ("up", k.get("devices_up", 0), colors.green),
+        ("degraded", k.get("devices_degraded", 0), colors.orange),
+        ("down", k.get("devices_down", 0), colors.red),
+        ("flapping", k.get("devices_flapping", 0), colors.HexColor("#f97316")),
+        ("unknown", k.get("devices_unknown", 0), colors.grey),
+    ]
+    pairs = [(l, v, c) for l, v, c in pairs if v]
+    if not pairs:
+        return None
+    total = sum(v for _, v, _ in pairs)
+    d = Drawing(300, 150)
+    pie = Pie()
+    pie.x = 30
+    pie.y = 10
+    pie.width = 110
+    pie.height = 110
+    pie.data = [v for _, v, _ in pairs]
+    pie.labels = ["" for _ in pairs]
+    pie.slices.strokeWidth = 0
+    for i, (_, _, color) in enumerate(pairs):
+        pie.slices[i].fillColor = color
+    pie.innerRadiusFraction = 0.5
+    d.add(pie)
+    y = 140
+    for label, value, color in pairs:
+        d.add(String(165, y, f"{label}: {value} ({round(100.0 * value / total, 1)}%)",
+                     fontSize=9, fillColor=color))
+        y -= 13
+    return d
+
+
+def _coverage_bars(summary):
+    """Grouped bar chart: coverage actuals vs targets."""
+    from reportlab.graphics.charts.barcharts import VerticalBarChart
+    from reportlab.graphics.shapes import Drawing, String
+    from reportlab.lib import colors
+
+    k = summary.get("kpis", {})
+    items = [("Site", k.get("site_coverage", 0), 90),
+             ("Interfaces", k.get("interface_coverage", 0), 95),
+             ("Configs", k.get("config_coverage", 0), 90),
+             ("Links", k.get("link_validation", 0), 80)]
+    d = Drawing(300, 150)
+    chart = VerticalBarChart()
+    chart.x = 40
+    chart.y = 20
+    chart.width = 240
+    chart.height = 110
+    chart.data = [[it[1] for it in items], [it[2] for it in items]]
+    chart.categoryAxis.categoryNames = [it[0] for it in items]
+    chart.categoryAxis.labels.fontSize = 8
+    chart.valueAxis.valueMin = 0
+    chart.valueAxis.valueMax = 100
+    chart.bars[0].fillColor = colors.HexColor("#22d3ee")
+    chart.bars[1].fillColor = colors.HexColor("#cbd5e1")
+    chart.groupSpacing = 3
+    chart.barSpacing = 1
+    d.add(chart)
+    d.add(String(40, 5, "actual (teal) vs target (grey)", fontSize=7))
+    return d
+
+
+def _score_line(history):
+    """Line chart of the executive health score over time."""
+    from reportlab.graphics.charts.linecharts import HorizontalLineChart
+    from reportlab.graphics.shapes import Drawing, String
+    from reportlab.lib import colors
+
+    pts = [(i, h.get("score", 0)) for i, h in enumerate(history)
+           if h.get("score") is not None]
+    if len(pts) < 2:
+        return None
+    d = Drawing(300, 130)
+    lp = HorizontalLineChart()
+    lp.x = 40
+    lp.y = 20
+    lp.width = 240
+    lp.height = 90
+    lp.data = [pts]
+    lp.joinedLines = 1
+    lp.lines[0].strokeColor = colors.HexColor("#22d3ee")
+    lp.lines[0].strokeWidth = 2
+    lp.valueAxis.valueMin = 0
+    lp.valueAxis.valueMax = 100
+    d.add(lp)
+    d.add(String(40, 4, f"health score over {len(history)} snapshots", fontSize=7))
+    return d
+
+
+def _util_bars(top_util):
+    """Horizontal bars of busiest interfaces (avg bits/sec)."""
+    from reportlab.graphics.charts.barcharts import HorizontalBarChart
+    from reportlab.graphics.shapes import Drawing, String
+    from reportlab.lib import colors
+
+    items = top_util[:6]
+    if not items:
+        return None
+    d = Drawing(300, 150)
+    chart = HorizontalBarChart()
+    chart.x = 110
+    chart.y = 10
+    chart.width = 180
+    chart.height = 120
+    chart.data = [[(t.get("avg_in_rate", 0) + t.get("avg_out_rate", 0)) for t in items]]
+    chart.categoryAxis.categoryNames = [
+        f"{t.get('hostname') or t.get('ip')}:{t.get('if_name', '')}"[:24] for t in items]
+    chart.categoryAxis.labels.fontSize = 7
+    chart.bars[0].fillColor = colors.HexColor("#22d3ee")
+    d.add(chart)
+    d.add(String(6, 12, "avg bits/sec", fontSize=7))
+    return d
+
+
+def build_exec_pdf(summary: dict, path: str, history: list | None = None,
+                   top_util: list | None = None) -> None:
+    """Render the executive report to PDF via reportlab.
+
+    Charts (status donut, coverage bars, health trend, busiest links) are
+    best-effort: any single chart failing is skipped, never fatal.
+    """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -152,6 +279,28 @@ def build_exec_pdf(summary: dict, path: str) -> None:
     ]))
     story.append(kpi_table)
 
+    # Charts (best-effort; a chart failure is skipped, never fatal).
+    charts = [
+        ("Network composition", lambda: _status_donut(summary),
+         "No device status data available."),
+        ("Coverage vs targets", lambda: _coverage_bars(summary),
+         "No coverage data available."),
+        ("Health trend", lambda: _score_line(history or []),
+         "Not enough health history yet for a trend."),
+        ("Busiest links (avg)", lambda: _util_bars(top_util or []),
+         "No utilization data yet."),
+    ]
+    for chart_title, builder, note in charts:
+        story.append(Paragraph(chart_title, h2))
+        try:
+            drawing = builder()
+        except Exception:  # a chart must never break the whole report
+            drawing = None
+        if drawing is None:
+            story.append(Paragraph(note, sub))
+        else:
+            story.append(drawing)
+
     def section(title_text: str, header: list[str], rows: list[list], empty: str):
         story.append(Paragraph(title_text, h2))
         if not rows:
@@ -191,7 +340,9 @@ def pdf_path(report_id: int) -> str:
     return os.path.join(REPORTS_DIR, f"exec-{report_id}.pdf")
 
 
-def save_exec_report(db, summary: dict, title: str = "") -> object:
+def save_exec_report(db, summary: dict, title: str = "",
+                     history: list | None = None,
+                     top_util: list | None = None) -> object:
     """Build HTML + PDF and persist an ExecReport row. Returns the row."""
     from models import ExecReport
 
@@ -202,7 +353,7 @@ def save_exec_report(db, summary: dict, title: str = "") -> object:
     db.add(row)
     db.flush()  # assign id for the filename
     try:
-        build_exec_pdf(summary, pdf_path(row.id))
+        build_exec_pdf(summary, pdf_path(row.id), history=history, top_util=top_util)
     except Exception as exc:  # PDF is best-effort; HTML always kept
         row.error = f"pdf: {exc}"
     db.commit()
@@ -256,11 +407,16 @@ def email_exec_report(row, summary: dict) -> bool:
 
 def run_exec_report_job(db) -> dict:
     """Generate, persist, and (optionally) email an executive report."""
-    from models import ExecReport
+    from models import ExecReport, HealthSnapshot
     import repositories
+    import utilization
 
     summary = repositories.exec_health_summary(db)
-    row = save_exec_report(db, summary)
+    history = [{"t": r.recorded_at.isoformat(), "score": r.score}
+               for r in db.query(HealthSnapshot)
+               .order_by(HealthSnapshot.recorded_at.asc()).all()]
+    top_util = utilization.top_utilization(db, days=7, limit=8).get("top", [])
+    row = save_exec_report(db, summary, history=history, top_util=top_util)
     try:
         row.emailed = email_exec_report(row, summary)
         db.commit()

@@ -126,3 +126,31 @@ def test_exec_report_generate_and_serve():
     assert pdf.status_code == 200
     assert pdf.headers.get("content-type", "").startswith("application/pdf")
     assert len(pdf.content) > 200
+
+
+def test_exec_pdf_robust_and_has_charts():
+    import os
+    import tempfile
+    from reports import build_exec_pdf, _status_donut, _coverage_bars, _score_line, _util_bars
+
+    # Empty/edge data must never crash the PDF.
+    summary = {"total_devices": 0, "state": "healthy", "score": 0,
+               "kpis": {}, "sites": [], "risks": [], "spof_devices": []}
+    with tempfile.TemporaryDirectory() as tmp:
+        p = os.path.join(tmp, "empty.pdf")
+        build_exec_pdf(summary, p, history=[], top_util=[])
+        assert os.path.getsize(p) > 100
+        assert open(p, "rb").read()[:5] == b"%PDF-"
+
+    # Chart builders degrade to None (skipped) when there's nothing to draw.
+    assert _status_donut({"kpis": {}}) is None
+    assert _score_line([]) is None
+    assert _util_bars([]) is None
+
+    # And produce drawings when data is present.
+    assert _status_donut({"kpis": {"devices_up": 10, "devices_down": 2}}) is not None
+    assert _coverage_bars({"kpis": {"site_coverage": 50, "interface_coverage": 60,
+                                    "config_coverage": 70, "link_validation": 80}}) is not None
+    assert _score_line([{"score": 50}, {"score": 60}]) is not None
+    assert _util_bars([{"hostname": "sw1", "ip": "10.0.0.1", "if_name": "Gi1",
+                        "avg_in_rate": 1e6, "avg_out_rate": 5e5}]) is not None
