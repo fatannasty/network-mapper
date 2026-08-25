@@ -287,6 +287,8 @@ _IF_COL_PHYS_ADDR = 6
 _IF_COL_ADMIN = 7
 _IF_COL_OPER = 8
 _IFX_COL_NAME = 1
+_IFX_COL_HCIN = 6
+_IFX_COL_HCOUT = 10
 _IFX_COL_HIGH_SPEED = 15
 _IF_COL_IF_ALIAS = 18
 
@@ -367,6 +369,10 @@ def walk_if_table(host: str, communities: list[str], port: int = SNMP_PORT,
         entry = interfaces[idx]
         if col == _IFX_COL_NAME:
             entry["ifName"] = _to_str(val)
+        elif col == _IFX_COL_HCIN:
+            entry["ifHCInOctets"] = str(int(val)) if val is not None else "0"
+        elif col == _IFX_COL_HCOUT:
+            entry["ifHCOutOctets"] = str(int(val)) if val is not None else "0"
         elif col == _IFX_COL_HIGH_SPEED:
             entry["ifHighSpeed"] = str(int(val)) if val is not None else ""
         elif col == _IF_COL_IF_ALIAS:

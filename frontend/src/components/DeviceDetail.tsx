@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { shortenInterface } from './ui/iface'
 import Button from './ui/Button'
-import { getDeviceConfigs, getConfigDiff, type Device, type ConfigEntry, type ConfigDiffRow, type TopoLink } from '../api'
+import { getDeviceConfigs, getConfigDiff, getDeviceUtilization, type Device, type ConfigEntry, type ConfigDiffRow, type TopoLink, type DeviceUtilization } from '../api'
 import { friendlyType, typeDescription, shortName } from '../features/topology/services/friendly'
 
 function fmtTs(value?: string | null): string {
@@ -10,6 +10,33 @@ function fmtTs(value?: string | null): string {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return value
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+function fmtRate(bps: number): string {
+  if (bps >= 1e9) return `${(bps / 1e9).toFixed(2)} Gbps`
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`
+  if (bps >= 1e3) return `${(bps / 1e3).toFixed(0)} Kbps`
+  return `${bps.toFixed(0)} bps`
+}
+
+function UtilChart({ series }: { series: { in_rate: number; out_rate: number }[] }) {
+  if (!series || series.length < 2) return null
+  const w = 260
+  const h = 60
+  const pad = 3
+  const max = Math.max(1, ...series.map((p) => Math.max(p.in_rate, p.out_rate)))
+  const x = (i: number) => pad + (i / (series.length - 1)) * (w - pad * 2)
+  const y = (v: number) => h - pad - (v / max) * (h - pad * 2)
+  const line = (key: 'in_rate' | 'out_rate') =>
+    series.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ')
+  const last = series.length - 1
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-16" role="img" aria-label="Link utilization over time">
+      <path d={`${line('in_rate')} L${x(last).toFixed(1)},${h - pad} L${pad},${h - pad} Z`} fill="rgba(34,211,238,0.15)" />
+      <path d={line('in_rate')} fill="none" stroke="#22d3ee" strokeWidth="1.5" />
+      <path d={line('out_rate')} fill="none" stroke="#f472b6" strokeWidth="1.5" />
+    </svg>
+  )
 }
 
 interface Props {
@@ -28,6 +55,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
   const [diffLoading, setDiffLoading] = useState(false)
   const [fromId, setFromId] = useState(0)
   const [toId, setToId] = useState(0)
+  const [utilization, setUtilization] = useState<DeviceUtilization | null>(null)
   const navigate = useNavigate()
   const type = friendlyType(device.device_type)
   const name = shortName(device.hostname) || device.ip
@@ -36,6 +64,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
     setConfigs([])
     setDiff(null)
     setConfigsOpen(false)
+    setUtilization(null)
     if (!device.id) return
     let cancelled = false
     getDeviceConfigs(device.id)
@@ -47,6 +76,9 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
           setToId(cs[0].id)
         }
       })
+      .catch(() => {})
+    getDeviceUtilization(device.id)
+      .then((u) => { if (!cancelled) setUtilization(u) })
       .catch(() => {})
     return () => { cancelled = true }
   }, [device.id])
@@ -423,6 +455,33 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
                   </p>
                 </>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Link utilization */}
+        <div>
+          <span className="text-muted text-xs block mb-1.5">Link utilization</span>
+          {!utilization || utilization.interfaces.length === 0 ? (
+            <p className="text-xs text-muted">
+              No utilization data yet &mdash; the poller samples interface counters every 5 minutes.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {utilization.interfaces.map((itf) => {
+                const last = itf.series[itf.series.length - 1]
+                return (
+                  <div key={itf.if_index} className="bg-surface-2/60 rounded-xl px-2 py-1.5">
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="text-text-primary font-mono truncate">{itf.if_name}</span>
+                      <span className="text-muted shrink-0">
+                        {last ? `${fmtRate(last.in_rate)} in / ${fmtRate(last.out_rate)} out` : ''}
+                      </span>
+                    </div>
+                    <UtilChart series={itf.series} />
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

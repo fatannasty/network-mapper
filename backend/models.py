@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     Column,
     DateTime,
@@ -374,3 +375,21 @@ class ExecReport(Base):
             "emailed": self.emailed,
             "error": self.error,
         }
+
+
+class InterfaceUtilization(Base):
+    """Interface counter/rate samples for link utilization trends."""
+
+    __tablename__ = "interface_utilization"
+
+    id = Column(Integer, primary_key=True)
+    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"),
+                       nullable=False, index=True)
+    if_index = Column(String(16), default="")
+    if_name = Column(String(128), default="")
+    if_speed = Column(String(32), default="")
+    in_octets = Column(BigInteger, default=0)   # last raw ifHCInOctets
+    out_octets = Column(BigInteger, default=0)  # last raw ifHCOutOctets
+    in_rate = Column(Float, default=0.0)        # bits/sec derived from deltas
+    out_rate = Column(Float, default=0.0)
+    sampled_at = Column(DateTime, default=_utcnow, index=True)

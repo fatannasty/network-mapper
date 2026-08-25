@@ -174,6 +174,9 @@ _EXEC_REPORT_INTERVAL_MIN = int(os.environ.get("EXEC_REPORT_INTERVAL_MIN", "0") 
 _SCHEDULE_MINUTES = {"hourly": 60, "daily": 1440, "weekly": 10080}
 _EXEC_REPORT_INTERVAL = (_EXEC_REPORT_INTERVAL_MIN or _SCHEDULE_MINUTES.get(_EXEC_REPORT_SCHEDULE, 0))
 
+# Interface utilization sampling interval in seconds (0 disables).
+_UTIL_POLL_INTERVAL = int(os.environ.get("UTIL_POLL_INTERVAL", "300"))
+
 
 def _measure_latency_pass(db: Session, devices) -> tuple[int, int]:
     """Ping `devices`, update latency and record reachability transitions."""
@@ -234,6 +237,27 @@ async def _exec_report_loop() -> None:
             logger.warning("exec report job failed: %s", exc)
 
 
+def _run_utilization_pass() -> dict:
+    from database import SessionLocal
+    import utilization
+
+    with SessionLocal() as db:
+        communities = repositories.vault_communities(db)
+        if not communities:
+            return {"skipped": "no snmp communities in vault"}
+        return utilization.run_utilization_pass(db, communities)
+
+
+async def _utilization_loop() -> None:
+    while True:
+        await asyncio.sleep(_UTIL_POLL_INTERVAL)
+        try:
+            result = await run_in_threadpool(_run_utilization_pass)
+            logger.info("utilization poll: %s", result)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("utilization poll failed: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
@@ -244,10 +268,13 @@ async def lifespan(_app: FastAPI):
     report_task = None
     if _EXEC_REPORT_INTERVAL > 0:
         report_task = asyncio.create_task(_exec_report_loop())
+    util_task = None
+    if _UTIL_POLL_INTERVAL > 0:
+        util_task = asyncio.create_task(_utilization_loop())
     try:
         yield
     finally:
-        for task in (poll_task, report_task):
+        for task in (poll_task, report_task, util_task):
             if task is not None:
                 task.cancel()
                 try:
@@ -2280,6 +2307,23 @@ def catalyst_collect_config(req: CatalystConfigCollectRequest,
 def inventory_device_configs(device_id: int, db: Session = Depends(get_db)):
     configs = repositories.get_device_configs(db, device_id)
     return [c.to_dict() for c in configs]
+
+
+@app.get("/api/inventory/devices/{device_id}/utilization",
+         dependencies=[Depends(authenticated)])
+def inventory_device_utilization(device_id: int, days: int = 3,
+                                 db: Session = Depends(get_db)):
+    """Link utilization time-series for one device (top interfaces)."""
+    import utilization
+    return utilization.device_utilization(db, device_id, days=days)
+
+
+@app.get("/api/utilization/top", dependencies=[Depends(authenticated)])
+def utilization_top(days: int = 1, limit: int = 10,
+                    db: Session = Depends(get_db)):
+    """Busiest interfaces network-wide."""
+    import utilization
+    return utilization.top_utilization(db, days=days, limit=limit)
 
 
 @app.get("/api/inventory/config-diff", dependencies=[Depends(authenticated)])

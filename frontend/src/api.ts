@@ -869,6 +869,22 @@ export async function getConfigChanges(site?: string, limit = 20) {
   return r.data as { count: number; changes: ConfigChange[] }
 }
 
+export interface UtilizationPoint { t: string; in_rate: number; out_rate: number }
+export interface IfaceUtilization { if_index: string; if_name: string; if_speed: string; series: UtilizationPoint[] }
+export interface DeviceUtilization { device_id: number; ip: string; hostname: string; interfaces: IfaceUtilization[] }
+
+export async function getDeviceUtilization(deviceId: number, days = 3) {
+  const r = await api.get(`/api/inventory/devices/${deviceId}/utilization`, { params: { days } })
+  return r.data as DeviceUtilization
+}
+
+export interface TopUtil { ip: string; hostname: string; if_name: string; avg_in_rate: number; avg_out_rate: number; peak_rate: number }
+
+export async function getTopUtilization(days = 1, limit = 10) {
+  const r = await api.get('/api/utilization/top', { params: { days, limit } })
+  return r.data as { days: number; top: TopUtil[] }
+}
+
 export async function getWalkReport(site?: string) {
   const r = await api.get('/api/topology/walk-report', { params: { site: site || '' } })
   return r.data as WalkReport

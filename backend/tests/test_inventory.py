@@ -294,3 +294,48 @@ def test_bulk_ops_ips_and_set_site():
 
     with SessionLocal() as db:
         assert db.query(Device).filter(Device.site == "BulkSite").count() == 2
+
+
+def test_utilization_series_and_pass(monkeypatch):
+    from conftest import make_client
+    from database import SessionLocal
+    from models import Device, InterfaceUtilization
+    from datetime import datetime, timedelta
+
+    with SessionLocal() as db:
+        db.query(InterfaceUtilization).delete()
+        db.query(Device).filter(Device.site == "UtilSite").delete()
+        d = Device(ip="10.8.0.1", hostname="SW-UTIL", device_type="switch", site="UtilSite")
+        db.add(d)
+        db.flush()
+        # Two samples for Gi1 to seed a delta (10 Mbps in / 5 Mbps out).
+        t0 = datetime.utcnow() - timedelta(minutes=5)
+        db.add(InterfaceUtilization(device_id=d.id, if_index="1", if_name="Gi1",
+                                    in_octets=0, out_octets=0, sampled_at=t0))
+        db.commit()
+        dev_id = d.id
+
+    client = make_client("admin")
+    resp = client.get(f"/api/inventory/devices/{dev_id}/utilization")
+    assert resp.status_code == 200
+
+    # A second sample 5 minutes later → rates derived from the delta.
+    import utilization
+    from snmp import walk_if_table as _orig
+    def fake_walk(ip, communities, port=None, timeout=None, max_oids=2048):
+        return [{"ifIndex": "1", "ifName": "Gi1", "ifHighSpeed": "1000",
+                 "ifHCInOctets": "37500000", "ifHCOutOctets": "18750000"}]
+    monkeypatch.setattr(utilization, "_walk_v2c", fake_walk)
+    with SessionLocal() as db:
+        res = utilization.run_utilization_pass(db, ["public"])
+    assert res["samples_added"] >= 1
+
+    resp = client.get(f"/api/inventory/devices/{dev_id}/utilization")
+    data = resp.json()
+    assert len(data["interfaces"]) >= 1
+    series = data["interfaces"][0]["series"]
+    last = series[-1]
+    assert last["in_rate"] > 0 and last["out_rate"] > 0  # ~10 Mbps / ~5 Mbps
+
+    top = client.get("/api/utilization/top", params={"days": 1}).json()
+    assert any(t["ip"] == "10.8.0.1" for t in top["top"])

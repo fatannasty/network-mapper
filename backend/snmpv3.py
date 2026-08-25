@@ -771,6 +771,10 @@ def walk_if_table(host: str, username: str, auth_protocol: str = AUTH_SHA,
         entry = interfaces[idx]
         if col == IFX_COL_NAME:
             entry["ifName"] = _to_str(val)
+        elif col == IFX_COL_HCIN:
+            entry["ifHCInOctets"] = str(int(val)) if val is not None else "0"
+        elif col == IFX_COL_HCOUT:
+            entry["ifHCOutOctets"] = str(int(val)) if val is not None else "0"
         elif col == IFX_COL_HIGH_SPEED:
             entry["ifHighSpeed"] = str(int(val)) if val is not None else ""
         elif col == IF_COL_IF_ALIAS:
