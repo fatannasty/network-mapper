@@ -619,6 +619,36 @@ export async function revokeApiToken(id: number) {
   return r.data as { revoked: boolean }
 }
 
+export interface SearchResult {
+  devices: { ip: string; hostname: string; device_type: string; site: string }[]
+  sites: string[]
+  links: { source: string; target: string; interface_a: string; interface_b: string; protocol: string }[]
+}
+
+export async function globalSearch(q: string) {
+  const r = await api.get('/api/search', { params: { q } })
+  return r.data as SearchResult
+}
+
+export interface HealthHistoryPoint {
+  t: string
+  score: number
+  state: string
+  devices_up: number
+  devices_down: number
+  devices_flapping: number
+  spof_count: number
+  stale_devices: number
+  config_coverage: number
+  site_coverage: number
+  link_validation: number
+}
+
+export async function getHealthHistory(days = 30) {
+  const r = await api.get('/api/health/history', { params: { days } })
+  return r.data as { days: number; points: HealthHistoryPoint[] }
+}
+
 export interface ExecReportMeta {
   id: number
   created_at: string | null

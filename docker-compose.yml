@@ -21,6 +21,11 @@ services:
       # Health alerts (seconds between checks; 0 disables).
       ALERT_CHECK_INTERVAL: ${ALERT_CHECK_INTERVAL:-300}
       ALERT_COOLDOWN_HOURS: ${ALERT_COOLDOWN_HOURS:-6}
+      # Scheduled config backups (seconds; 0 disables, 86400 = nightly).
+      CONFIG_COLLECT_INTERVAL: ${CONFIG_COLLECT_INTERVAL:-0}
+      CONFIG_COLLECT_BATCH: ${CONFIG_COLLECT_BATCH:-50}
+      # Health-score history snapshots (seconds; 0 disables, default hourly).
+      HEALTH_HISTORY_INTERVAL: ${HEALTH_HISTORY_INTERVAL:-3600}
       # Scheduled executive reports: hourly | daily | weekly | off.
       EXEC_REPORT_SCHEDULE: ${EXEC_REPORT_SCHEDULE:-off}
       # Email delivery (optional — used by exec reports and alerts).

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getExecHealth, listExecReports, generateExecReport, execReportUrl, getTopUtilization, type ExecHealth, type ExecRisk, type ExecReportMeta, type TopUtil } from '../api'
+import { getExecHealth, listExecReports, generateExecReport, execReportUrl, getTopUtilization, getHealthHistory, type ExecHealth, type ExecRisk, type ExecReportMeta, type TopUtil, type HealthHistoryPoint } from '../api'
 import Card, { CardHeader } from './ui/Card'
 import Button from './ui/Button'
 import PageState from './ui/PageState'
@@ -97,6 +97,28 @@ function fmtRate(bps: number): string {
   return `${bps.toFixed(0)} bps`
 }
 
+function HealthTrend({ points }: { points: HealthHistoryPoint[] }) {
+  if (!points || points.length < 2) return null
+  const w = 300
+  const h = 70
+  const pad = 4
+  const scores = points.map((p) => p.score)
+  const max = Math.max(100, ...scores)
+  const min = Math.min(...scores, 0)
+  const x = (i: number) => pad + (i / (points.length - 1)) * (w - pad * 2)
+  const y = (v: number) => h - pad - ((v - min) / (max - min || 1)) * (h - pad * 2)
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.score).toFixed(1)}`).join(' ')
+  const last = points.length - 1
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-20" role="img" aria-label="Health score over time">
+      <path d={`${line} L${x(last).toFixed(1)},${h - pad} L${pad},${h - pad} Z`} fill="rgba(37,211,238,0.15)" />
+      <path d={line} fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <text x={pad} y="10" fontSize="9" fill="#94a3b8">{Math.round(max)}</text>
+      <text x={pad} y={h - 2} fontSize="9" fill="#94a3b8">{min}</text>
+    </svg>
+  )
+}
+
 export default function ExecutiveDashboard() {
   const [data, setData] = useState<ExecHealth | null>(null)
   const [loading, setLoading] = useState(true)
@@ -105,6 +127,7 @@ export default function ExecutiveDashboard() {
   const [schedule, setSchedule] = useState('off')
   const [generating, setGenerating] = useState(false)
   const [topUtil, setTopUtil] = useState<TopUtil[]>([])
+  const [history, setHistory] = useState<HealthHistoryPoint[]>([])
 
   const refresh = useCallback(async (initial = false) => {
     if (initial) setLoading(true)
@@ -114,6 +137,7 @@ export default function ExecutiveDashboard() {
       setReports(r.reports || [])
       setSchedule(r.schedule || 'off')
       getTopUtilization(1, 10).then((t) => setTopUtil(t.top || [])).catch(() => {})
+      getHealthHistory(30).then((h) => setHistory(h.points || [])).catch(() => {})
       setError('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load executive health')
@@ -263,6 +287,21 @@ export default function ExecutiveDashboard() {
               </tbody>
             </table>
           </div>
+        )}
+      </Card>
+
+      {/* Health trend */}
+      <Card>
+        <CardHeader title="Health trend" />
+        <p className="text-xs text-muted mb-2">
+          Executive health score over the last 30 days.
+        </p>
+        {history.length < 2 ? (
+          <p className="text-xs text-muted">
+            Not enough history yet &mdash; the recorder samples the score hourly.
+          </p>
+        ) : (
+          <HealthTrend points={history} />
         )}
       </Card>
 

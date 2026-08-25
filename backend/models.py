@@ -448,3 +448,23 @@ class ApiToken(Base):
             "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
             "revoked": self.revoked,
         }
+
+
+class HealthSnapshot(Base):
+    """A periodic executive health score snapshot for trend charts."""
+
+    __tablename__ = "health_snapshots"
+
+    id = Column(Integer, primary_key=True)
+    recorded_at = Column(DateTime, default=_utcnow, index=True)
+    score = Column(Integer, default=0)
+    state = Column(String(16), default="healthy")
+    devices_up = Column(Integer, default=0)
+    devices_down = Column(Integer, default=0)
+    devices_flapping = Column(Integer, default=0)
+    spof_count = Column(Integer, default=0)
+    stale_devices = Column(Integer, default=0)
+    config_coverage = Column(Float, default=0.0)
+    site_coverage = Column(Float, default=0.0)
+    interface_coverage = Column(Float, default=0.0)
+    link_validation = Column(Float, default=0.0)

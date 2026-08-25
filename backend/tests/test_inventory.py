@@ -339,3 +339,46 @@ def test_utilization_series_and_pass(monkeypatch):
 
     top = client.get("/api/utilization/top", params={"days": 1}).json()
     assert any(t["ip"] == "10.8.0.1" for t in top["top"])
+
+
+def test_scheduled_config_pass_search_and_health_history(monkeypatch):
+    from conftest import make_client
+    from database import SessionLocal
+    from models import Device, DeviceConfig, HealthSnapshot
+    import main
+
+    with SessionLocal() as db:
+        db.query(Device).filter(Device.site == "OpsSite").delete()
+        db.add(Device(ip="10.11.0.1", hostname="CORE-ATLANTIC-1", device_type="core-switch", site="OpsSite"))
+        db.add(Device(ip="10.11.0.2", hostname="SW-ATLANTIC-2", device_type="switch", site="OpsSite"))
+        db.commit()
+
+    # Search endpoint.
+    client = make_client("admin")
+    r = client.get("/api/search", params={"q": "atlantic"})
+    assert r.status_code == 200
+    data = r.json()
+    assert any(d["ip"] == "10.11.0.1" for d in data["devices"])
+    # The site name matches a different term.
+    r2 = client.get("/api/search", params={"q": "ops"})
+    assert "OpsSite" in r2.json()["sites"]
+
+    # Scheduled config pass picks devices and (mock) collects.
+    import backfill as _unused  # noqa: F401
+    from unittest import mock
+    with mock.patch("main._collect_configs", return_value={"total": 2, "success": 2, "failed": 0, "results": []}):
+        with SessionLocal() as db:
+            res = main._run_config_collect_pass()
+    assert res["total"] == 2
+
+    # Health history snapshot + endpoint.
+    with SessionLocal() as db:
+        main._record_health_snapshot()
+    h = client.get("/api/health/history").json()
+    assert len(h["points"]) >= 1
+    assert "score" in h["points"][0]
+
+    with SessionLocal() as db:
+        db.query(HealthSnapshot).delete()
+        db.query(Device).filter(Device.site == "OpsSite").delete()
+        db.commit()

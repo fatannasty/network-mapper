@@ -180,6 +180,13 @@ _UTIL_POLL_INTERVAL = int(os.environ.get("UTIL_POLL_INTERVAL", "300"))
 # Health-alert check interval in seconds (0 disables).
 _ALERT_CHECK_INTERVAL = int(os.environ.get("ALERT_CHECK_INTERVAL", "300"))
 
+# Scheduled config backups in seconds (0 disables; e.g. 86400 = nightly).
+_CONFIG_COLLECT_INTERVAL = int(os.environ.get("CONFIG_COLLECT_INTERVAL", "0"))
+_CONFIG_COLLECT_BATCH = int(os.environ.get("CONFIG_COLLECT_BATCH", "50"))
+
+# Health-score history snapshots in seconds (0 disables; default hourly).
+_HEALTH_HISTORY_INTERVAL = int(os.environ.get("HEALTH_HISTORY_INTERVAL", "3600"))
+
 
 def _measure_latency_pass(db: Session, devices) -> tuple[int, int]:
     """Ping `devices`, update latency and record reachability transitions."""
@@ -280,6 +287,65 @@ async def _alert_loop() -> None:
             logger.warning("alert check failed: %s", exc)
 
 
+def _run_config_collect_pass() -> dict:
+    """Backup running configs on the least-recently-backed-up devices."""
+    from database import SessionLocal
+    from models import Device, DeviceConfig
+    from sqlalchemy import func
+
+    with SessionLocal() as db:
+        last = (db.query(DeviceConfig.device_id,
+                         func.max(DeviceConfig.collected_at).label("last"))
+                .group_by(DeviceConfig.device_id).subquery())
+        devices = (db.query(Device)
+                   .outerjoin(last, Device.id == last.c.device_id)
+                   .filter(Device.device_type.in_(("switch", "core-switch", "router")))
+                   .order_by(last.c.last.is_(None).desc(), last.c.last.asc())
+                   .limit(_CONFIG_COLLECT_BATCH).all())
+        if not devices:
+            return {"skipped": "no candidate devices"}
+        return _collect_configs(db, devices, {"username": "scheduler"})
+
+
+async def _config_collect_loop() -> None:
+    while True:
+        await asyncio.sleep(_CONFIG_COLLECT_INTERVAL)
+        try:
+            result = await run_in_threadpool(_run_config_collect_pass)
+            logger.info("config collect: %s", result)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("config collect failed: %s", exc)
+
+
+def _record_health_snapshot() -> dict:
+    from database import SessionLocal
+    from models import HealthSnapshot
+    import repositories
+
+    with SessionLocal() as db:
+        summary = repositories.exec_health_summary(db)
+        k = summary["kpis"]
+        db.add(HealthSnapshot(
+            score=summary["score"], state=summary["state"],
+            devices_up=k["devices_up"], devices_down=k["devices_down"],
+            devices_flapping=k["devices_flapping"], spof_count=k["spof_count"],
+            stale_devices=k["stale_devices"],
+            config_coverage=k["config_coverage"], site_coverage=k["site_coverage"],
+            interface_coverage=k["interface_coverage"], link_validation=k["link_validation"]))
+        db.commit()
+        return {"score": summary["score"], "state": summary["state"]}
+
+
+async def _health_history_loop() -> None:
+    while True:
+        await asyncio.sleep(_HEALTH_HISTORY_INTERVAL)
+        try:
+            result = await run_in_threadpool(_record_health_snapshot)
+            logger.info("health snapshot: %s", result)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("health snapshot failed: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
@@ -296,10 +362,16 @@ async def lifespan(_app: FastAPI):
     alert_task = None
     if _ALERT_CHECK_INTERVAL > 0:
         alert_task = asyncio.create_task(_alert_loop())
+    config_task = None
+    if _CONFIG_COLLECT_INTERVAL > 0:
+        config_task = asyncio.create_task(_config_collect_loop())
+    history_task = None
+    if _HEALTH_HISTORY_INTERVAL > 0:
+        history_task = asyncio.create_task(_health_history_loop())
     try:
         yield
     finally:
-        for task in (poll_task, report_task, util_task, alert_task):
+        for task in (poll_task, report_task, util_task, alert_task, config_task, history_task):
             if task is not None:
                 task.cancel()
                 try:
@@ -2207,32 +2279,17 @@ class ConfigCollectRequest(BaseModel):
     ips: Optional[list[str]] = None  # explicit device IP list (overrides scope)
 
 
-@app.post("/api/inventory/collect-config")
-def inventory_collect_config(req: ConfigCollectRequest,
-                             user: dict = Depends(operator),
-                             db: Session = Depends(get_db)):
+def _collect_configs(db, devices, user, ssh_username: str = "",
+                     ssh_password: str = "", ssh_port: int = 22,
+                     use_vault: bool = True) -> dict:
+    """Collect running configs over SSH for a set of devices (vaulted or explicit creds)."""
     import config_collector
 
-    if req.device_id is not None:
-        devices = [repositories.get_device(db, req.device_id)]
-        if devices[0] is None:
-            raise HTTPException(status_code=404, detail="device not found")
-    elif req.ips:
-        from models import Device
-        devices = db.query(Device).filter(Device.ip.in_(req.ips)).all()
-    else:
-        devices = repositories.get_devices_by_type(
-            db, device_type=req.device_type, limit=req.limit,
-            site_pattern=req.site_pattern,
-            vlan90_unflagged=req.vlan90_unflagged)
-
-    # Vault fallback: when no SSH creds are supplied, try each stored SSH
-    # credential until authentication succeeds.
-    vault_creds = repositories.vault_ssh_credentials(db) if req.use_vault else []
+    vault_creds = repositories.vault_ssh_credentials(db) if use_vault else []
 
     def creds_for(device):
-        if req.ssh_username:
-            return [(req.ssh_username, req.ssh_password, req.ssh_port)]
+        if ssh_username:
+            return [(ssh_username, ssh_password, ssh_port)]
         return [(c.username, c.password, 22) for c in vault_creds]
 
     results: list[dict] = []
@@ -2276,6 +2333,27 @@ def inventory_collect_config(req: ConfigCollectRequest,
         "failed": len(results) - success,
         "results": results,
     }
+
+
+@app.post("/api/inventory/collect-config")
+def inventory_collect_config(req: ConfigCollectRequest,
+                             user: dict = Depends(operator),
+                             db: Session = Depends(get_db)):
+    if req.device_id is not None:
+        devices = [repositories.get_device(db, req.device_id)]
+        if devices[0] is None:
+            raise HTTPException(status_code=404, detail="device not found")
+    elif req.ips:
+        from models import Device
+        devices = db.query(Device).filter(Device.ip.in_(req.ips)).all()
+    else:
+        devices = repositories.get_devices_by_type(
+            db, device_type=req.device_type, limit=req.limit,
+            site_pattern=req.site_pattern,
+            vlan90_unflagged=req.vlan90_unflagged)
+
+    return _collect_configs(db, devices, user, req.ssh_username, req.ssh_password,
+                            req.ssh_port, req.use_vault)
 
 
 class CatalystConfigCollectRequest(BaseModel):
@@ -2521,6 +2599,64 @@ def notifications_check(db: Session = Depends(get_db)):
     """Run the health-alert check now (on demand)."""
     import alerts
     return alerts.run_alert_check(db)
+
+
+@app.get("/api/health/history", dependencies=[Depends(authenticated)])
+def health_history(days: int = 30, db: Session = Depends(get_db)):
+    """Executive health score trend over time."""
+    from datetime import datetime as _dt, timedelta as _td
+    from models import HealthSnapshot
+
+    cutoff = _dt.utcnow() - _td(days=max(1, days))
+    rows = (db.query(HealthSnapshot)
+            .filter(HealthSnapshot.recorded_at >= cutoff)
+            .order_by(HealthSnapshot.recorded_at.asc()).all())
+    return {
+        "days": days,
+        "points": [{
+            "t": r.recorded_at.isoformat(),
+            "score": r.score, "state": r.state,
+            "devices_up": r.devices_up, "devices_down": r.devices_down,
+            "devices_flapping": r.devices_flapping, "spof_count": r.spof_count,
+            "stale_devices": r.stale_devices,
+            "config_coverage": r.config_coverage,
+            "site_coverage": r.site_coverage,
+            "link_validation": r.link_validation,
+        } for r in rows],
+    }
+
+
+@app.get("/api/search", dependencies=[Depends(authenticated)])
+def global_search(q: str, limit: int = 8, db: Session = Depends(get_db)):
+    """Fuzzy search across devices, sites, and links."""
+    from models import Device, Link
+    from sqlalchemy import or_
+
+    term = (q or "").strip()
+    if not term:
+        return {"devices": [], "sites": [], "links": []}
+    pattern = f"%{term}%"
+
+    devices = (db.query(Device)
+               .filter(or_(Device.hostname.ilike(pattern), Device.ip.ilike(pattern),
+                           Device.vendor.ilike(pattern), Device.model.ilike(pattern),
+                           Device.site.ilike(pattern)))
+               .limit(limit).all())
+    sites = [r[0] for r in
+             db.query(Device.site).filter(Device.site.ilike(pattern),
+                                          Device.site != "").distinct().limit(5).all()]
+    links = (db.query(Link)
+             .filter(or_(Link.interface_a.ilike(pattern), Link.interface_b.ilike(pattern)))
+             .limit(5).all())
+
+    return {
+        "devices": [{"ip": d.ip, "hostname": d.hostname, "device_type": d.device_type,
+                     "site": d.site} for d in devices],
+        "sites": sites,
+        "links": [{"source": l.endpoint_a, "target": l.endpoint_b,
+                   "interface_a": l.interface_a, "interface_b": l.interface_b,
+                   "protocol": l.protocol} for l in links],
+    }
 
 
 @app.post("/api/report/executive/generate", dependencies=[Depends(operator)])

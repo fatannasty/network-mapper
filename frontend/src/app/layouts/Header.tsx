@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom'
 import { ThemeSwitcher } from '../theme/ThemeSwitcher'
 import UserMenu from './UserMenu'
 import NotificationBell from './NotificationBell'
+import GlobalSearch from './GlobalSearch'
 import { pageTitleForPath } from './navItems'
 
 interface Props {
@@ -44,6 +45,7 @@ export default function Header({ onLogout, collapsed, onToggleCollapse }: Props)
 
       <div className="flex-1" />
 
+      <GlobalSearch />
       <NotificationBell />
       <ThemeSwitcher variant="icon" />
       <UserMenu onLogout={onLogout} />
