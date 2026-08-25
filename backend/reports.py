@@ -210,11 +210,12 @@ def save_exec_report(db, summary: dict, title: str = "") -> object:
     return row
 
 
-def email_exec_report(row, summary: dict) -> bool:
-    """Send the report via SMTP when configured. Returns True if sent."""
+def send_email(subject: str, html: str, to: str | None = None,
+               attachments: list[tuple[str, bytes, str]] | None = None) -> bool:
+    """Send an HTML email (optionally with attachments) via SMTP when configured."""
     host = os.environ.get("SMTP_HOST", "")
-    to = os.environ.get("REPORT_TO", "")
-    if not host or not to:
+    recipients = to or os.environ.get("REPORT_TO", "")
+    if not host or not recipients:
         return False
     port = int(os.environ.get("SMTP_PORT", "587"))
     user = os.environ.get("SMTP_USER", "")
@@ -222,25 +223,35 @@ def email_exec_report(row, summary: dict) -> bool:
     sender = os.environ.get("SMTP_FROM", user or "network-mapper")
 
     msg = MIMEMultipart()
-    msg["Subject"] = f"Executive Network Health Report — {datetime.now(timezone.utc).astimezone().strftime('%b %d, %Y')}"
+    msg["Subject"] = subject
     msg["From"] = sender
-    msg["To"] = to
-    msg.attach(MIMEText(row.html, "html", "utf-8"))
-    try:
-        with open(pdf_path(row.id), "rb") as fh:
-            part = MIMEApplication(fh.read(), _subtype="pdf")
-            part["Content-Disposition"] = f'attachment; filename="exec-report-{row.id}.pdf"'
-            msg.attach(part)
-    except OSError:
-        pass
+    msg["To"] = recipients
+    msg.attach(MIMEText(html, "html", "utf-8"))
+    for filename, data, subtype in attachments or []:
+        part = MIMEApplication(data, _subtype=subtype)
+        part["Content-Disposition"] = f'attachment; filename="{filename}"'
+        msg.attach(part)
 
     context = ssl.create_default_context()
     with smtplib.SMTP(host, port, timeout=30) as server:
         server.starttls(context=context)
         if user:
             server.login(user, password)
-        server.sendmail(sender, [t.strip() for t in to.split(",") if t.strip()], msg.as_string())
+        server.sendmail(sender, [t.strip() for t in recipients.split(",") if t.strip()], msg.as_string())
     return True
+
+
+def email_exec_report(row, summary: dict) -> bool:
+    """Send the report via SMTP when configured. Returns True if sent."""
+    attachments: list[tuple[str, bytes, str]] = []
+    try:
+        with open(pdf_path(row.id), "rb") as fh:
+            attachments.append((f"exec-report-{row.id}.pdf", fh.read(), "pdf"))
+    except OSError:
+        pass
+    subject = (f"Executive Network Health Report — "
+               f"{datetime.now(timezone.utc).astimezone().strftime('%b %d, %Y')}")
+    return send_email(subject, row.html, attachments=attachments)
 
 
 def run_exec_report_job(db) -> dict:

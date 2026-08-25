@@ -69,7 +69,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
     let cancelled = false
     getDeviceConfigs(device.id)
       .then((cs) => {
-        if (cancelled) return
+        if (cancelled || !Array.isArray(cs)) return
         setConfigs(cs)
         if (cs.length >= 2) {
           setFromId(cs[1].id)
@@ -78,7 +78,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
       })
       .catch(() => {})
     getDeviceUtilization(device.id)
-      .then((u) => { if (!cancelled) setUtilization(u) })
+      .then((u) => { if (!cancelled && u && Array.isArray(u.interfaces)) setUtilization(u) })
       .catch(() => {})
     return () => { cancelled = true }
   }, [device.id])
@@ -462,7 +462,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
         {/* Link utilization */}
         <div>
           <span className="text-muted text-xs block mb-1.5">Link utilization</span>
-          {!utilization || utilization.interfaces.length === 0 ? (
+          {!utilization || !utilization.interfaces || utilization.interfaces.length === 0 ? (
             <p className="text-xs text-muted">
               No utilization data yet &mdash; the poller samples interface counters every 5 minutes.
             </p>

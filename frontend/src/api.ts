@@ -567,6 +567,33 @@ export async function getExecHealth() {
   return r.data as ExecHealth
 }
 
+export interface NotificationItem {
+  id: number
+  created_at: string | null
+  kind: string
+  severity: string
+  title: string
+  message: string
+  device_ip: string
+  seen: boolean
+  emailed: boolean
+}
+
+export async function listNotifications(limit = 50) {
+  const r = await api.get('/api/notifications', { params: { limit } })
+  return r.data as { unseen: number; notifications: NotificationItem[] }
+}
+
+export async function markNotificationSeen(id: number) {
+  const r = await api.post(`/api/notifications/${id}/seen`)
+  return r.data as { seen: boolean }
+}
+
+export async function runAlertCheck() {
+  const r = await api.post('/api/notifications/check')
+  return r.data as { created: number; flapping: number; down: number; spof: number }
+}
+
 export interface ExecReportMeta {
   id: number
   created_at: string | null

@@ -21,6 +21,12 @@ function mockApi(page: import('@playwright/test').Page) {
     if (url.includes('/api/auth/me')) {
       return authed ? json(200, { username: 'admin', role: 'admin' }) : json(401, { detail: 'unauthenticated' })
     }
+    if (url.includes('/api/inventory/devices') && url.includes('/utilization')) {
+      return json(200, { device_id: 1, ip: '', hostname: '', interfaces: [] })
+    }
+    if (url.includes('/api/inventory/devices') && url.includes('/configs')) {
+      return json(200, [])
+    }
     if (url.includes('/api/inventory/devices')) {
       const params = new URL(url).searchParams
       const vlan = params.get('vlan_90')

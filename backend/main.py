@@ -177,6 +177,9 @@ _EXEC_REPORT_INTERVAL = (_EXEC_REPORT_INTERVAL_MIN or _SCHEDULE_MINUTES.get(_EXE
 # Interface utilization sampling interval in seconds (0 disables).
 _UTIL_POLL_INTERVAL = int(os.environ.get("UTIL_POLL_INTERVAL", "300"))
 
+# Health-alert check interval in seconds (0 disables).
+_ALERT_CHECK_INTERVAL = int(os.environ.get("ALERT_CHECK_INTERVAL", "300"))
+
 
 def _measure_latency_pass(db: Session, devices) -> tuple[int, int]:
     """Ping `devices`, update latency and record reachability transitions."""
@@ -258,6 +261,25 @@ async def _utilization_loop() -> None:
             logger.warning("utilization poll failed: %s", exc)
 
 
+def _run_alert_check() -> dict:
+    from database import SessionLocal
+    import alerts
+
+    with SessionLocal() as db:
+        return alerts.run_alert_check(db)
+
+
+async def _alert_loop() -> None:
+    while True:
+        await asyncio.sleep(_ALERT_CHECK_INTERVAL)
+        try:
+            result = await run_in_threadpool(_run_alert_check)
+            if result.get("created"):
+                logger.info("alerts raised: %s", result)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("alert check failed: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
@@ -271,10 +293,13 @@ async def lifespan(_app: FastAPI):
     util_task = None
     if _UTIL_POLL_INTERVAL > 0:
         util_task = asyncio.create_task(_utilization_loop())
+    alert_task = None
+    if _ALERT_CHECK_INTERVAL > 0:
+        alert_task = asyncio.create_task(_alert_loop())
     try:
         yield
     finally:
-        for task in (poll_task, report_task, util_task):
+        for task in (poll_task, report_task, util_task, alert_task):
             if task is not None:
                 task.cancel()
                 try:
@@ -2435,6 +2460,38 @@ def exec_reports_list(db: Session = Depends(get_db)):
         "interval_minutes": _EXEC_REPORT_INTERVAL,
         "reports": [r.to_dict() for r in rows],
     }
+
+
+@app.get("/api/notifications", dependencies=[Depends(authenticated)])
+def notifications_list(limit: int = 50, db: Session = Depends(get_db)):
+    """Recent notifications (unseen first)."""
+    from models import Notification
+
+    unseen = (db.query(Notification)
+              .filter(Notification.seen.is_(False)).count())
+    rows = (db.query(Notification)
+            .order_by(Notification.seen.asc(), Notification.created_at.desc())
+            .limit(limit).all())
+    return {"unseen": unseen, "notifications": [r.to_dict() for r in rows]}
+
+
+@app.post("/api/notifications/{notification_id}/seen", dependencies=[Depends(authenticated)])
+def notifications_mark_seen(notification_id: int, db: Session = Depends(get_db)):
+    from models import Notification
+
+    row = db.get(Notification, notification_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="notification not found")
+    row.seen = True
+    db.commit()
+    return {"seen": True}
+
+
+@app.post("/api/notifications/check", dependencies=[Depends(operator)])
+def notifications_check(db: Session = Depends(get_db)):
+    """Run the health-alert check now (on demand)."""
+    import alerts
+    return alerts.run_alert_check(db)
 
 
 @app.post("/api/report/executive/generate", dependencies=[Depends(operator)])

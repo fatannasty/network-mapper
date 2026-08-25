@@ -75,3 +75,39 @@ def test_measure_latency_pass_records_status(monkeypatch):
         assert hist["10.6.6.1"] == "up"
         assert hist["10.6.6.2"] == "down"
 
+
+
+def test_alert_check_creates_notifications(monkeypatch):
+    from database import SessionLocal
+    from models import Device, Interface, Notification
+    import alerts, repositories
+
+    with SessionLocal() as db:
+        db.query(Notification).delete()
+        db.query(Device).filter(Device.site == "AlertSite").delete()
+        d = Device(ip="10.9.0.77", hostname="SW-ALERT", device_type="switch", site="AlertSite")
+        db.add(d)
+        db.flush()
+        db.add(Interface(device_id=d.id, if_name="Gi1", if_oper_status="down"))
+        db.commit()
+
+    with SessionLocal() as db:
+        # flapping_ips sees it as flapping + status is down → both alerts.
+        monkeypatch.setattr(repositories, "flapping_ips", lambda db: {"10.9.0.77"})
+        res = alerts.run_alert_check(db)
+    assert res["created"] >= 1
+
+    from conftest import make_client
+    client = make_client("admin")
+    data = client.get("/api/notifications").json()
+    assert data["unseen"] >= 1
+    assert any(n["device_ip"] == "10.9.0.77" for n in data["notifications"])
+
+    # Mark the newest as seen.
+    nid = next(n["id"] for n in data["notifications"] if n["device_ip"] == "10.9.0.77")
+    assert client.post(f"/api/notifications/{nid}/seen").json()["seen"] is True
+
+    # Cooldown prevents duplicate alerts on a second check.
+    with SessionLocal() as db:
+        res2 = alerts.run_alert_check(db)
+    assert res2["created"] == 0

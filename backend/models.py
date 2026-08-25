@@ -393,3 +393,32 @@ class InterfaceUtilization(Base):
     in_rate = Column(Float, default=0.0)        # bits/sec derived from deltas
     out_rate = Column(Float, default=0.0)
     sampled_at = Column(DateTime, default=_utcnow, index=True)
+
+
+class Notification(Base):
+    """An alert/notification raised by the periodic health check."""
+
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, default=_utcnow, index=True)
+    kind = Column(String(32), default="", index=True)   # flapping | down | spof
+    severity = Column(String(16), default="info")        # info | warning | critical
+    title = Column(String(255), default="")
+    message = Column(Text, default="")
+    device_ip = Column(String(45), default="", index=True)
+    seen = Column(Boolean, default=False, index=True)
+    emailed = Column(Boolean, default=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "kind": self.kind,
+            "severity": self.severity,
+            "title": self.title,
+            "message": self.message,
+            "device_ip": self.device_ip,
+            "seen": self.seen,
+            "emailed": self.emailed,
+        }
