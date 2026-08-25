@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getExecHealth, listExecReports, generateExecReport, execReportUrl, type ExecHealth, type ExecRisk, type ExecReportMeta } from '../api'
+import { getExecHealth, listExecReports, generateExecReport, execReportUrl, getTopUtilization, type ExecHealth, type ExecRisk, type ExecReportMeta, type TopUtil } from '../api'
 import Card, { CardHeader } from './ui/Card'
 import Button from './ui/Button'
 import PageState from './ui/PageState'
@@ -90,6 +90,13 @@ function freshnessTone(days: number | null): 'ok' | 'warn' | 'bad' {
   return 'bad'
 }
 
+function fmtRate(bps: number): string {
+  if (bps >= 1e9) return `${(bps / 1e9).toFixed(2)} Gbps`
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`
+  if (bps >= 1e3) return `${(bps / 1e3).toFixed(0)} Kbps`
+  return `${bps.toFixed(0)} bps`
+}
+
 export default function ExecutiveDashboard() {
   const [data, setData] = useState<ExecHealth | null>(null)
   const [loading, setLoading] = useState(true)
@@ -97,6 +104,7 @@ export default function ExecutiveDashboard() {
   const [reports, setReports] = useState<ExecReportMeta[]>([])
   const [schedule, setSchedule] = useState('off')
   const [generating, setGenerating] = useState(false)
+  const [topUtil, setTopUtil] = useState<TopUtil[]>([])
 
   const refresh = useCallback(async (initial = false) => {
     if (initial) setLoading(true)
@@ -105,6 +113,7 @@ export default function ExecutiveDashboard() {
       const r = await listExecReports()
       setReports(r.reports || [])
       setSchedule(r.schedule || 'off')
+      getTopUtilization(1, 10).then((t) => setTopUtil(t.top || [])).catch(() => {})
       setError('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load executive health')
@@ -217,6 +226,45 @@ export default function ExecutiveDashboard() {
         <RiskTable title="Risks & issues" rows={data.risks} empty="No down, flapping, or degraded devices." />
         <RiskTable title="Single points of failure" rows={data.spof_devices.map((s) => ({ ...s, status: 'spof' }))} empty="No single points of failure detected." />
       </div>
+
+      {/* Busiest links */}
+      <Card>
+        <CardHeader title="Busiest links" />
+        {topUtil.length === 0 ? (
+          <p className="text-xs text-muted">
+            No utilization data yet &mdash; the poller samples interface counters every 5 minutes.
+          </p>
+        ) : (
+          <div className="overflow-auto rounded-xl border border-border/40 max-h-72">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-surface-2/80 backdrop-blur-xl">
+                <tr className="text-left text-muted text-[11px] uppercase tracking-wider">
+                  <th className="px-3 py-2 font-medium">Device</th>
+                  <th className="px-3 py-2 font-medium">Interface</th>
+                  <th className="px-3 py-2 font-medium text-right">Avg in</th>
+                  <th className="px-3 py-2 font-medium text-right">Avg out</th>
+                  <th className="px-3 py-2 font-medium text-right">Peak</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topUtil.map((t) => (
+                  <tr key={`${t.ip}-${t.if_name}`} className="border-t border-border/30 hover:bg-surface-3/50 transition-colors">
+                    <td className="px-3 py-1.5">
+                      <Link to={`/inventory?focus=${encodeURIComponent(t.ip)}`} className="text-accent hover:underline">
+                        <span className="font-mono text-xs">{t.hostname || t.ip}</span>
+                      </Link>
+                    </td>
+                    <td className="px-3 py-1.5 text-xs font-mono text-text-primary">{t.if_name}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-xs">{fmtRate(t.avg_in_rate)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-xs">{fmtRate(t.avg_out_rate)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-xs text-amber-300">{fmtRate(t.peak_rate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
       {/* Reports */}
       <Card>
