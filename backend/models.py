@@ -351,3 +351,26 @@ class User(Base):
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class ExecReport(Base):
+    """An archived executive health report (Sprint: scheduled reporting)."""
+
+    __tablename__ = "exec_reports"
+
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, default=_utcnow, index=True)
+    title = Column(String(255), default="")
+    html = Column(Text, default="")           # self-contained printable HTML
+    summary = Column(JSON, default=dict)      # raw exec_health_summary snapshot
+    emailed = Column(Boolean, default=False)  # sent via SMTP (when configured)
+    error = Column(Text, nullable=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "title": self.title,
+            "emailed": self.emailed,
+            "error": self.error,
+        }

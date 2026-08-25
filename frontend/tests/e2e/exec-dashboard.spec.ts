@@ -31,6 +31,12 @@ function mockApi(page: import('@playwright/test').Page) {
         dod_gates: {}, scan_history: [], recent_scans: [],
       })
     }
+    if (url.includes('/api/report/executive') && method === 'POST') {
+      return json(200, { id: 99, created_at: new Date().toISOString(), title: 'Executive Network Health Report', emailed: false, error: null })
+    }
+    if (url.includes('/api/report/executive')) {
+      return json(200, { schedule: 'weekly', interval_minutes: 10080, reports: [{ id: 99, created_at: new Date().toISOString(), title: 'Executive Network Health Report', emailed: false, error: null }] })
+    }
     return json(200, {})
   })
 }
@@ -50,4 +56,6 @@ test('executive dashboard renders scorecard and risks', async ({ page }) => {
   await expect(page.getByText('Risks & issues', { exact: true })).toBeVisible()
   await expect(page.getByText('SW-DOWN', { exact: true })).toBeVisible()
   await expect(page.getByText('Single points of failure', { exact: true })).toBeVisible()
+  await expect(page.getByText('Executive reports', { exact: true })).toBeVisible()
+  await expect(page.getByText('Generate now', { exact: true })).toBeVisible()
 })

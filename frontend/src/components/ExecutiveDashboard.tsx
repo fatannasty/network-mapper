@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getExecHealth, type ExecHealth, type ExecRisk } from '../api'
+import { getExecHealth, listExecReports, generateExecReport, execReportUrl, type ExecHealth, type ExecRisk, type ExecReportMeta } from '../api'
 import Card, { CardHeader } from './ui/Card'
 import Button from './ui/Button'
 import PageState from './ui/PageState'
@@ -94,11 +94,17 @@ export default function ExecutiveDashboard() {
   const [data, setData] = useState<ExecHealth | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [reports, setReports] = useState<ExecReportMeta[]>([])
+  const [schedule, setSchedule] = useState('off')
+  const [generating, setGenerating] = useState(false)
 
   const refresh = useCallback(async (initial = false) => {
     if (initial) setLoading(true)
     try {
       setData(await getExecHealth())
+      const r = await listExecReports()
+      setReports(r.reports || [])
+      setSchedule(r.schedule || 'off')
       setError('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load executive health')
@@ -108,6 +114,18 @@ export default function ExecutiveDashboard() {
   }, [])
 
   useEffect(() => { void refresh(true) }, [refresh])
+
+  const generate = async () => {
+    setGenerating(true)
+    try {
+      await generateExecReport()
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate report')
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -199,6 +217,55 @@ export default function ExecutiveDashboard() {
         <RiskTable title="Risks & issues" rows={data.risks} empty="No down, flapping, or degraded devices." />
         <RiskTable title="Single points of failure" rows={data.spof_devices.map((s) => ({ ...s, status: 'spof' }))} empty="No single points of failure detected." />
       </div>
+
+      {/* Reports */}
+      <Card>
+        <CardHeader title="Executive reports" />
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <p className="text-xs text-muted">
+            {schedule === 'off'
+              ? 'Reporting is off. Set EXEC_REPORT_SCHEDULE=daily|weekly to auto-generate.'
+              : `Auto-generates ${schedule} (${scheduleLabel(schedule)}).`}
+          </p>
+          <Button size="sm" onClick={generate} disabled={generating}>
+            {generating ? 'Generating…' : 'Generate now'}
+          </Button>
+        </div>
+        {reports.length === 0 ? (
+          <p className="text-xs text-muted">No reports generated yet.</p>
+        ) : (
+          <div className="overflow-auto rounded-xl border border-border/40">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-surface-2/80 backdrop-blur-xl">
+                <tr className="text-left text-muted text-[11px] uppercase tracking-wider">
+                  <th className="px-3 py-2 font-medium">Report</th>
+                  <th className="px-3 py-2 font-medium">Generated</th>
+                  <th className="px-3 py-2 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.map((r) => (
+                  <tr key={r.id} className="border-t border-border/30 hover:bg-surface-3/50 transition-colors">
+                    <td className="px-3 py-1.5 text-xs text-text-primary">{r.title}</td>
+                    <td className="px-3 py-1.5 text-xs text-muted">
+                      {r.created_at ? new Date(r.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '\u2014'}
+                      {r.emailed && <span className="ml-2 text-[10px] uppercase text-green-300">emailed</span>}
+                    </td>
+                    <td className="px-3 py-1.5 text-right">
+                      <a href={execReportUrl(r.id, 'html')} target="_blank" rel="noreferrer" className="text-accent hover:underline text-xs mr-3">Open</a>
+                      <a href={execReportUrl(r.id, 'pdf')} className="text-accent hover:underline text-xs">PDF</a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
   )
+}
+
+function scheduleLabel(schedule: string) {
+  return schedule === 'weekly' ? 'every 7 days' : schedule === 'daily' ? 'every 24 hours' : 'every 60 minutes'
 }

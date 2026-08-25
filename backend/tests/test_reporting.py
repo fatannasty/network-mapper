@@ -106,3 +106,23 @@ def test_exec_health_summary():
     # One of the risk rows should be our down switch.
     ips = {r["ip"] for r in data["risks"]}
     assert "10.30.0.2" in ips
+
+
+def test_exec_report_generate_and_serve():
+    from conftest import make_client
+
+    client = make_client("admin")
+    meta = client.post("/api/report/executive/generate").json()
+    assert "id" in meta and meta["id"] > 0
+
+    lst = client.get("/api/report/executive").json()
+    assert any(r["id"] == meta["id"] for r in lst["reports"])
+
+    html = client.get(f"/api/report/executive/{meta['id']}")
+    assert html.status_code == 200
+    assert "Executive Network Health Report" in html.text
+
+    pdf = client.get(f"/api/report/executive/{meta['id']}/pdf")
+    assert pdf.status_code == 200
+    assert pdf.headers.get("content-type", "").startswith("application/pdf")
+    assert len(pdf.content) > 200

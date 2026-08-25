@@ -167,6 +167,13 @@ def _keep_topology_link(link) -> bool:
 # seconds; set to 0 (or negative) to disable.
 _LATENCY_POLL_INTERVAL = int(os.environ.get("LATENCY_POLL_INTERVAL", "60"))
 
+# Scheduled executive reports. Schedule: "hourly" | "daily" | "weekly" | "off"
+# (default off); override the exact cadence in minutes with EXEC_REPORT_INTERVAL_MIN.
+_EXEC_REPORT_SCHEDULE = os.environ.get("EXEC_REPORT_SCHEDULE", "off").lower()
+_EXEC_REPORT_INTERVAL_MIN = int(os.environ.get("EXEC_REPORT_INTERVAL_MIN", "0") or 0)
+_SCHEDULE_MINUTES = {"hourly": 60, "daily": 1440, "weekly": 10080}
+_EXEC_REPORT_INTERVAL = (_EXEC_REPORT_INTERVAL_MIN or _SCHEDULE_MINUTES.get(_EXEC_REPORT_SCHEDULE, 0))
+
 
 def _measure_latency_pass(db: Session, devices) -> tuple[int, int]:
     """Ping `devices`, update latency and record reachability transitions."""
@@ -208,6 +215,25 @@ async def _latency_poll_loop() -> None:
             logger.warning("latency poll failed: %s", exc)
 
 
+def _run_exec_report_job() -> dict:
+    """Generate + persist + email an executive report in a fresh DB session."""
+    from database import SessionLocal
+    import reports
+
+    with SessionLocal() as db:
+        return reports.run_exec_report_job(db)
+
+
+async def _exec_report_loop() -> None:
+    while True:
+        await asyncio.sleep(_EXEC_REPORT_INTERVAL * 60)
+        try:
+            result = await run_in_threadpool(_run_exec_report_job)
+            logger.info("exec report generated: %s", result)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("exec report job failed: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
@@ -215,15 +241,19 @@ async def lifespan(_app: FastAPI):
     poll_task = None
     if _LATENCY_POLL_INTERVAL > 0:
         poll_task = asyncio.create_task(_latency_poll_loop())
+    report_task = None
+    if _EXEC_REPORT_INTERVAL > 0:
+        report_task = asyncio.create_task(_exec_report_loop())
     try:
         yield
     finally:
-        if poll_task is not None:
-            poll_task.cancel()
-            try:
-                await poll_task
-            except asyncio.CancelledError:
-                pass
+        for task in (poll_task, report_task):
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
 
 def _rename_old_scans():
@@ -2310,6 +2340,58 @@ def inventory_config_changes(site: str = "", limit: int = 20,
 
     changes.sort(key=lambda c: c["changed_at"] or "", reverse=True)
     return {"count": len(changes), "changes": changes[:limit]}
+
+
+@app.get("/api/report/executive", dependencies=[Depends(authenticated)])
+def exec_reports_list(db: Session = Depends(get_db)):
+    """List archived executive reports plus the current schedule."""
+    import reports
+    from models import ExecReport
+
+    rows = (db.query(ExecReport)
+            .order_by(ExecReport.created_at.desc())
+            .limit(50).all())
+    return {
+        "schedule": _EXEC_REPORT_SCHEDULE,
+        "interval_minutes": _EXEC_REPORT_INTERVAL,
+        "reports": [r.to_dict() for r in rows],
+    }
+
+
+@app.post("/api/report/executive/generate", dependencies=[Depends(operator)])
+def exec_reports_generate(db: Session = Depends(get_db)):
+    """Generate an executive report now (on-demand)."""
+    import reports
+    return reports.run_exec_report_job(db)
+
+
+@app.get("/api/report/executive/{report_id}", dependencies=[Depends(authenticated)])
+def exec_reports_html(report_id: int, db: Session = Depends(get_db)):
+    """Serve the report's self-contained HTML (print to PDF in the browser)."""
+    from models import ExecReport
+
+    row = db.get(ExecReport, report_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="report not found")
+    return Response(content=row.html or "<p>report unavailable</p>",
+                    media_type="text/html")
+
+
+@app.get("/api/report/executive/{report_id}/pdf", dependencies=[Depends(authenticated)])
+def exec_reports_pdf(report_id: int, db: Session = Depends(get_db)):
+    """Download the report as a generated PDF."""
+    import reports
+    from fastapi.responses import FileResponse
+    from models import ExecReport
+
+    row = db.get(ExecReport, report_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="report not found")
+    path = reports.pdf_path(report_id)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="pdf not available")
+    return FileResponse(path, media_type="application/pdf",
+                        filename=f"exec-report-{report_id}.pdf")
 
 
 if __name__ == "__main__":

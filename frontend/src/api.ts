@@ -565,6 +565,34 @@ export async function getExecHealth() {
   return r.data as ExecHealth
 }
 
+export interface ExecReportMeta {
+  id: number
+  created_at: string | null
+  title: string
+  emailed: boolean
+  error: string | null
+}
+
+export interface ExecReportsResponse {
+  schedule: string
+  interval_minutes: number
+  reports: ExecReportMeta[]
+}
+
+export async function listExecReports() {
+  const r = await api.get('/api/report/executive')
+  return r.data as ExecReportsResponse
+}
+
+export async function generateExecReport() {
+  const r = await api.post('/api/report/executive/generate')
+  return r.data as ExecReportMeta
+}
+
+export function execReportUrl(id: number, format: 'html' | 'pdf' = 'html') {
+  return `/api/report/executive/${id}${format === 'pdf' ? '/pdf' : ''}`
+}
+
 // ── Sprint 13: Data Quality ──────────────────────────────────────────────────
 
 export interface SiteMapping {
