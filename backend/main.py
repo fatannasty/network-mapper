@@ -2217,6 +2217,101 @@ def inventory_device_configs(device_id: int, db: Session = Depends(get_db)):
     return [c.to_dict() for c in configs]
 
 
+@app.get("/api/inventory/config-diff", dependencies=[Depends(authenticated)])
+def inventory_config_diff(device_id: int, from_id: int, to_id: int,
+                          db: Session = Depends(get_db)):
+    """Unified diff between two stored configs of the same device."""
+    from difflib import unified_diff
+    from models import DeviceConfig as CfgModel
+
+    a = db.get(CfgModel, from_id)
+    b = db.get(CfgModel, to_id)
+    if not a or not b or a.device_id != device_id or b.device_id != device_id:
+        raise HTTPException(status_code=404, detail="config not found")
+
+    a_lines = (a.config_text or "").splitlines()
+    b_lines = (b.config_text or "").splitlines()
+    diff = list(unified_diff(
+        a_lines, b_lines,
+        fromfile=f"#{a.id} · {a.collected_at.isoformat() if a.collected_at else ''}",
+        tofile=f"#{b.id} · {b.collected_at.isoformat() if b.collected_at else ''}",
+        lineterm=""))
+
+    rows: list[dict] = []
+    added = removed = 0
+    for line in diff:
+        if line.startswith(("+++", "---", "@@")):
+            rows.append({"type": "meta", "text": line})
+        elif line.startswith("+"):
+            rows.append({"type": "add", "text": line})
+            added += 1
+        elif line.startswith("-"):
+            rows.append({"type": "del", "text": line})
+            removed += 1
+        else:
+            rows.append({"type": "ctx", "text": line})
+
+    return {
+        "device_id": device_id,
+        "from": {"id": a.id, "collected_at": a.collected_at.isoformat() if a.collected_at else None,
+                 "collected_by": a.collected_by},
+        "to": {"id": b.id, "collected_at": b.collected_at.isoformat() if b.collected_at else None,
+               "collected_by": b.collected_by},
+        "added": added, "removed": removed,
+        "changed": (added + removed) > 0,
+        "diff": rows,
+    }
+
+
+@app.get("/api/inventory/config-changes", dependencies=[Depends(authenticated)])
+def inventory_config_changes(site: str = "", limit: int = 20,
+                             db: Session = Depends(get_db)):
+    """Network-wide recent config changes: devices whose two newest configs differ."""
+    from difflib import SequenceMatcher
+    from models import Device, DeviceConfig as CfgModel
+
+    cfg_dev_ids = [
+        r for (r,) in db.query(CfgModel.device_id)
+        .filter(CfgModel.config_type == "running").distinct().all()
+    ]
+    q = db.query(Device).filter(Device.id.in_(cfg_dev_ids))
+    if site:
+        q = q.filter(Device.site == site)
+
+    changes: list[dict] = []
+    for d in q.all():
+        cfgs = (
+            db.query(CfgModel)
+            .filter(CfgModel.device_id == d.id, CfgModel.config_type == "running",
+                    CfgModel.error.is_(None) | (CfgModel.error == ""))
+            .order_by(CfgModel.collected_at.desc())
+            .limit(2).all()
+        )
+        if len(cfgs) < 2:
+            continue
+        older, newer = cfgs[1], cfgs[0]
+        if (older.config_text or "") == (newer.config_text or ""):
+            continue
+        sm = SequenceMatcher(None, (older.config_text or "").splitlines(),
+                             (newer.config_text or "").splitlines())
+        added = sum(n for tag, _, _, _, n in sm.get_opcodes()
+                    if tag in ("insert", "replace"))
+        removed = sum(n for tag, _, _, _, n in sm.get_opcodes()
+                      if tag in ("delete", "replace"))
+        changes.append({
+            "device_id": d.id, "ip": d.ip, "hostname": d.hostname, "site": d.site,
+            "changed_at": newer.collected_at.isoformat() if newer.collected_at else None,
+            "collected_by": newer.collected_by,
+            "from_id": older.id, "to_id": newer.id,
+            "added": added, "removed": removed,
+        })
+        if len(changes) >= limit:
+            break
+
+    changes.sort(key=lambda c: c["changed_at"] or "", reverse=True)
+    return {"count": len(changes), "changes": changes[:limit]}
+
+
 if __name__ == "__main__":
     import uvicorn
 

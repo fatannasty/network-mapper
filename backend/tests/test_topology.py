@@ -318,8 +318,10 @@ def test_scanner_collect_topology_v3(v3agent):
 def test_walk_report_returns_interfaces_and_links():
     from database import SessionLocal
     from models import Device, Interface, Link
-    from fastapi.testclient import TestClient
+    from conftest import make_client
     import main
+
+    client = make_client("admin")
 
     with SessionLocal() as db:
         db.query(Device).filter(Device.site == "WalkTestSite").delete()
@@ -335,9 +337,6 @@ def test_walk_report_returns_interfaces_and_links():
             Link(scan_id="scan-w", endpoint_a=d1.ip, endpoint_b=d3.ip, protocol="lldp", interface_a="Gi1/0/2", interface_b="Gi1/0/2"),
         ])
         db.commit()
-
-    client = TestClient(main.app)
-    client.post("/api/auth/login", json={"username": "admin", "password": "admin"})
 
     resp = client.get("/api/topology/walk-report", params={"site": "WalkTestSite"})
     assert resp.status_code == 200

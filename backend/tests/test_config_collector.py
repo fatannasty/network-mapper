@@ -90,3 +90,42 @@ def test_collect_config_connection_failure():
             assert False, "expected ConfigCollectorError"
         except config_collector.ConfigCollectorError as e:
             assert "Connection" in str(e) or "refused" in str(e)
+
+
+def test_config_diff_and_changes():
+    from database import SessionLocal
+    from models import Device, DeviceConfig
+    from fastapi.testclient import TestClient
+    import main
+
+    with SessionLocal() as db:
+        db.query(DeviceConfig).filter(DeviceConfig.device_id.in_(
+            db.query(Device.id).filter(Device.site == "DiffSite"))).delete(synchronize_session=False)
+        db.query(Device).filter(Device.site == "DiffSite").delete()
+        d = Device(ip="10.6.0.1", hostname="SW-DIFF", device_type="switch", site="DiffSite")
+        db.add(d)
+        db.flush()
+        c1 = DeviceConfig(device_id=d.id, config_text="hostname SW-DIFF\ninterface Gi1\n vlan 10\n", config_type="running")
+        db.add(c1)
+        db.flush()
+        c2 = DeviceConfig(device_id=d.id, config_text="hostname SW-DIFF\ninterface Gi1\n vlan 20\n", config_type="running")
+        db.add(c2)
+        db.commit()
+        c1_id, c2_id, dev_id = c1.id, c2.id, d.id
+
+    from conftest import make_client
+
+    client = make_client("admin")
+
+    resp = client.get("/api/inventory/config-diff",
+                      params={"device_id": dev_id, "from_id": c1_id, "to_id": c2_id})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["changed"] is True
+    assert data["added"] >= 1
+    assert data["removed"] >= 1
+    assert any(r["type"] == "add" for r in data["diff"])
+
+    changes = client.get("/api/inventory/config-changes").json()
+    assert changes["count"] >= 1
+    assert any(c["ip"] == "10.6.0.1" for c in changes["changes"])

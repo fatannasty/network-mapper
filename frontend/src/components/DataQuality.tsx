@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import {
   applySiteMappings, backfillInterfaces, backfillLinks, classifyBlanks,
   createCredential, createSiteMapping, deleteCredential, deleteSiteMapping,
-  getCredentials, getReport, getSiteMappings, seedSiteMappings,
-  type BackfillSummary, type Credential, type SiteMapping,
+  getCredentials, getReport, getSiteMappings, seedSiteMappings, getConfigChanges,
+  type BackfillSummary, type Credential, type SiteMapping, type ConfigChange,
 } from '../api'
 import PageHeader from './ui/PageHeader'
 import Card, { CardHeader } from './ui/Card'
@@ -61,6 +62,7 @@ export default function DataQuality() {
   const [credSite, setCredSite] = useState('')
   const [interfaceSummary, setInterfaceSummary] = useState<BackfillSummary | null>(null)
   const [linkSummary, setLinkSummary] = useState<BackfillSummary | null>(null)
+  const [configChanges, setConfigChanges] = useState<ConfigChange[]>([])
   const [running, setRunning] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -92,6 +94,7 @@ export default function DataQuality() {
       setGates(g.dod_gates || null)
       setMappings(m.mappings || [])
       setCredentials(c.credentials || [])
+      getConfigChanges().then((r) => setConfigChanges(r.changes || [])).catch(() => {})
     } catch (err) { setError(fmtError(err)) }
   }, [])
 
@@ -270,6 +273,51 @@ export default function DataQuality() {
               </div>
             ))}
           </div>
+        </Card>
+
+        {/* Recent config changes */}
+        <Card>
+          <CardHeader title="Recent config changes" />
+          <p className="text-xs text-muted mb-3">
+            Devices whose two most recent running-config collections differ.
+          </p>
+          {configChanges.length === 0 ? (
+            <p className="text-xs text-muted">
+              No changes detected. Collect configs twice on a device to start comparing.
+            </p>
+          ) : (
+            <div className="overflow-auto rounded-xl border border-border/40 max-h-80">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-surface-2/80 backdrop-blur-xl">
+                  <tr className="text-left text-muted text-[11px] uppercase tracking-wider">
+                    <th className="px-3 py-2 font-medium">Device</th>
+                    <th className="px-3 py-2 font-medium">Site</th>
+                    <th className="px-3 py-2 font-medium text-right">Diff</th>
+                    <th className="px-3 py-2 font-medium text-right">Changed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {configChanges.map((c) => (
+                    <tr key={c.device_id} className="border-t border-border/30 hover:bg-surface-3/50 transition-colors">
+                      <td className="px-3 py-1.5">
+                        <Link to={`/inventory?focus=${encodeURIComponent(c.ip)}`} className="text-accent hover:underline">
+                          <span className="font-mono text-xs">{c.ip}</span>
+                        </Link>
+                        {c.hostname && <span className="text-muted ml-2 text-xs">{c.hostname.split('.')[0]}</span>}
+                      </td>
+                      <td className="px-3 py-1.5 text-xs text-muted">{c.site || '\u2014'}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-xs">
+                        <span className="text-green-300">+{c.added}</span> <span className="text-red-300">{'\u2212'}{c.removed}</span>
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-xs text-muted">
+                        {c.changed_at ? new Date(c.changed_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' }) : '\u2014'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       </div>
     </div>

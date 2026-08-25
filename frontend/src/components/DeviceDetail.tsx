@@ -1,9 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { shortenInterface } from './ui/iface'
 import Button from './ui/Button'
-import type { Device, TopoLink } from '../api'
+import { getDeviceConfigs, getConfigDiff, type Device, type ConfigEntry, type ConfigDiffRow, type TopoLink } from '../api'
 import { friendlyType, typeDescription, shortName } from '../features/topology/services/friendly'
+
+function fmtTs(value?: string | null): string {
+  if (!value) return '\u2014'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
 
 interface Props {
   device: Device
@@ -15,9 +22,45 @@ interface Props {
 
 export default function DeviceDetail({ device, connectedLinks, allDevices, allLinks, onClose }: Props) {
   const [showTech, setShowTech] = useState(false)
+  const [configs, setConfigs] = useState<ConfigEntry[]>([])
+  const [configsOpen, setConfigsOpen] = useState(false)
+  const [diff, setDiff] = useState<{ added: number; removed: number; changed: boolean; diff: ConfigDiffRow[] } | null>(null)
+  const [diffLoading, setDiffLoading] = useState(false)
+  const [fromId, setFromId] = useState(0)
+  const [toId, setToId] = useState(0)
   const navigate = useNavigate()
   const type = friendlyType(device.device_type)
   const name = shortName(device.hostname) || device.ip
+
+  useEffect(() => {
+    setConfigs([])
+    setDiff(null)
+    setConfigsOpen(false)
+    if (!device.id) return
+    let cancelled = false
+    getDeviceConfigs(device.id)
+      .then((cs) => {
+        if (cancelled) return
+        setConfigs(cs)
+        if (cs.length >= 2) {
+          setFromId(cs[1].id)
+          setToId(cs[0].id)
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [device.id])
+
+  useEffect(() => {
+    if (!configsOpen || fromId === 0 || toId === 0 || !device.id) return
+    let cancelled = false
+    setDiffLoading(true)
+    getConfigDiff(device.id, fromId, toId)
+      .then((d) => { if (!cancelled) setDiff(d) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setDiffLoading(false) })
+    return () => { cancelled = true }
+  }, [configsOpen, fromId, toId, device.id])
 
   // Deduplicate connected devices
   const connectedDevices = connectedLinks.reduce<{ ip: string; hostname: string; protocol: string; iface: string }[]>((acc, link) => {
@@ -323,6 +366,62 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
                     ))}
                   </ul>
                 </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Config history + diff */}
+        <div>
+          <button
+            onClick={() => setConfigsOpen(!configsOpen)}
+            className="w-full flex items-center justify-between text-xs text-muted hover:text-text-primary"
+          >
+            <span>Config history ({configs.length})</span>
+            <span className="text-muted">{configsOpen ? '\u25be' : '\u25b8'}</span>
+          </button>
+          {configsOpen && (
+            <div className="mt-2 space-y-2">
+              {configs.length === 0 && (
+                <p className="text-xs text-muted">No configs collected yet. Use Inventory &rarr; Collect Configs.</p>
+              )}
+              {configs.length >= 2 && (
+                <div className="flex items-center gap-2 text-xs">
+                  <select
+                    value={fromId}
+                    onChange={(e) => setFromId(Number(e.target.value))}
+                    className="flex-1 px-2 py-1 bg-surface-2/60 border border-border/40 rounded-lg text-text-primary text-xs"
+                    aria-label="Older config"
+                  >
+                    {configs.map((c) => <option key={c.id} value={c.id}>{fmtTs(c.collected_at)}</option>)}
+                  </select>
+                  <span className="text-muted shrink-0">&rarr;</span>
+                  <select
+                    value={toId}
+                    onChange={(e) => setToId(Number(e.target.value))}
+                    className="flex-1 px-2 py-1 bg-surface-2/60 border border-border/40 rounded-lg text-text-primary text-xs"
+                    aria-label="Newer config"
+                  >
+                    {configs.map((c) => <option key={c.id} value={c.id}>{fmtTs(c.collected_at)}</option>)}
+                  </select>
+                </div>
+              )}
+              {diffLoading && <p className="text-xs text-muted">Comparing&hellip;</p>}
+              {!diffLoading && diff && (
+                <>
+                  <div className="text-[11px] font-mono leading-snug rounded-xl border border-border/30 bg-black/30 max-h-64 overflow-auto">
+                    {diff.diff.map((row, i) => (
+                      <div key={i} className={`px-2 py-0.5 whitespace-pre-wrap ${
+                        row.type === 'add' ? 'bg-green-500/15 text-green-300'
+                          : row.type === 'del' ? 'bg-red-500/15 text-red-300'
+                            : row.type === 'meta' ? 'text-muted' : 'text-text-secondary'
+                      }`}>{row.text}</div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted">
+                    {diff.changed ? `+${diff.added} \u2212${diff.removed} lines changed` : 'No differences between these configs.'}
+                  </p>
+                </>
               )}
             </div>
           )}

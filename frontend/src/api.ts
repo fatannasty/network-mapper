@@ -804,6 +804,35 @@ export interface WalkReport {
   }[]
 }
 
+export interface ConfigDiffRow { type: 'add' | 'del' | 'ctx' | 'meta'; text: string }
+
+export async function getConfigDiff(deviceId: number, fromId: number, toId: number) {
+  const r = await api.get('/api/inventory/config-diff', {
+    params: { device_id: deviceId, from_id: fromId, to_id: toId },
+  })
+  return r.data as { added: number; removed: number; changed: boolean; diff: ConfigDiffRow[] }
+}
+
+export interface ConfigChange {
+  device_id: number
+  ip: string
+  hostname: string
+  site: string
+  changed_at: string | null
+  collected_by: string | null
+  from_id: number
+  to_id: number
+  added: number
+  removed: number
+}
+
+export async function getConfigChanges(site?: string, limit = 20) {
+  const r = await api.get('/api/inventory/config-changes', {
+    params: { site: site || '', limit },
+  })
+  return r.data as { count: number; changes: ConfigChange[] }
+}
+
 export async function getWalkReport(site?: string) {
   const r = await api.get('/api/topology/walk-report', { params: { site: site || '' } })
   return r.data as WalkReport
