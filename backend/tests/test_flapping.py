@@ -111,3 +111,40 @@ def test_alert_check_creates_notifications(monkeypatch):
     with SessionLocal() as db:
         res2 = alerts.run_alert_check(db)
     assert res2["created"] == 0
+
+
+def test_spof_alert_is_aggregate_and_deduplicated(monkeypatch):
+    from database import SessionLocal
+    from models import Device, Link, Notification
+    from path_tracer import articulation_points
+    import alerts
+
+    with SessionLocal() as db:
+        db.query(Notification).filter(Notification.kind == "spof").delete()
+        db.query(Link).filter(Link.scan_id == "spof-scan").delete()
+        db.query(Device).filter(Device.site == "SpofSite").delete()
+        # A simple graph where the middle device is a SPOF.
+        for i, ip in enumerate(["10.10.0.1", "10.10.0.2", "10.10.0.3"]):
+            db.add(Device(ip=ip, hostname=f"S{i}", device_type="switch", site="SpofSite"))
+        db.flush()
+        db.add_all([
+            Link(scan_id="spof-scan", endpoint_a="10.10.0.1", endpoint_b="10.10.0.2", protocol="lldp"),
+            Link(scan_id="spof-scan", endpoint_a="10.10.0.2", endpoint_b="10.10.0.3", protocol="lldp"),
+        ])
+        db.commit()
+
+    with SessionLocal() as db:
+        res = alerts.run_alert_check(db)
+    assert res["spof"] == 1
+
+    from conftest import make_client
+    client = make_client("admin")
+    notes = client.get("/api/notifications", params={"limit": 100}).json()["notifications"]
+    spof = [n for n in notes if n["kind"] == "spof"]
+    assert len(spof) == 1  # aggregate, not one per device
+    assert "1 single point of failure" in spof[0]["message"]
+
+    # Same count again -> no new advisory.
+    with SessionLocal() as db:
+        res2 = alerts.run_alert_check(db)
+    assert res2["spof"] == 0

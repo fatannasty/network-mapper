@@ -25,15 +25,6 @@ def _within_cooldown(db, kind: str, device_ip: str) -> bool:
     return recent is not None
 
 
-def _spof_never_notified(db, device_ip: str) -> bool:
-    from models import Notification
-
-    return (db.query(Notification)
-            .filter(Notification.kind == "spof",
-                    Notification.device_ip == device_ip)
-            .first()) is None
-
-
 def _notify(db, kind: str, severity: str, title: str, message: str,
             device_ip: str = "") -> bool:
     from models import Notification
@@ -49,6 +40,21 @@ def _notify(db, kind: str, severity: str, title: str, message: str,
     except Exception:
         row.emailed = False
     return True
+
+
+def _last_spof_count(db) -> int | None:
+    """Return the device count recorded in the most recent SPOF advisory."""
+    from models import Notification
+
+    last = (db.query(Notification)
+            .filter(Notification.kind == "spof")
+            .order_by(Notification.created_at.desc()).first())
+    if last is None:
+        return None
+    try:
+        return int(last.message.split()[0])
+    except (ValueError, IndexError):
+        return None
 
 
 def run_alert_check(db) -> dict:
@@ -85,7 +91,7 @@ def run_alert_check(db) -> dict:
                     "operational interfaces.", d.ip)
             created += 1
 
-    # SPOF advisories (one-time per device).
+    # SPOF: a single aggregate advisory, re-issued only when the count changes.
     from models import Link
     from path_tracer import articulation_points
 
@@ -95,15 +101,18 @@ def run_alert_check(db) -> dict:
                  for l in db.query(Link).all()
                  if l.protocol not in ("velocloud-lan",)]
         spof_ips = set(articulation_points([d.ip for d in devices], edges)) if edges else set()
-        for ip in sorted(spof_ips):
-            d = next((x for x in devices if x.ip == ip), None)
-            if d is None or not _spof_never_notified(db, ip):
-                continue
-            spof_count += 1
+        if spof_ips and _last_spof_count(db) != len(spof_ips):
+            sample_ips = sorted(spof_ips)[:6]
+            names = []
+            by_ip = {d.ip: d.hostname for d in devices}
+            for ip in sample_ips:
+                names.append(f"{by_ip.get(ip) or ip} ({ip})")
             _notify(db, "spof", "warning",
-                    f"Single point of failure: {d.hostname or ip}",
-                    f"{d.hostname or ip} ({ip}) — if this device fails, the "
-                    "network partitions.", ip)
+                    "Single point(s) of failure",
+                    f"{len(spof_ips)} single point{'s' if len(spof_ips) != 1 else ''} of "
+                    "failure detected — e.g. "
+                    + ", ".join(names) + ".", "")
+            spof_count = len(spof_ips)
             created += 1
     except Exception:
         spof_count = 0
