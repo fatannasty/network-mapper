@@ -9,10 +9,27 @@ services:
       DATABASE_URL: sqlite:////data/network_mapper.db
       # Override in production (e.g. via an .env file or secrets manager).
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       RENDER_CACHE_MAX_BYTES: ${RENDER_CACHE_MAX_BYTES:-134217728}
       EXPORT_RATE_LIMIT: ${EXPORT_RATE_LIMIT:-30}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10}
       # Reachability poll interval (seconds) feeding up/down/flapping state.
       LATENCY_POLL_INTERVAL: ${LATENCY_POLL_INTERVAL:-60}
+      # Interface utilization sampling (seconds; 0 disables).
+      UTIL_POLL_INTERVAL: ${UTIL_POLL_INTERVAL:-300}
+      UTIL_POLL_BATCH: ${UTIL_POLL_BATCH:-100}
+      # Health alerts (seconds between checks; 0 disables).
+      ALERT_CHECK_INTERVAL: ${ALERT_CHECK_INTERVAL:-300}
+      ALERT_COOLDOWN_HOURS: ${ALERT_COOLDOWN_HOURS:-6}
+      # Scheduled executive reports: hourly | daily | weekly | off.
+      EXEC_REPORT_SCHEDULE: ${EXEC_REPORT_SCHEDULE:-off}
+      # Email delivery (optional — used by exec reports and alerts).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      REPORT_TO: ${REPORT_TO:-}
     volumes:
       - app-data:/data
     ports:
