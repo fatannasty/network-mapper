@@ -1626,6 +1626,30 @@ def catalyst_backfill_sites(req: CatalystBackfillSitesRequest, limit: int = 0,
     }
 
 
+class BulkSiteRequest(BaseModel):
+    ips: list[str]
+    site: str
+
+
+@app.post("/api/inventory/bulk-set-site", dependencies=[Depends(operator)])
+def inventory_bulk_set_site(req: BulkSiteRequest, db: Session = Depends(get_db)):
+    """Assign a site to many devices at once (bulk inventory operation)."""
+    from models import Device
+
+    if not req.ips:
+        raise HTTPException(status_code=400, detail="no devices selected")
+    site = req.site.strip()
+    if not site:
+        raise HTTPException(status_code=400, detail="site is required")
+    updated = 0
+    for d in db.query(Device).filter(Device.ip.in_(req.ips)).all():
+        if d.site != site:
+            d.site = site
+            updated += 1
+    db.commit()
+    return {"updated": updated, "total": len(req.ips)}
+
+
 # ── Data-quality backfill jobs (Sprint 13) ───────────────────────────────────
 
 class BackfillRequest(BaseModel):
@@ -1636,6 +1660,7 @@ class BackfillRequest(BaseModel):
     device_type: str = ""     # restrict to a device type (e.g. "switch")
     site: str = ""            # restrict to devices at this site ("" = every site)
     snmpv3: Optional[SnmpV3Request] = None  # walk via SNMPv3 when provided
+    ips: Optional[list[str]] = None         # explicit device IP list (overrides scope)
 
 
 def _vault_or_request_communities(db: Session, req: BackfillRequest) -> list[str]:
@@ -1650,6 +1675,12 @@ def _target_devices(db: Session, req: BackfillRequest,
     """Network devices matching the requested scope (thread-safe plain dicts)."""
     from models import Device
     from sqlalchemy import or_
+
+    if req.ips:
+        return [{
+            "ip": d.ip, "hostname": d.hostname, "device_type": d.device_type,
+            "id": d.id,
+        } for d in db.query(Device).filter(Device.ip.in_(req.ips)).all()]
 
     q = db.query(Device).filter(Device.device_type.in_(device_types))
     if req.device_type:
@@ -2092,6 +2123,7 @@ class ConfigCollectRequest(BaseModel):
     ssh_port: int = 22
     use_vault: bool = True  # fall back to vault SSH credentials when empty
     vlan90_unflagged: bool = False  # only devices still lacking a VLAN 90 flag
+    ips: Optional[list[str]] = None  # explicit device IP list (overrides scope)
 
 
 @app.post("/api/inventory/collect-config")
@@ -2104,6 +2136,9 @@ def inventory_collect_config(req: ConfigCollectRequest,
         devices = [repositories.get_device(db, req.device_id)]
         if devices[0] is None:
             raise HTTPException(status_code=404, detail="device not found")
+    elif req.ips:
+        from models import Device
+        devices = db.query(Device).filter(Device.ip.in_(req.ips)).all()
     else:
         devices = repositories.get_devices_by_type(
             db, device_type=req.device_type, limit=req.limit,

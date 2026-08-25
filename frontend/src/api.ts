@@ -398,6 +398,7 @@ export async function collectConfigs(
   sshPort?: number,
   deviceId?: number,
   vlan90Unflagged?: boolean,
+  ips?: string[],
 ) {
   const r = await api.post('/api/inventory/collect-config', {
     site_pattern: sitePattern || '',
@@ -406,6 +407,7 @@ export async function collectConfigs(
     ssh_port: sshPort || 22,
     device_id: deviceId,
     vlan90_unflagged: vlan90Unflagged ?? false,
+    ips,
   })
   return r.data as CollectResult
 }
@@ -670,6 +672,7 @@ export interface BackfillRequest {
   device_type?: string
   site?: string
   snmpv3?: SnmpV3Request
+  ips?: string[]
 }
 
 export async function backfillInterfaces(req?: BackfillRequest) {
@@ -685,6 +688,11 @@ export async function backfillLinks(req?: BackfillRequest) {
 export async function classifyBlanks(limit = 0) {
   const r = await api.post('/api/backfill/classify-blanks', null, { params: { limit } })
   return r.data as { changed: number; total_scanned: number }
+}
+
+export async function bulkSetSite(ips: string[], site: string) {
+  const r = await api.post('/api/inventory/bulk-set-site', { ips, site })
+  return r.data as { updated: number; total: number }
 }
 
 export async function collectConfigsCatalyst(

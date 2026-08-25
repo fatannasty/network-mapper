@@ -263,3 +263,34 @@ def test_list_links_defaults_without_scan_id():
         repositories.replace_links(db, "scan-links-b", _LINKS[:1])
         links = repositories.list_links(db)
         assert len(links) >= 3
+
+
+def test_bulk_ops_ips_and_set_site():
+    from conftest import make_client
+    from database import SessionLocal
+    from models import Device
+
+    with SessionLocal() as db:
+        db.query(Device).filter(Device.site == "BulkSite").delete()
+        d1 = Device(ip="10.7.0.1", hostname="B1", device_type="switch", site="")
+        d2 = Device(ip="10.7.0.2", hostname="B2", device_type="switch", site="")
+        db.add_all([d1, d2])
+        db.commit()
+
+    client = make_client("admin")
+    # bulk set-site
+    r = client.post("/api/inventory/bulk-set-site",
+                    json={"ips": ["10.7.0.1", "10.7.0.2"], "site": "BulkSite"})
+    assert r.status_code == 200 and r.json()["updated"] == 2
+
+    # backfill interfaces scoped by IP list (uses vault communities; walk mocked away)
+    import backfill as backfill_mod
+    import unittest.mock as mock
+    with mock.patch.object(backfill_mod, "walk_device_interfaces",
+                           return_value=({"id": 1, "ip": "10.7.0.1"}, [], "")):
+        resp = client.post("/api/backfill/interfaces", json={"ips": ["10.7.0.1"]})
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 1
+
+    with SessionLocal() as db:
+        assert db.query(Device).filter(Device.site == "BulkSite").count() == 2

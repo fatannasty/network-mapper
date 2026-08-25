@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { getDevices, getInventoryLinks, type Device, type TopoLink } from '../api'
+import { getDevices, getInventoryLinks, collectConfigs, backfillInterfaces, backfillLinks, bulkSetSite, type Device, type TopoLink } from '../api'
 import Badge from './ui/Badge'
 import Input from './ui/Input'
 import LoadingSpinner from './ui/LoadingSpinner'
@@ -31,6 +31,9 @@ export default function DeviceInventory() {
   const [selectedIp, setSelectedIp] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'devices' | 'connections'>('devices')
   const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [selectedIps, setSelectedIps] = useState<Set<string>>(new Set())
+  const [bulkAction, setBulkAction] = useState('')
+  const [bulkMessage, setBulkMessage] = useState('')
   const initialLoad = useRef(true)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -84,13 +87,35 @@ export default function DeviceInventory() {
     return rawLinks.filter((l) => l.source === selectedIp || l.target === selectedIp)
   }, [selectedIp, rawLinks])
 
+  const toggleSelect = useCallback((ip: string) => {
+    setSelectedIps((prev) => {
+      const next = new Set(prev)
+      if (next.has(ip)) next.delete(ip)
+      else next.add(ip)
+      return next
+    })
+  }, [])
+
   const columns: Column<Device>[] = useMemo(() => [
+    {
+      key: 'sel', label: '', cellClassName: 'w-8',
+      render: (d) => (
+        <input
+          type="checkbox"
+          checked={selectedIps.has(d.ip)}
+          onChange={() => toggleSelect(d.ip)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select ${d.ip}`}
+          className="accent-teal-500"
+        />
+      ),
+    },
     { key: 'ip', label: 'IP', sortable: true, cellClassName: 'font-mono text-xs' },
     { key: 'hostname', label: 'Hostname', sortable: true, cellClassName: 'text-text-primary text-xs' },
     { key: 'device_type', label: 'Type', sortable: true, render: (d) => <Badge label={d.device_type || 'unknown'} /> },
     { key: 'vendor', label: 'Vendor', sortable: true, cellClassName: 'text-muted text-xs' },
     { key: 'model', label: 'Model', cellClassName: 'text-muted text-xs max-w-48 truncate' },
-  ], [])
+  ], [selectedIps, toggleSelect])
 
   const sorted = useMemo(() => {
     const arr = [...devices]
@@ -101,6 +126,44 @@ export default function DeviceInventory() {
     })
     return arr
   }, [devices, sortKey, sortDir])
+
+  const selectAllFiltered = useCallback(() => {
+    setSelectedIps(new Set(sorted.map((d) => d.ip)))
+  }, [sorted])
+
+  const clearSelection = useCallback(() => setSelectedIps(new Set()), [])
+
+  const runBulk = async (action: 'config' | 'interfaces' | 'links' | 'site') => {
+    const ips = [...selectedIps]
+    if (!ips.length) return
+    setBulkAction(action)
+    setBulkMessage('')
+    setError('')
+    try {
+      if (action === 'config') {
+        const r = await collectConfigs(undefined, '', '', 22, undefined, false, ips)
+        setBulkMessage(`Configs collected: ${r.success} ok / ${r.failed} failed (of ${r.total})`)
+      } else if (action === 'interfaces') {
+        const r = await backfillInterfaces({ ips })
+        setBulkMessage(`Interface walk: ${r.successful} ok / ${r.total} · ${r.persisted_interfaces ?? 0} interfaces`)
+      } else if (action === 'links') {
+        const r = await backfillLinks({ ips })
+        setBulkMessage(`Link walk: ${r.successful} ok / ${r.total} · ${r.neighbors_discovered ?? 0} neighbors`)
+      } else if (action === 'site') {
+        const site = window.prompt('Assign these devices to which site?')
+        if (site && site.trim()) {
+          const r = await bulkSetSite(ips, site.trim())
+          setBulkMessage(`Site assigned on ${r.updated} devices`)
+        }
+      }
+      await fetchData()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Bulk action failed')
+    } finally {
+      setBulkAction('')
+      setSelectedIps(new Set())
+    }
+  }
 
   const linkColumns: Column<TopoLink>[] = useMemo(() => [
     {
@@ -181,6 +244,32 @@ export default function DeviceInventory() {
             {devices.length} devices &middot; {rawLinks.length} links
           </span>
         </div>
+
+        {selectedIps.size > 0 && (
+          <div className="flex items-center gap-2 px-5 py-2 bg-accent-subtle/40 backdrop-blur border-b border-accent/20 flex-wrap">
+            <span className="text-xs text-text-primary font-medium">{selectedIps.size} selected</span>
+            <Button size="sm" variant="secondary" onClick={selectAllFiltered}>Select all ({sorted.length})</Button>
+            <Button size="sm" variant="secondary" onClick={clearSelection}>Clear</Button>
+            <span className="w-px h-5 bg-border" />
+            <Button size="sm" disabled={bulkAction !== ''} onClick={() => runBulk('config')}>
+              {bulkAction === 'config' ? 'Collecting…' : 'Collect configs'}
+            </Button>
+            <Button size="sm" variant="secondary" disabled={bulkAction !== ''} onClick={() => runBulk('interfaces')}>
+              {bulkAction === 'interfaces' ? 'Walking…' : 'Walk interfaces'}
+            </Button>
+            <Button size="sm" variant="secondary" disabled={bulkAction !== ''} onClick={() => runBulk('links')}>
+              {bulkAction === 'links' ? 'Walking…' : 'Walk links'}
+            </Button>
+            <Button size="sm" variant="secondary" disabled={bulkAction !== ''} onClick={() => runBulk('site')}>Assign site</Button>
+            {bulkMessage && <span className="text-xs text-teal-300">{bulkMessage}</span>}
+          </div>
+        )}
+
+        {bulkMessage && (
+          <div className="px-5 py-1.5 bg-teal-900/30 border-b border-teal-700/40 text-xs text-teal-200">
+            {bulkMessage}
+          </div>
+        )}
 
         {activeTab === 'devices' && types.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap pb-3">
@@ -294,13 +383,13 @@ export default function DeviceInventory() {
                     unknown: 'bg-gray-500/20 text-gray-300',
                   }
                   return (
-                    <button
-                      key={d.ip}
-                      onClick={() => openDevice(d.ip)}
-                      className={`text-left rounded-2xl border-2 backdrop-blur p-3 transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer ${
-                        nodeColors[type] || nodeColors.unknown
-                      } ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-surface-0' : ''}`}
-                    >
+                    <div key={d.ip} className="relative">
+                      <button
+                        onClick={() => openDevice(d.ip)}
+                        className={`w-full text-left rounded-2xl border-2 backdrop-blur p-3 transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer ${
+                          nodeColors[type] || nodeColors.unknown
+                        } ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-surface-0' : ''}`}
+                      >
                       <div className="flex items-center gap-2 mb-2">
                         <span className={`w-8 h-8 shrink-0 rounded-xl flex items-center justify-center ${iconBg[type] || iconBg.unknown}`}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
@@ -322,7 +411,16 @@ export default function DeviceInventory() {
                           </span>
                         </div>
                       )}
-                    </button>
+                      </button>
+                      <input
+                        type="checkbox"
+                        checked={selectedIps.has(d.ip)}
+                        onChange={() => toggleSelect(d.ip)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`Select ${d.ip}`}
+                        className="absolute top-2 right-2 accent-teal-500 cursor-pointer"
+                      />
+                    </div>
                   )
                 })}
                 {sorted.length === 0 && (
