@@ -1,6 +1,8 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import Header from './Header'
 import Sidebar from './Sidebar'
+import HelpModal from '../../components/HelpModal'
+import { ONBOARDED_KEY } from '../../components/HelpModal'
 
 interface Props {
   children: ReactNode
@@ -9,6 +11,15 @@ interface Props {
 
 export default function AppShell({ children, onLogout }: Props) {
   const [collapsed, setCollapsed] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+
+  useEffect(() => {
+    // Auto-open the tour on first run, but never in automated (webdriver) contexts.
+    if (!localStorage.getItem(ONBOARDED_KEY) && !window.navigator.webdriver) {
+      const t = window.setTimeout(() => setHelpOpen(true), 500)
+      return () => window.clearTimeout(t)
+    }
+  }, [])
 
   return (
     <div className="h-screen flex flex-col text-fg">
@@ -26,11 +37,12 @@ export default function AppShell({ children, onLogout }: Props) {
         onToggleCollapse={() => setCollapsed((c) => !c)}
       />
       <div className="flex flex-1 min-h-0">
-        <Sidebar onLogout={onLogout} collapsed={collapsed} />
+        <Sidebar onLogout={onLogout} collapsed={collapsed} onOpenHelp={() => setHelpOpen(true)} />
         <main id="main-content" className="flex-1 overflow-hidden" tabIndex={-1}>
           {children}
         </main>
       </div>
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   )
 }
