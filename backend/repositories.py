@@ -604,6 +604,156 @@ def dod_gates(db: Session) -> dict:
     }
 
 
+# ── Executive health summary ────────────────────────────────────────────────
+
+def _device_status_snapshot(db: Session, device_ids: list[int]) -> dict[int, str]:
+    """Per-device up/down/degraded from interface oper status (latency fallback)."""
+    counts: dict[int, dict[str, int]] = {}
+    if device_ids:
+        for dev_id, status in db.query(
+                Interface.device_id, Interface.if_oper_status).filter(
+                    Interface.device_id.in_(device_ids)).all():
+            c = counts.setdefault(dev_id, {"up": 0, "down": 0})
+            if status == "up":
+                c["up"] += 1
+            elif status == "down":
+                c["down"] += 1
+
+    def status_of(d) -> str:
+        c = counts.get(d.id, {"up": 0, "down": 0})
+        if c["up"] and c["down"]:
+            return "degraded"
+        if c["up"]:
+            return "up"
+        if c["down"]:
+            return "down"
+        if d.latency_checked_at:
+            return "up" if (d.latency_ms or 0) > 0 else "down"
+        return "unknown"
+
+    return {d.id: status_of(d) for d in db.query(Device).filter(Device.id.in_(device_ids)).all()}
+
+
+def exec_health_summary(db: Session) -> dict:
+    """Executive health snapshot: scorecard KPIs, per-site freshness, risk lists."""
+    devices = db.query(Device).all()
+    total = len(devices)
+    if total == 0:
+        return {"total_devices": 0, "state": "healthy", "score": 100, "kpis": {},
+                "sites": [], "risks": [], "stale_devices": 0}
+
+    statuses = _device_status_snapshot(db, [d.id for d in devices])
+    flapping = flapping_ips(db)
+
+    counts = {"up": 0, "down": 0, "degraded": 0, "flapping": 0, "unknown": 0}
+    sites: dict[str, dict] = {}
+    risk_rows: list[dict] = []
+    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    stale_cutoff = now_naive - timedelta(days=90)
+    stale = 0
+    last_seen_at: dict[str, datetime] = {}
+
+    for d in devices:
+        st = statuses.get(d.id, "unknown")
+        if d.ip in flapping:
+            st = "flapping"
+        counts[st] = counts.get(st, 0) + 1
+
+        key = d.site or "(unspecified)"
+        s = sites.setdefault(key, {"site": key, "devices": 0, "up": 0, "down": 0,
+                                   "degraded": 0, "flapping": 0, "unknown": 0})
+        s["devices"] += 1
+        s[st] = s.get(st, 0) + 1
+
+        last = d.last_seen or d.first_seen
+        if last:
+            if last < stale_cutoff:
+                stale += 1
+            if key not in last_seen_at or last > last_seen_at[key]:
+                last_seen_at[key] = last
+
+        if st in ("down", "flapping", "degraded"):
+            risk_rows.append({
+                "ip": d.ip, "hostname": d.hostname, "site": d.site,
+                "status": st,
+            })
+
+    # SPOF via articulation points over the topology link graph.
+    from path_tracer import articulation_points
+
+    spof_ips: set[str] = set()
+    try:
+        edges = [
+            {"source": l.endpoint_a, "target": l.endpoint_b}
+            for l in db.query(Link).all()
+            if l.protocol not in ("velocloud-lan",)
+        ]
+        spof_ips = set(articulation_points([d.ip for d in devices], edges)) if edges else set()
+    except Exception:
+        spof_ips = set()
+
+    spof_rows = [
+        {"ip": d.ip, "hostname": d.hostname, "site": d.site}
+        for d in devices if d.ip in spof_ips
+    ]
+
+    gates = dod_gates(db)
+
+    def pct(n: int, d: int) -> float:
+        return round(100.0 * n / d, 1) if d else 0.0
+
+    up_pct = pct(counts["up"] + counts["degraded"], total)
+    score = round(
+        0.40 * up_pct
+        + 0.15 * gates["site"]["actual"]
+        + 0.15 * gates["interfaces"]["actual"]
+        + 0.15 * gates["configs"]["actual"]
+        + 0.15 * gates["links"]["actual"]
+    )
+    spof_count = len(spof_ips)
+    vlan90_count = db.query(func.count(Device.id)).filter(Device.vlan_90.is_(True)).scalar() or 0
+
+    if counts["down"] > 0 or counts["flapping"] > 0:
+        state = "critical"
+    elif spof_count > 0 or stale > 0 or counts["degraded"] > 0 or score < 70:
+        state = "warning"
+    else:
+        state = "healthy"
+
+    site_list = []
+    for key, s in sorted(sites.items(), key=lambda kv: kv[1]["devices"], reverse=True):
+        seen = last_seen_at.get(key)
+        days = None
+        if seen:
+            days = max(0, int((now_naive - seen).total_seconds() // 86400))
+        site_list.append({**s, "freshness_days": days})
+
+    return {
+        "total_devices": total,
+        "state": state,
+        "score": score,
+        "kpis": {
+            "total_devices": total,
+            "devices_up": counts["up"],
+            "devices_down": counts["down"],
+            "devices_degraded": counts["degraded"],
+            "devices_flapping": counts["flapping"],
+            "devices_unknown": counts["unknown"],
+            "spof_count": spof_count,
+            "vlan90_count": vlan90_count,
+            "stale_devices": stale,
+            "up_pct": up_pct,
+            "config_coverage": gates["configs"]["actual"],
+            "site_coverage": gates["site"]["actual"],
+            "interface_coverage": gates["interfaces"]["actual"],
+            "link_validation": gates["links"]["actual"],
+        },
+        "sites": site_list,
+        "risks": sorted(risk_rows, key=lambda r: (r["status"] != "down", r["status"]))[:50],
+        "spof_devices": spof_rows[:50],
+    }
+
+
 # ── Device Configs (Sprint 9) ─────────────────────────────────────────────────
 
 def save_device_config(db: Session, device_id: int, config_text: str,

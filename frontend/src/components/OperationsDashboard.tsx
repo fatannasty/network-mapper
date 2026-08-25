@@ -9,6 +9,7 @@ import PageState from './ui/PageState'
 import Select from './ui/Select'
 import Tooltip from './ui/Tooltip'
 import Skeleton from './ui/Skeleton'
+import ExecutiveDashboard from './ExecutiveDashboard'
 
 function DashboardSkeleton() {
   return (
@@ -379,6 +380,7 @@ export default function OperationsDashboard() {
   const [error, setError] = useState('')
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [refreshMs, setRefreshMs] = useState(30_000)
+  const [view, setView] = useState<'ops' | 'exec'>('ops')
 
   const refresh = useCallback(async (initial = false) => {
     if (initial) setLoading(true)
@@ -444,23 +446,38 @@ export default function OperationsDashboard() {
     <div className="h-full overflow-auto">
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         <PageHeader
-          title="Operations Dashboard"
-          description="A live, interactive view of network health and potential outages."
+          title={view === 'exec' ? 'Executive Dashboard' : 'Operations Dashboard'}
+          description={view === 'exec'
+            ? 'A management scorecard of network health, site freshness, and risk.'
+            : 'A live, interactive view of network health and potential outages.'}
           actions={
             <div className="flex items-center gap-3">
-              <Select value={String(refreshMs)} onChange={(e) => setRefreshMs(Number(e.target.value))} className="text-xs w-36">
-                <option value="10000">Every 10s</option>
-                <option value="30000">Every 30s</option>
-                <option value="60000">Every 1m</option>
-                <option value="300000">Every 5m</option>
-              </Select>
-              <span className="text-xs text-muted whitespace-nowrap">{refreshing ? 'Refreshing...' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString()}` : 'Waiting for data'}</span>
-              <Button variant="secondary" size="sm" onClick={() => void refresh()} disabled={refreshing}>Refresh</Button>
-              <div className="h-5 w-px bg-border" />
-              <ExportMenu />
+              <div className="flex items-center gap-0.5 bg-surface-2/70 backdrop-blur rounded-xl p-0.5">
+                <button onClick={() => setView('ops')} className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${view === 'ops' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'}`}>Operations</button>
+                <button onClick={() => setView('exec')} className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 ${view === 'exec' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'}`}>Executive</button>
+              </div>
+              {view === 'ops' && (
+                <>
+                  <Select value={String(refreshMs)} onChange={(e) => setRefreshMs(Number(e.target.value))} className="text-xs w-36">
+                    <option value="10000">Every 10s</option>
+                    <option value="30000">Every 30s</option>
+                    <option value="60000">Every 1m</option>
+                    <option value="300000">Every 5m</option>
+                  </Select>
+                  <span className="text-xs text-muted whitespace-nowrap">{refreshing ? 'Refreshing...' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString()}` : 'Waiting for data'}</span>
+                  <Button variant="secondary" size="sm" onClick={() => void refresh()} disabled={refreshing}>Refresh</Button>
+                  <div className="h-5 w-px bg-border" />
+                  <ExportMenu />
+                </>
+              )}
             </div>
           }
         />
+
+        {view === 'exec' ? (
+          <ExecutiveDashboard />
+        ) : (
+        <>
 
         <div className={`rounded-2xl border px-4 py-3.5 flex items-center justify-between gap-4 backdrop-blur-xl ${hc.bg} ${hc.border} ${hc.text}`}>
           <div className="flex items-center gap-3">
@@ -558,6 +575,8 @@ export default function OperationsDashboard() {
             </table>
           </div>
         </Card>
+        </>
+        )}
       </div>
     </div>
   )

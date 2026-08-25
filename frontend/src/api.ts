@@ -517,6 +517,54 @@ export async function getReport() {
   return r.data as Report
 }
 
+export interface ExecSite {
+  site: string
+  devices: number
+  up: number
+  down: number
+  degraded: number
+  flapping: number
+  unknown: number
+  freshness_days: number | null
+}
+
+export interface ExecRisk {
+  ip: string
+  hostname: string
+  site: string
+  status: string
+}
+
+export interface ExecHealth {
+  total_devices: number
+  state: 'healthy' | 'warning' | 'critical'
+  score: number
+  kpis: {
+    total_devices: number
+    devices_up: number
+    devices_down: number
+    devices_degraded: number
+    devices_flapping: number
+    devices_unknown: number
+    spof_count: number
+    vlan90_count: number
+    stale_devices: number
+    up_pct: number
+    config_coverage: number
+    site_coverage: number
+    interface_coverage: number
+    link_validation: number
+  }
+  sites: ExecSite[]
+  risks: ExecRisk[]
+  spof_devices: { ip: string; hostname: string; site: string }[]
+}
+
+export async function getExecHealth() {
+  const r = await api.get('/api/health/exec')
+  return r.data as ExecHealth
+}
+
 // ── Sprint 13: Data Quality ──────────────────────────────────────────────────
 
 export interface SiteMapping {

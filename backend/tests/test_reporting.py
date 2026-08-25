@@ -73,3 +73,36 @@ def test_export_configs_csv():
 def test_export_invalid_report_returns_400():
     resp = client.get("/api/inventory/report/export", params={"report": "nope"})
     assert resp.status_code == 400
+
+
+def test_exec_health_summary():
+    from fastapi.testclient import TestClient
+    from database import SessionLocal
+    from models import Device, Interface
+    import main
+
+    with SessionLocal() as db:
+        db.query(Device).filter(Device.site == "ExecSite").delete()
+        d_up = Device(ip="10.30.0.1", hostname="SW-UP", device_type="switch", site="ExecSite")
+        d_dn = Device(ip="10.30.0.2", hostname="SW-DN", device_type="switch", site="ExecSite")
+        db.add_all([d_up, d_dn])
+        db.flush()
+        db.add_all([
+            Interface(device_id=d_up.id, if_name="Gi1", if_oper_status="up"),
+            Interface(device_id=d_dn.id, if_name="Gi1", if_oper_status="down"),
+        ])
+        db.commit()
+
+    client = TestClient(main.app)
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin"})
+    data = client.get("/api/health/exec").json()
+
+    assert data["total_devices"] >= 2
+    assert "spof_count" in data["kpis"]
+    assert "config_coverage" in data["kpis"]
+    assert data["state"] in ("healthy", "warning", "critical")
+    assert isinstance(data["sites"], list)
+    assert isinstance(data["risks"], list)
+    # One of the risk rows should be our down switch.
+    ips = {r["ip"] for r in data["risks"]}
+    assert "10.30.0.2" in ips

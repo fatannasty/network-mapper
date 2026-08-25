@@ -669,6 +669,12 @@ def inventory_report(db: Session = Depends(get_db)):
     }
 
 
+@app.get("/api/health/exec", dependencies=[Depends(authenticated)])
+def exec_health(db: Session = Depends(get_db)):
+    """Executive health dashboard data: scorecard KPIs, per-site freshness, risks."""
+    return repositories.exec_health_summary(db)
+
+
 @app.get("/api/inventory/report/export", dependencies=[Depends(authenticated)])
 def inventory_report_export(report: str = Query(...), db: Session = Depends(get_db)):
     """Export a report as CSV. `report` is one of: devices, links, scans, configs."""

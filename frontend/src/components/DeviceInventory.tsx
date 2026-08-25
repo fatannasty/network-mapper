@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getDevices, getInventoryLinks, type Device, type TopoLink } from '../api'
 import Badge from './ui/Badge'
 import Input from './ui/Input'
@@ -33,6 +33,16 @@ export default function DeviceInventory() {
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const initialLoad = useRef(true)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
+  // Drill-down support: /inventory?focus=<ip> opens that device's detail.
+  useEffect(() => {
+    const focus = searchParams.get('focus')
+    if (focus) {
+      setActiveTab('devices')
+      setSelectedIp(focus)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300)
