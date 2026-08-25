@@ -414,8 +414,9 @@ def _bearer(request: Request) -> str:
     raise HTTPException(status_code=401, detail="missing bearer token")
 
 
-def get_current_user(token: str = Depends(_bearer)) -> dict:
-    payload = repositories.get_user_by_token(token)
+def get_current_user(token: str = Depends(_bearer),
+                     db: Session = Depends(get_db)) -> dict:
+    payload = repositories.get_user_by_token(token, db)
     if payload is None:
         raise HTTPException(status_code=401, detail="invalid or expired token")
     return payload
@@ -552,6 +553,34 @@ def auth_logout():
 @app.get("/api/auth/me")
 def auth_me(user: dict = Depends(authenticated)):
     return user
+
+
+class ApiTokenRequest(BaseModel):
+    name: str
+    role: str = "operator"  # admin | operator | viewer
+
+
+@app.post("/api/auth/tokens", dependencies=[Depends(operator)])
+def auth_create_token(req: ApiTokenRequest, db: Session = Depends(get_db),
+                      user: dict = Depends(get_current_user)):
+    """Create a long-lived API token. The plaintext is shown exactly once."""
+    role = req.role if req.role in ("admin", "operator", "viewer") else "operator"
+    plaintext = repositories.create_api_token(db, req.name.strip() or "api",
+                                              role, user.get("username", ""))
+    return {"token": plaintext, "name": req.name.strip() or "api", "role": role}
+
+
+@app.get("/api/auth/tokens", dependencies=[Depends(operator)])
+def auth_list_tokens(db: Session = Depends(get_db)):
+    """List active API tokens (hashes only, never the plaintext)."""
+    return {"tokens": repositories.list_api_tokens(db)}
+
+
+@app.delete("/api/auth/tokens/{token_id}", dependencies=[Depends(operator)])
+def auth_revoke_token(token_id: int, db: Session = Depends(get_db)):
+    if not repositories.revoke_api_token(db, token_id):
+        raise HTTPException(status_code=404, detail="token not found")
+    return {"revoked": True}
 
 
 @app.post("/api/auth/users", dependencies=[Depends(admin)])

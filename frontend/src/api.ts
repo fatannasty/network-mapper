@@ -594,6 +594,31 @@ export async function runAlertCheck() {
   return r.data as { created: number; flapping: number; down: number; spof: number }
 }
 
+export interface ApiTokenInfo {
+  id: number
+  name: string
+  role: string
+  created_by: string
+  created_at: string | null
+  last_used_at: string | null
+  revoked: boolean
+}
+
+export async function listApiTokens() {
+  const r = await api.get('/api/auth/tokens')
+  return r.data as { tokens: ApiTokenInfo[] }
+}
+
+export async function createApiToken(name: string, role: string) {
+  const r = await api.post('/api/auth/tokens', { name, role })
+  return r.data as { token: string; name: string; role: string }
+}
+
+export async function revokeApiToken(id: number) {
+  const r = await api.delete(`/api/auth/tokens/${id}`)
+  return r.data as { revoked: boolean }
+}
+
 export interface ExecReportMeta {
   id: number
   created_at: string | null

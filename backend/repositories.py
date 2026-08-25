@@ -418,11 +418,61 @@ def issue_token(db: Session, username: str, password: str) -> dict | None:
     return {"token": token, "token_type": "bearer", "username": user.username, "role": user.role}
 
 
-def get_user_by_token(token: str) -> dict | None:
-    """Return the token payload if valid (no DB round-trip needed)."""
+def get_user_by_token(token: str, db: Session | None = None) -> dict | None:
+    """Return the token payload if valid (session JWT or API token)."""
     from security import verify_token
 
-    return verify_token(token)
+    payload = verify_token(token)
+    if payload:
+        return payload
+    if db is not None:
+        from models import ApiToken
+        from security import hash_api_token
+
+        row = (db.query(ApiToken)
+               .filter(ApiToken.token_hash == hash_api_token(token),
+                       ApiToken.revoked.is_(False))
+               .first())
+        if row:
+            row.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            db.commit()
+            return {"username": f"token:{row.name}", "role": row.role,
+                    "token_type": "api"}
+    return None
+
+
+def create_api_token(db: Session, name: str, role: str, created_by: str) -> str:
+    """Generate a long-lived API token; returns the plaintext once. Stores only
+    the sha256 hash."""
+    import secrets
+    from models import ApiToken
+    from security import hash_api_token
+
+    plaintext = secrets.token_hex(32)
+    db.add(ApiToken(name=name, token_hash=hash_api_token(plaintext),
+                    role=role, created_by=created_by))
+    db.commit()
+    return plaintext
+
+
+def list_api_tokens(db: Session, include_revoked: bool = False) -> list[dict]:
+    from models import ApiToken
+
+    q = db.query(ApiToken)
+    if not include_revoked:
+        q = q.filter(ApiToken.revoked.is_(False))
+    return [t.to_dict() for t in q.order_by(ApiToken.created_at.desc()).all()]
+
+
+def revoke_api_token(db: Session, token_id: int) -> bool:
+    from models import ApiToken
+
+    row = db.get(ApiToken, token_id)
+    if row is None:
+        return False
+    row.revoked = True
+    db.commit()
+    return True
 
 
 def create_site(db: Session, name: str, location: str = "") -> Site:

@@ -422,3 +422,29 @@ class Notification(Base):
             "seen": self.seen,
             "emailed": self.emailed,
         }
+
+
+class ApiToken(Base):
+    """A long-lived API token (hashed at rest) for automation/scripting."""
+
+    __tablename__ = "api_tokens"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(128), default="")
+    token_hash = Column(String(64), unique=True, index=True)  # sha256 hex
+    role = Column(String(16), default="operator")
+    created_by = Column(String(64), default="")
+    created_at = Column(DateTime, default=_utcnow)
+    last_used_at = Column(DateTime, nullable=True)
+    revoked = Column(Boolean, default=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "role": self.role,
+            "created_by": self.created_by,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_used_at": self.last_used_at.isoformat() if self.last_used_at else None,
+            "revoked": self.revoked,
+        }

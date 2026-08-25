@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   getUsers, createUser, updateUser, deleteUser,
   getAdminActivity, getAdminStatus,
+  listApiTokens, createApiToken, revokeApiToken, type ApiTokenInfo,
 } from '../api'
 import PageHeader from './ui/PageHeader'
 import PageState from './ui/PageState'
@@ -60,6 +61,13 @@ export default function AdminPage() {
   const [editRole, setEditRole] = useState('')
   const [editActive, setEditActive] = useState(true)
 
+  // API tokens
+  const [tokens, setTokens] = useState<ApiTokenInfo[]>([])
+  const [tokenName, setTokenName] = useState('')
+  const [tokenRole, setTokenRole] = useState('operator')
+  const [creatingToken, setCreatingToken] = useState(false)
+  const [newToken, setNewToken] = useState('')
+
   const refresh = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -68,6 +76,7 @@ export default function AdminPage() {
       setUsers(u.users || [])
       setActivity(a.activity || [])
       setStatus(s)
+      listApiTokens().then((r) => setTokens(r.tokens || [])).catch(() => {})
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load admin data')
     } finally {
@@ -110,6 +119,27 @@ export default function AdminPage() {
     if (!confirm(`Delete user "${user.username}"? This cannot be undone.`)) return
     await deleteUser(user.id)
     await refresh()
+  }
+
+  const handleCreateToken = async () => {
+    setCreatingToken(true)
+    setNewToken('')
+    try {
+      const r = await createApiToken(tokenName.trim(), tokenRole)
+      setNewToken(r.token)
+      setTokenName('')
+      listApiTokens().then((res) => setTokens(res.tokens || [])).catch(() => {})
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create token')
+    } finally {
+      setCreatingToken(false)
+    }
+  }
+
+  const handleRevokeToken = async (id: number) => {
+    if (!confirm('Revoke this API token? Existing scripts will stop working.')) return
+    await revokeApiToken(id)
+    listApiTokens().then((r) => setTokens(r.tokens || [])).catch(() => {})
   }
 
   if (loading) return <PageState type="loading" title="Loading admin console..." className="h-full" />
@@ -308,6 +338,76 @@ export default function AdminPage() {
             )}
           </Card>
         </div>
+
+        {/* API Tokens */}
+        <Card>
+          <h3 className="text-sm font-semibold text-text-primary uppercase tracking-wide mb-4">API Tokens</h3>
+          <p className="text-xs text-muted mb-3">
+            Long-lived tokens for automation and scripts. Use them as a bearer token:
+            <code className="ml-1 px-1.5 py-0.5 rounded bg-surface-3 text-[11px]">Authorization: Bearer &lt;token&gt;</code>
+            The plaintext is shown only once when created.
+          </p>
+          <div className="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+              <label className="block text-xs text-muted mb-1">Token name</label>
+              <Input value={tokenName} onChange={(e) => setTokenName(e.target.value)} placeholder="ci-bot" className="w-48" />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1">Role</label>
+              <Select value={tokenRole} onChange={(e) => setTokenRole(e.target.value)} className="w-36">
+                <option value="viewer">Viewer (read-only)</option>
+                <option value="operator">Operator (scans + views)</option>
+                <option value="admin">Admin (full access)</option>
+              </Select>
+            </div>
+            <Button onClick={handleCreateToken} disabled={creatingToken || !tokenName.trim()}>
+              {creatingToken ? 'Creating...' : 'Create token'}
+            </Button>
+          </div>
+
+          {newToken && (
+            <div className="mb-4 rounded-xl border border-teal-700/40 bg-teal-900/30 px-3 py-2.5">
+              <div className="text-xs text-teal-200 font-medium mb-1">Copy this now — it won&apos;t be shown again:</div>
+              <code className="text-xs text-teal-100 font-mono break-all select-all bg-black/30 px-2 py-1 rounded">{newToken}</code>
+            </div>
+          )}
+
+          {tokens.length === 0 ? (
+            <p className="text-xs text-muted">No API tokens yet.</p>
+          ) : (
+            <div className="overflow-auto rounded-xl border border-border/40">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-surface-2/80 backdrop-blur-xl">
+                  <tr className="text-left text-muted text-[11px] uppercase tracking-wider">
+                    <th className="px-3 py-2 font-medium">Name</th>
+                    <th className="px-3 py-2 font-medium">Role</th>
+                    <th className="px-3 py-2 font-medium">Created by</th>
+                    <th className="px-3 py-2 font-medium text-right">Last used</th>
+                    <th className="px-3 py-2 font-medium text-right">Revoke</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tokens.map((t) => (
+                    <tr key={t.id} className="border-t border-border/30 hover:bg-surface-3/50 transition-colors">
+                      <td className="px-3 py-1.5 text-xs font-mono text-text-primary">{t.name}</td>
+                      <td className="px-3 py-1.5">{roleBadge(t.role)}</td>
+                      <td className="px-3 py-1.5 text-xs text-muted">{t.created_by || '\u2014'}</td>
+                      <td className="px-3 py-1.5 text-right text-xs text-muted">{formatTime(t.last_used_at)}</td>
+                      <td className="px-3 py-1.5 text-right">
+                        <button
+                          onClick={() => handleRevokeToken(t.id)}
+                          className="text-[11px] text-red-400 hover:text-red-300 hover:underline"
+                        >
+                          Revoke
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   )

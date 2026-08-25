@@ -122,3 +122,32 @@ def test_login_as_created_user():
     resp = public_client().post("/api/auth/login", json={"username": "bob", "password": "pw456"})
     assert resp.status_code == 200
     assert resp.json()["role"] == "viewer"
+
+
+def test_api_token_auth_flow():
+    from fastapi.testclient import TestClient
+    from main import app
+
+    # Operator creates a token.
+    client = make_client("operator")
+    r = client.post("/api/auth/tokens", json={"name": "ci-bot", "role": "operator"})
+    assert r.status_code == 200
+    token = r.json()["token"]
+    assert len(token) == 64
+
+    # The token works as a bearer credential on a protected endpoint.
+    tc = TestClient(app)
+    tc.headers.update({"Authorization": f"Bearer {token}"})
+    me = tc.get("/api/auth/me")
+    assert me.status_code == 200
+    assert me.json()["role"] == "operator"
+
+    # Listing shows the token (hashed, no plaintext).
+    lst = client.get("/api/auth/tokens").json()
+    assert any(t["name"] == "ci-bot" for t in lst["tokens"])
+    assert "token" not in lst["tokens"][0]
+
+    # Revoking invalidates it.
+    tid = next(t["id"] for t in lst["tokens"] if t["name"] == "ci-bot")
+    assert client.delete(f"/api/auth/tokens/{tid}").json()["revoked"] is True
+    assert tc.get("/api/auth/me").status_code == 401

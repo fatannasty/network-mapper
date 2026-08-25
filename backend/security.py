@@ -33,6 +33,11 @@ ROLES = ("admin", "operator", "viewer")
 _encrypted_prefix = "enc:v1:"
 
 
+def hash_api_token(token: str) -> str:
+    """sha256 hex of an API token (never store the plaintext)."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 # ── Key management ───────────────────────────────────────────────────────────
 
 def _load_or_create_key() -> bytes:
