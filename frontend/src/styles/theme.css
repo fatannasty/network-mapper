@@ -1,15 +1,15 @@
 /* Light theme — warm slate, easy on the eyes */
 :root {
-  --bg: 250 252 255;
+  --bg: 243 246 251;
   --fg: 8 12 20;
-  --surface-0: 250 252 255;
-  --surface-1: 255 255 255;
-  --surface-2: 240 244 249;
-  --surface-3: 220 228 240;
+  --surface-0: 243 246 251;
+  --surface-1: 250 252 255;
+  --surface-2: 230 235 243;
+  --surface-3: 212 221 235;
 
-  --border: 210 220 235;
-  --border-hover: 180 195 220;
-  --muted: 60 78 105;
+  --border: 199 211 229;
+  --border-hover: 170 188 215;
+  --muted: 62 80 108;
   --accent: 37 99 235;
   --accent-hover: 29 78 216;
   --accent-subtle: 219 234 254;
@@ -47,27 +47,27 @@
   --chart-7: 250 204 21;
   --chart-8: 16 185 129;
 
-  --topo-bg: 250 252 255;
-  --topo-node-fill: 255 255 255;
-  --topo-node-border: 180 195 220;
+  --topo-bg: 243 246 251;
+  --topo-node-fill: 250 252 255;
+  --topo-node-border: 170 188 215;
   --topo-node-selected: 59 130 246;
-  --topo-edge: 180 195 220;
+  --topo-edge: 170 188 215;
   --topo-edge-active: 37 99 235;
-  --topo-dot: 180 195 220;
+  --topo-dot: 199 211 229;
 }
 
 /* Dark theme — cinematic dark with ambient glow */
 .dark {
-  --bg: 2 5 15;
+  --bg: 7 11 22;
   --fg: 228 234 242;
-  --surface-0: 2 5 15;
-  --surface-1: 10 15 28;
-  --surface-2: 18 26 42;
-  --surface-3: 30 42 65;
+  --surface-0: 7 11 22;
+  --surface-1: 13 19 34;
+  --surface-2: 22 30 48;
+  --surface-3: 33 45 68;
 
-  --border: 28 40 62;
-  --border-hover: 48 62 88;
-  --muted: 110 132 165;
+  --border: 34 47 72;
+  --border-hover: 52 67 95;
+  --muted: 118 140 172;
   --accent: 59 130 246;
   --accent-hover: 96 165 250;
   --accent-subtle: 29 78 216;
@@ -77,7 +77,7 @@
   --info: 56 189 248;
 
   --text-primary: var(--fg);
-  --text-secondary: 172 185 205;
+  --text-secondary: 176 190 210;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
@@ -97,13 +97,13 @@
   --chart-7: 253 224 71;
   --chart-8: 52 211 153;
 
-  --topo-bg: 10 15 28;
-  --topo-node-fill: 18 26 42;
-  --topo-node-border: 48 62 88;
+  --topo-bg: 13 19 34;
+  --topo-node-fill: 22 30 48;
+  --topo-node-border: 52 67 95;
   --topo-node-selected: 59 130 246;
-  --topo-edge: 48 62 88;
+  --topo-edge: 52 67 95;
   --topo-edge-active: 59 130 246;
-  --topo-dot: 48 62 88;
+  --topo-dot: 52 67 95;
 }
 
 /* NOC — ultra-deep black with ambient glow, high contrast */
