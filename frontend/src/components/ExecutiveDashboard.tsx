@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getExecHealth, listExecReports, generateExecReport, execReportUrl, getTopUtilization, getHealthHistory, type ExecHealth, type ExecRisk, type ExecReportMeta, type TopUtil, type HealthHistoryPoint } from '../api'
+import { getExecHealth, listExecReports, generateExecReport, deleteExecReport, execReportUrl, getTopUtilization, getHealthHistory, type ExecHealth, type ExecRisk, type ExecReportMeta, type TopUtil, type HealthHistoryPoint } from '../api'
 import Card, { CardHeader } from './ui/Card'
 import Button from './ui/Button'
 import PageState from './ui/PageState'
@@ -157,6 +157,16 @@ export default function ExecutiveDashboard() {
       setError(err instanceof Error ? err.message : 'Failed to generate report')
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const removeReport = async (id: number) => {
+    if (!window.confirm('Delete this report? This removes the HTML and PDF permanently.')) return
+    try {
+      await deleteExecReport(id)
+      setReports((prev) => prev.filter((r) => r.id !== id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete report')
     }
   }
 
@@ -340,7 +350,14 @@ export default function ExecutiveDashboard() {
                     </td>
                     <td className="px-3 py-1.5 text-right">
                       <a href={execReportUrl(r.id, 'html')} target="_blank" rel="noreferrer" className="text-accent hover:underline text-xs mr-3">Open</a>
-                      <a href={execReportUrl(r.id, 'pdf')} className="text-accent hover:underline text-xs">PDF</a>
+                      <a href={execReportUrl(r.id, 'pdf')} className="text-accent hover:underline text-xs mr-3">PDF</a>
+                      <button
+                        onClick={() => void removeReport(r.id)}
+                        className="text-red-400 hover:text-red-300 hover:underline text-xs"
+                        aria-label={`Delete report ${r.id}`}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}

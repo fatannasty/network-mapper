@@ -1967,8 +1967,7 @@ def backfill_links(req: BackfillRequest, db: Session = Depends(get_db)):
     return {"scan_id": scan_id, "validation_links": len(links), **summary}
 
 
-@app.post("/api/backfill/vlan90", dependencies=[Depends(operator)])
-def backfill_vlan90(limit: int = 0, db: Session = Depends(get_db)):
+def _recompute_vlan90_flags(db, limit: int = 0) -> dict:
     """Recompute VLAN 90 flags from stored running configs AND SNMP VLAN data.
 
     Fixes devices imported before the flag existed (or while the detector
@@ -2034,6 +2033,12 @@ def backfill_vlan90(limit: int = 0, db: Session = Depends(get_db)):
     }
 
 
+@app.post("/api/backfill/vlan90", dependencies=[Depends(operator)])
+def backfill_vlan90(limit: int = 0, db: Session = Depends(get_db)):
+    """Recompute VLAN 90 flags from stored running configs AND SNMP VLAN data."""
+    return _recompute_vlan90_flags(db, limit=limit)
+
+
 def _neighbors_for_ip(raw: list[dict]) -> list[dict]:
     return raw or []
 
@@ -2093,6 +2098,12 @@ def catalyst_import(req: CatalystImportRequest, db: Session = Depends(get_db)):
         "device_count": len(devices), "snmp_identified": 0,
         "devices": devices, "connections": links,
     })
+
+    # Always recompute VLAN 90 flags from stored configs after an import so a
+    # full re-import never wipes them (upsert sets vlan_90 from the payload,
+    # which is None for devices the DNAC config fetch couldn't resolve).
+    vlan90 = _recompute_vlan90_flags(db)
+    debug["vlan90_after_import"] = vlan90
 
     return {"scan_id": scan_id, "device_count": len(devices),
             "links_found": len(links), "debug": debug}
@@ -2693,6 +2704,26 @@ def exec_reports_pdf(report_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="pdf not available")
     return FileResponse(path, media_type="application/pdf",
                         filename=f"exec-report-{report_id}.pdf")
+
+
+@app.delete("/api/report/executive/{report_id}", dependencies=[Depends(operator)])
+def exec_reports_delete(report_id: int, db: Session = Depends(get_db)):
+    """Delete an archived executive report (and its PDF file)."""
+    import reports
+    from models import ExecReport
+
+    row = db.get(ExecReport, report_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="report not found")
+    try:
+        path = reports.pdf_path(report_id)
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
+    db.delete(row)
+    db.commit()
+    return {"deleted": True}
 
 
 if __name__ == "__main__":

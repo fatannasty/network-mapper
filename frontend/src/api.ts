@@ -673,6 +673,11 @@ export async function generateExecReport() {
   return r.data as ExecReportMeta
 }
 
+export async function deleteExecReport(id: number) {
+  const r = await api.delete(`/api/report/executive/${id}`)
+  return r.data as { deleted: boolean }
+}
+
 export function execReportUrl(id: number, format: 'html' | 'pdf' = 'html') {
   return `/api/report/executive/${id}${format === 'pdf' ? '/pdf' : ''}`
 }

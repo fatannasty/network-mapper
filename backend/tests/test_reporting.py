@@ -154,3 +154,69 @@ def test_exec_pdf_robust_and_has_charts():
     assert _score_line([{"score": 50}, {"score": 60}]) is not None
     assert _util_bars([{"hostname": "sw1", "ip": "10.0.0.1", "if_name": "Gi1",
                         "avg_in_rate": 1e6, "avg_out_rate": 5e5}]) is not None
+
+
+def test_delete_exec_report_removes_pdf():
+    import os
+    from conftest import make_client
+    import reports
+
+    client = make_client("admin")
+    meta = client.post("/api/report/executive/generate").json()
+    rid = meta["id"]
+    path = reports.pdf_path(rid)
+    assert os.path.exists(path)
+
+    resp = client.delete(f"/api/report/executive/{rid}")
+    assert resp.status_code == 200 and resp.json()["deleted"] is True
+    assert not os.path.exists(path)
+
+    assert client.get(f"/api/report/executive/{rid}").status_code == 404
+    lst = client.get("/api/report/executive").json()
+    assert all(r["id"] != rid for r in lst["reports"])
+
+
+def test_catalyst_import_recomputes_vlan90():
+    from unittest.mock import patch
+    from conftest import make_client
+    from database import SessionLocal
+    from models import Device, DeviceConfig
+    import catalyst, main
+
+    # A stored config that references VLAN 90; import will wipe vlan_90 then
+    # the recompute must restore it.
+    with SessionLocal() as db:
+        db.query(Device).filter(Device.site == "V90Import").delete()
+        d = Device(ip="10.12.0.1", hostname="SW-V90I", device_type="switch", site="V90Import")
+        db.add(d)
+        db.flush()
+        db.add(DeviceConfig(device_id=d.id, config_text="interface Vlan90\n", config_type="running"))
+        db.commit()
+        dev_id = d.id
+    with SessionLocal() as db:
+        dev = db.get(Device, dev_id)
+        dev.vlan_90 = None  # simulate an import wiping the flag
+        db.commit()
+
+    import_dev = [{
+        "ip": "10.12.0.1", "hostname": "SW-V90I", "vendor": "Cisco",
+        "model": "C9300", "device_type": "switch", "site": "V90Import",
+        "confidence": 5, "open_ports": [161], "snmp_community": "",
+        "interfaces": [], "neighbors": [], "_id": "xyz",
+        "vlan_90": None,
+    }]
+    client = make_client("operator")
+    with patch.object(catalyst, "import_devices",
+                      return_value=(import_dev, [], {"raw_devices": 1})), \
+         patch.object(catalyst, "authenticate", return_value="t"):
+        resp = client.post("/api/catalyst/import", json={
+            "base_url": "https://cc", "username": "u", "password": "p",
+        })
+    assert resp.status_code == 200
+    assert resp.json()["debug"]["vlan90_after_import"]["vlan90_detected"] >= 1
+
+    with SessionLocal() as db:
+        assert db.get(Device, dev_id).vlan_90 is True
+        db.query(DeviceConfig).filter(DeviceConfig.device_id == dev_id).delete()
+        db.query(Device).filter(Device.id == dev_id).delete()
+        db.commit()
