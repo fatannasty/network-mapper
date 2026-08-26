@@ -14,11 +14,11 @@ export default function Sidebar({ onLogout, collapsed, onOpenHelp }: Props) {
       <div className="px-3 py-3 border-b border-border/30">
         <div className="flex items-center gap-2.5">
           {collapsed ? (
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#003A70] to-[#C8102E] flex items-center justify-center shrink-0 shadow-md shadow-accent/20">
-              <span className="text-white text-sm font-bold">A</span>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#003A70] to-[#C8102E] flex items-center justify-center shrink-0 shadow-md shadow-accent/20">
+              <span className="text-white text-base font-bold">A</span>
             </div>
           ) : (
-            <img src="/amtrak-logo.png" alt="Amtrak" className="h-9 w-auto" />
+            <img src="/amtrak-logo.png" alt="Amtrak" className="h-11 w-auto" />
           )}
         </div>
       </div>
