@@ -9,6 +9,8 @@ into `VALIDATION.md` / `UBUNTU-DEPLOY.md` afterward if asked.
 
 ## 0. Opening — What we built (30 seconds)
 
+> Opening slide: **`EXEC-SUMMARY.md`** — a one-page executive summary.
+
 - A **network mapping & health platform** for Amtrak's LAN/WAN: import the
   network, see it as an interactive map, monitor health, and export
   management-ready reports.
