@@ -125,6 +125,10 @@ into `VALIDATION.md` / `UBUNTU-DEPLOY.md` afterward if asked.
 - **Audience features:** first-run onboarding tour + plain-language glossary,
   Simple/Technical views, executive vs operations dashboards.
 
+> **Technical reviewers:** see `PRESENTATION-TECH.md` for the deep dive —
+> architecture, data model, SPOF/flapping/VLAN algorithms, pure-Python SNMPv3,
+> security internals, performance numbers, and testing details.
+
 ---
 
 ## Suggested pacing (45 min)
