@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amtrak Network Mapper — Executive Summary</title>
+<style>
+  :root {
+    --amtrak-blue: #003A70;
+    --amtrak-red: #C8102E;
+    --ink: #1a2433;
+    --muted: #5b6b7f;
+    --card-bg: #ffffff;
+    --line: #e3e8f0;
+    --accent-soft: #eef4fb;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+    background: #eef1f6;
+    color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 24px;
+  }
+  .slide {
+    width: 1120px; min-height: 630px; max-width: 100%;
+    background: var(--card-bg);
+    border-radius: 14px;
+    box-shadow: 0 24px 48px -12px rgba(0, 58, 112, 0.25);
+    overflow: hidden;
+    position: relative;
+  }
+  .topbar {
+    background: linear-gradient(90deg, var(--amtrak-blue) 0%, #124d8f 78%, #1c5a9e 100%);
+    padding: 26px 40px 22px;
+    color: #fff;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 24px;
+  }
+  .topbar .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-mark {
+    width: 46px; height: 46px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--amtrak-blue), var(--amtrak-red));
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 800; font-size: 24px;
+    box-shadow: 0 4px 10px rgba(0,0,0,.25);
+  }
+  .topbar h1 { font-size: 27px; font-weight: 700; letter-spacing: .2px; }
+  .topbar .sub { font-size: 13.5px; opacity: .9; margin-top: 3px; }
+  .topbar .meta { text-align: right; font-size: 12px; opacity: .85; line-height: 1.5; }
+  .body { padding: 30px 40px 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card {
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--amtrak-blue);
+    border-radius: 10px;
+    padding: 14px 16px 13px 16px;
+    background: #fbfcfe;
+    display: flex; gap: 12px;
+  }
+  .card:nth-child(3n) { border-left-color: var(--amtrak-red); }
+  .num {
+    flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px;
+    background: var(--amtrak-blue); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px;
+  }
+  .card:nth-child(3n) .num { background: var(--amtrak-red); }
+  .card h3 { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+  .card p { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  .footer {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 10px 40px;
+    font-size: 11px; color: var(--muted);
+    border-top: 1px solid var(--line);
+    background: #f8fafc;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .footer .rule { font-weight: 700; color: var(--amtrak-blue); }
+  @media (max-width: 800px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .slide { box-shadow: none; border-radius: 0; width: 100%; min-height: 100vh; }
+    .card { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+  <div class="slide">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">A</div>
+        <div>
+          <h1>Amtrak Network Mapper</h1>
+          <div class="sub">Executive Summary — One Platform to See, Monitor &amp; Report on the Network</div>
+        </div>
+      </div>
+      <div class="meta" id="meta"></div>
+    </div>
+
+    <div class="body">
+      <div class="grid">
+        <div class="card">
+          <div class="num">1</div>
+          <div>
+            <h3>One source of truth for the network</h3>
+            <p>Maps <strong>3,900+ devices, 20,000+ interfaces, 42,000+ links across 350+ sites</strong> from Catalyst, SNMP, Meraki, and VeloCloud SD-WAN — in a single interactive view.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="num">2</div>
+          <div>
+            <h3>Health &amp; risk at a glance</h3>
+            <p>A live scorecard tracks device uptime, <strong>single points of failure</strong>, flapping links, and coverage quality — with alerts that reach you before users notice.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="num">3</div>
+          <div>
+            <h3>Built for every audience</h3>
+            <p>A guided tour and plain-language glossary for newcomers, deep engineering tools for network teams, and an <strong>executive dashboard</strong> for leadership.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="num">4</div>
+          <div>
+            <h3>Automation that keeps data fresh</h3>
+            <p>Scheduled scans, utilization sampling, config backups, health snapshots, and alert checks run continuously — no manual upkeep.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="num">5</div>
+          <div>
+            <h3>Answers, not just diagrams</h3>
+            <p>One-click <strong>executive reports (PDF/HTML with charts)</strong> and clean CSV exports (interfaces, VLANs, ports, links) — scheduled and emailed automatically.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="num">6</div>
+          <div>
+            <h3>Production-ready</h3>
+            <p><strong>236 automated tests</strong>, hardened security (RBAC, encrypted credentials, API tokens), smooth at scale, and a validated Docker deployment.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span class="rule">AMTRAK NETWORK MAPPER</span>
+      <span id="stamp">Network Health &amp; Topology Platform</span>
+    </div>
+  </div>
+
+  <script>
+    const now = new Date();
+    document.getElementById("meta").innerHTML =
+      "Executive Briefing<br>" +
+      now.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+  </script>
+</body>
+</html>
