@@ -38,11 +38,11 @@ export default function LoginForm({ onSuccess }: Props) {
         src="/login-bg.jpg"
         alt=""
         aria-hidden="true"
-        className="absolute inset-0 w-full h-full object-cover opacity-70 dark:opacity-45"
+        className="absolute inset-0 w-full h-full object-cover opacity-85 dark:opacity-65"
       />
-      {/* Soft gradient overlays for readability */}
-      <div className="absolute inset-0 bg-gradient-to-t from-surface-0 via-surface-0/25 to-surface-0/10" />
-      <div className="absolute inset-0 bg-gradient-to-r from-surface-0/40 to-transparent" />
+      {/* Soft gradient overlays for readability (kept light so the image shows) */}
+      <div className="absolute inset-0 bg-gradient-to-t from-surface-0/60 via-surface-0/15 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-surface-0/25 to-transparent" />
 
       <div className="relative z-10 w-full max-w-md px-4">
         {/* Logo */}
