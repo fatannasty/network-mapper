@@ -159,8 +159,13 @@ NON_TOPOLOGY_PROTOCOLS = ("velocloud",)  # WAN transport links (non-device endpo
 
 
 def _keep_topology_link(link) -> bool:
-    """True if a Link belongs in topology graphs (not experimental inference)."""
-    return link.protocol not in NON_TOPOLOGY_PROTOCOLS
+    """True if a Link belongs in topology graphs (not experimental inference).
+
+    Excludes WAN/overlay protocols AND self-loops (a device linked to itself is
+    never a physical connection worth drawing).
+    """
+    return (link.protocol not in NON_TOPOLOGY_PROTOCOLS
+            and link.endpoint_a != link.endpoint_b)
 
 
 # Background reachability poller (feeds up/down/flapping state). Interval in
@@ -1030,7 +1035,7 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
         site_ips = {d.ip for d in devices}
         if site_ips:
             touched = db.query(LinkModel).filter(
-                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS), LinkModel.endpoint_a != LinkModel.endpoint_b,
                 (LinkModel.endpoint_a.in_(site_ips)) | (LinkModel.endpoint_b.in_(site_ips)),
             ).all()
             neighbor_ips = set()
@@ -1045,7 +1050,7 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
                         devices.append(d)
                         known.add(ip)
             extra_links = db.query(LinkModel).filter(
-                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS), LinkModel.endpoint_a != LinkModel.endpoint_b,
                 LinkModel.endpoint_a.in_(known) & LinkModel.endpoint_b.in_(known),
             ).all()
             links: list[dict] = []
@@ -1074,7 +1079,7 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
         # Include links between neighbours so the neighbourhood graph is
         # fully connected (not just spokes from the focused device).
         extra = db.query(LinkModel).filter(
-            LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+            LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS), LinkModel.endpoint_a != LinkModel.endpoint_b,
             LinkModel.endpoint_a.in_(neighbor_ips) & LinkModel.endpoint_b.in_(neighbor_ips),
         ).all()
         link_keys = {(l.endpoint_a, l.endpoint_b, l.interface_a, l.interface_b) for l in links}
@@ -1103,7 +1108,7 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
         device_ips = {d.ip for d in devices}
         if device_ips:
             touched = db.query(LinkModel).filter(
-                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS), LinkModel.endpoint_a != LinkModel.endpoint_b,
                 (LinkModel.endpoint_a.in_(device_ips)) | (LinkModel.endpoint_b.in_(device_ips)),
             ).all()
             neighbor_ips = set()
@@ -1117,7 +1122,7 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
                         devices.append(d)
                         known.add(ip)
             extra_links = db.query(LinkModel).filter(
-                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS), LinkModel.endpoint_a != LinkModel.endpoint_b,
                 LinkModel.endpoint_a.in_(known) & LinkModel.endpoint_b.in_(known),
             ).all()
             link_keys = {(l.endpoint_a, l.endpoint_b, l.interface_a, l.interface_b) for l in links}
@@ -1135,7 +1140,7 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
         if device_ips:
             # 1. Find all links touching the scan's devices, collect neighbors
             touched = db.query(LinkModel).filter(
-                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS), LinkModel.endpoint_a != LinkModel.endpoint_b,
                 (LinkModel.endpoint_a.in_(device_ips)) | (LinkModel.endpoint_b.in_(device_ips)),
             ).all()
             neighbor_ips = set()
@@ -1151,7 +1156,7 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
                         known.add(ip)
             # 3. All links among the expanded device set
             extra_links = db.query(LinkModel).filter(
-                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS),
+                LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS), LinkModel.endpoint_a != LinkModel.endpoint_b,
                 LinkModel.endpoint_a.in_(known) & LinkModel.endpoint_b.in_(known),
             ).all()
             link_keys = {(l.endpoint_a, l.endpoint_b, l.interface_a, l.interface_b) for l in links}
