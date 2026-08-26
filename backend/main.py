@@ -815,11 +815,13 @@ def inventory_devices(device_type: Optional[str] = Query(None),
                       search: Optional[str] = Query(None),
                       vlan_90: Optional[bool] = Query(None),
                       limit: int = Query(200, ge=1, le=5000),
+                      include_interfaces: bool = Query(False),
                       db: Session = Depends(get_db)):
     devices = repositories.list_devices(db, device_type=device_type, vendor=vendor,
                                         site=site, search=search, vlan_90=vlan_90,
                                         limit=limit)
-    return {"count": len(devices), "devices": [d.to_dict() for d in devices]}
+    ser = (lambda d: d.to_dict()) if include_interfaces else (lambda d: d.summary_dict())
+    return {"count": len(devices), "devices": [ser(d) for d in devices]}
 
 
 @app.get("/api/inventory/devices/{device_id}", dependencies=[Depends(authenticated)])

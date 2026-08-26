@@ -364,7 +364,6 @@ def test_scheduled_config_pass_search_and_health_history(monkeypatch):
     assert "OpsSite" in r2.json()["sites"]
 
     # Scheduled config pass picks devices and (mock) collects.
-    import backfill as _unused  # noqa: F401
     from unittest import mock
     with mock.patch("main._collect_configs", return_value={"total": 2, "success": 2, "failed": 0, "results": []}):
         with SessionLocal() as db:

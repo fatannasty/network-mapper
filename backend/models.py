@@ -103,6 +103,29 @@ class Device(Base):
             "vlan_90": self.vlan_90,
         }
 
+    def summary_dict(self) -> dict:
+        """Lightweight serialization WITHOUT interfaces (avoids the N+1 load)."""
+        return {
+            "id": self.id,
+            "ip": self.ip,
+            "mac": self.mac,
+            "hostname": self.hostname,
+            "vendor": self.vendor,
+            "model": self.model,
+            "device_type": self.device_type,
+            "confidence": self.confidence,
+            "open_ports": self.open_ports or [],
+            "snmp_community": self.snmp_community,
+            "site": self.site,
+            "catalyst_id": self.catalyst_id,
+            "last_scan_id": self.last_scan_id,
+            "first_seen": self.first_seen.isoformat() if self.first_seen else None,
+            "last_seen": self.last_seen.isoformat() if self.last_seen else None,
+            "latency_ms": self.latency_ms or 0.0,
+            "latency_checked_at": self.latency_checked_at.isoformat() if self.latency_checked_at else None,
+            "vlan_90": self.vlan_90,
+        }
+
 
 class Interface(Base):
     """A network interface discovered via the IF-MIB walk (Sprint 4)."""

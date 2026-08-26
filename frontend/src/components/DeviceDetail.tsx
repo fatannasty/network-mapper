@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { shortenInterface } from './ui/iface'
 import Button from './ui/Button'
-import { getDeviceConfigs, getConfigDiff, getDeviceUtilization, type Device, type ConfigEntry, type ConfigDiffRow, type TopoLink, type DeviceUtilization } from '../api'
+import { getDeviceConfigs, getConfigDiff, getDeviceUtilization, getDevice, type Device, type ConfigEntry, type ConfigDiffRow, type TopoLink, type DeviceUtilization } from '../api'
 import { friendlyType, typeDescription, shortName } from '../features/topology/services/friendly'
 
 function fmtTs(value?: string | null): string {
@@ -56,6 +56,7 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
   const [fromId, setFromId] = useState(0)
   const [toId, setToId] = useState(0)
   const [utilization, setUtilization] = useState<DeviceUtilization | null>(null)
+  const [fullDevice, setFullDevice] = useState<Device | null>(null)
   const navigate = useNavigate()
   const type = friendlyType(device.device_type)
   const name = shortName(device.hostname) || device.ip
@@ -65,8 +66,12 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
     setDiff(null)
     setConfigsOpen(false)
     setUtilization(null)
+    setFullDevice(null)
     if (!device.id) return
     let cancelled = false
+    getDevice(device.id)
+      .then((full) => { if (!cancelled) setFullDevice(full as Device) })
+      .catch(() => {})
     getDeviceConfigs(device.id)
       .then((cs) => {
         if (cancelled || !Array.isArray(cs)) return
@@ -123,6 +128,9 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
         hasTopology: linkSet.has(d.ip),
       }))
   }, [device.site, device.ip, allDevices, allLinks])
+
+  const detail = fullDevice || device
+  const detailInterfaces = detail.interfaces || []
 
   return (
     <div className="w-80 bg-surface-1/80 backdrop-blur-2xl border-l border-border/30 overflow-y-auto shrink-0">
@@ -382,11 +390,11 @@ export default function DeviceDetail({ device, connectedLinks, allDevices, allLi
                   </div>
                 </div>
               )}
-              {device.interfaces && device.interfaces.length > 0 && (
+              {detailInterfaces.length > 0 && (
                 <div>
-                  <span className="text-muted block mb-1">Interfaces ({device.interfaces.length})</span>
+                  <span className="text-muted block mb-1">Interfaces ({detailInterfaces.length})</span>
                   <ul className="text-text-secondary font-mono space-y-0.5 max-h-28 overflow-y-auto">
-                    {device.interfaces.map((itf, i) => (
+                    {detailInterfaces.map((itf, i) => (
                       <li key={i} className="flex items-center gap-2">
                         <span>{itf.ifName || itf.ifDescr}</span>
                         {itf.vlanId != null && (
