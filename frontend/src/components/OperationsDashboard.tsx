@@ -53,7 +53,7 @@ const typeColors: Record<string, string> = {
   accesspoint: '#34d399',
   'access-point': '#34d399',
   'sd-wan': '#4ade80',
-  'velocloud-edge': '#2dd4bf',
+  'velocloud-edge': '#d946ef',
   'wireless-controller': '#22d3ee',
   'load-balancer': '#f472b6',
   unknown: '#6b7280',

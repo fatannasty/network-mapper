@@ -293,7 +293,7 @@ export default function TopologyView() {
             : isDown ? '#ef4444'
             : l.protocol === 'cdp' ? '#f59e0b'
             : l.protocol === 'catalyst' ? '#38bdf8'
-            : l.protocol === 'velocloud-lan' ? '#2dd4bf'
+            : l.protocol === 'velocloud-lan' ? '#e879f9'
             : '#60a5fa',
           strokeWidth: isPath ? 3.5 : 2.25,
           strokeDasharray: isDown ? '6 3' : undefined,

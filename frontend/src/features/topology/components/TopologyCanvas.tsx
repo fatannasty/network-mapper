@@ -34,7 +34,7 @@ const nodeColors: Record<string, string> = {
   'sd-wan': '#22c55e',
   'access-point': '#10b981',
   accesspoint: '#10b981',
-  'velocloud-edge': '#2dd4bf',
+  'velocloud-edge': '#d946ef',
   unknown: '#6b7280',
 }
 

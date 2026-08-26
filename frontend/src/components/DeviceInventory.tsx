@@ -368,7 +368,7 @@ export default function DeviceInventory() {
                     accesspoint: 'border-emerald-400 bg-emerald-950/60',
                     'access-point': 'border-emerald-400 bg-emerald-950/60',
                     'sd-wan': 'border-green-400 bg-green-950/60',
-                    'velocloud-edge': 'border-teal-400 bg-teal-950/60',
+                    'velocloud-edge': 'border-fuchsia-400 bg-fuchsia-950/60',
                     unknown: 'border-gray-500 bg-gray-800/60',
                   }
                   const iconBg: Record<string, string> = {
@@ -379,7 +379,7 @@ export default function DeviceInventory() {
                     accesspoint: 'bg-emerald-500/20 text-emerald-300',
                     'access-point': 'bg-emerald-500/20 text-emerald-300',
                     'sd-wan': 'bg-green-500/20 text-green-300',
-                    'velocloud-edge': 'bg-teal-500/20 text-teal-300',
+                    'velocloud-edge': 'bg-fuchsia-500/20 text-fuchsia-300',
                     unknown: 'bg-gray-500/20 text-gray-300',
                   }
                   return (

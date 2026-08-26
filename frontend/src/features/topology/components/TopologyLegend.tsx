@@ -13,7 +13,7 @@ const swatch: Record<string, string> = {
   accesspoint: 'bg-emerald-500',
   'access-point': 'bg-emerald-500',
   'sd-wan': 'bg-green-500',
-  'velocloud-edge': 'bg-teal-500',
+  'velocloud-edge': 'bg-fuchsia-500',
   'wireless-controller': 'bg-cyan-500',
   'load-balancer': 'bg-pink-500',
   unknown: 'bg-gray-500',

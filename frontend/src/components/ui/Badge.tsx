@@ -15,7 +15,7 @@ const colors: Record<string, string> = {
   'wireless-controller': 'bg-cyan-900/50 text-cyan-300 border-cyan-700/40',
   'load-balancer': 'bg-pink-900/50 text-pink-300 border-pink-700/40',
   'sd-wan': 'bg-teal-900/50 text-teal-300 border-teal-700/40',
-  'velocloud-lan': 'bg-teal-900/50 text-teal-300 border-teal-700/40',
+  'velocloud-lan': 'bg-fuchsia-900/50 text-fuchsia-300 border-fuchsia-700/40',
   'velocloud': 'bg-teal-900/50 text-teal-300 border-teal-700/40',
   unknown: 'bg-gray-800/60 text-gray-400 border-gray-700/40',
   printer: 'bg-zinc-900/50 text-zinc-300 border-zinc-700/40',
