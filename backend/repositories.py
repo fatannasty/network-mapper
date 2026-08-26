@@ -736,7 +736,7 @@ def exec_health_summary(db: Session) -> dict:
         edges = [
             {"source": l.endpoint_a, "target": l.endpoint_b}
             for l in db.query(Link).all()
-            if l.protocol not in ("velocloud-lan",)
+            if l.protocol not in ("velocloud",)
         ]
         spof_ips = set(articulation_points([d.ip for d in devices], edges)) if edges else set()
     except Exception:

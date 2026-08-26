@@ -147,9 +147,8 @@ def test_topology_scan_not_found():
     assert "links" in data
 
 
-def test_topology_excludes_velocloud_lan_inference_links():
-    """Experimental 'velocloud-lan' inference links must not leak foreign
-    SD-WAN edges into a site's topology graph."""
+def test_topology_includes_velocloud_lan_links():
+    """VeloCloud SD-WAN edges surface in topology via their LAN-side links."""
     from database import SessionLocal
     import repositories
 
@@ -158,8 +157,7 @@ def test_topology_excludes_velocloud_lan_inference_links():
         repositories.upsert_device(db, {
             "ip": "10.0.0.1", "hostname": "sw1", "vendor": "Cisco", "device_type": "switch",
         }, scan_id="topo-vc-scan")
-        # Velocloud belongs to a different site/scan; only reachable via an
-        # inferred 'velocloud-lan' link.
+        # Velocloud edge reachable via an inferred 'velocloud-lan' link.
         repositories.upsert_device(db, {
             "ip": "10.0.0.99", "hostname": "AMT-XX-VC1", "vendor": "VMware VeloCloud",
             "device_type": "velocloud-edge",
@@ -171,16 +169,19 @@ def test_topology_excludes_velocloud_lan_inference_links():
             {"source": "10.0.0.1", "target": "10.0.0.99",
              "source_interface": "GE1 (LAN)", "target_interface": "unknown",
              "protocol": "velocloud-lan", "source_hostname": "sw1", "target_hostname": ""},
+            {"source": "10.0.0.99", "target": "203.0.113.1",
+             "source_interface": "GE3", "target_interface": "",
+             "protocol": "velocloud", "source_hostname": "", "target_hostname": ""},
         ])
 
     resp = admin.get("/api/topology", params={"scan_id": "topo-vc-scan"})
     assert resp.status_code == 200
     data = resp.json()
     node_ips = {n["id"] for n in data["nodes"]}
-    assert "10.0.0.99" not in node_ips
-    assert not any(n.get("device_type") == "velocloud-edge" for n in data["nodes"])
-    assert all(l["protocol"] != "velocloud-lan" for l in data["links"])
-    assert {l["protocol"] for l in data["links"]} == {"lldp"}
+    assert "10.0.0.99" in node_ips  # edge now part of the topology
+    protos = {l["protocol"] for l in data["links"]}
+    assert "velocloud-lan" in protos  # LAN-side link shown
+    assert "velocloud" not in protos  # WAN transport link still hidden
 
 
 def test_topology_after_discover():

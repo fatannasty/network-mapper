@@ -155,7 +155,7 @@ def _validate_export_input(req) -> None:
 # every LAN device in an inferred broadcast domain, are unverified, and bleed
 # across sites (a Montreal edge showing up in the Miami topology). Excluded
 # from topology graphs so foreign Veloclouds never pollute a site view.
-NON_TOPOLOGY_PROTOCOLS = ("velocloud-lan",)
+NON_TOPOLOGY_PROTOCOLS = ("velocloud",)  # WAN transport links (non-device endpoints)
 
 
 def _keep_topology_link(link) -> bool:

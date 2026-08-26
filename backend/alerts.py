@@ -99,7 +99,7 @@ def run_alert_check(db) -> dict:
     try:
         edges = [{"source": l.endpoint_a, "target": l.endpoint_b}
                  for l in db.query(Link).all()
-                 if l.protocol not in ("velocloud-lan",)]
+                 if l.protocol not in ("velocloud",)]
         spof_ips = set(articulation_points([d.ip for d in devices], edges)) if edges else set()
         if spof_ips and _last_spof_count(db) != len(spof_ips):
             sample_ips = sorted(spof_ips)[:6]
