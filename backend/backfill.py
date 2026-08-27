@@ -132,14 +132,15 @@ def _cdp_neighbor_kind(peer_type: str | None, capabilities: int) -> str:
 
 def cdp_neighbor_report(db, devices: list[dict], communities: list[str],
                         snmpv3: dict | None = None,
+                        ssh_creds: list[tuple[str, str, int]] | None = None,
                         max_workers: int = DEFAULT_MAX_WORKERS,
                         timeout: float = DEFAULT_TIMEOUT) -> dict:
     """Collect CDP neighbors for network devices and build a switch-to-switch
     report, excluding access points and non-network neighbors.
 
-    Equivalent to `show cdp neighbors detail` per switch, but via the SNMP CDP
-    cache table (scalable across the whole network). Returns row dicts for a
-    spreadsheet export.
+    Collection is via SNMP CDP cache (default) or the SSH CLI
+    `show cdp neighbors detail` when ssh_creds are provided. Returns row dicts
+    for a spreadsheet export.
     """
     from models import Device
 
@@ -149,6 +150,19 @@ def cdp_neighbor_report(db, devices: list[dict], communities: list[str],
         ip = device.get("ip", "")
         if not ip:
             return device, [], "no ip"
+        if ssh_creds:
+            from cdp_cli import ConfigCollectorError, collect_cdp_neighbors_detail
+            last_err = "no SSH credentials available"
+            for username, password, port in ssh_creds:
+                if not username:
+                    continue
+                try:
+                    neighbors = collect_cdp_neighbors_detail(
+                        ip, username, password, port=port, timeout=timeout)
+                    return device, neighbors, ""
+                except ConfigCollectorError as e:
+                    last_err = str(e)
+            return device, [], last_err
         try:
             if snmpv3:
                 from topology import collect_cdp_v3

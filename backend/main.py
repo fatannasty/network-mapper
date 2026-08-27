@@ -1925,11 +1925,26 @@ def backfill_interfaces(req: BackfillRequest, db: Session = Depends(get_db)):
             "persisted_interfaces": saved_interfaces}
 
 
+class CdpReportRequest(BaseModel):
+    site: str = ""
+    ips: Optional[list[str]] = None
+    communities: Optional[list[str]] = None
+    snmpv3: Optional[SnmpV3Request] = None
+    method: str = "snmp"          # snmp (CDP cache) | ssh (show cdp neighbors detail)
+    ssh_username: str = ""
+    ssh_password: str = ""
+    ssh_port: int = 22
+    use_vault: bool = True        # fall back to vaulted SSH creds when method=ssh
+    max_workers: int = 25
+    timeout: float = 8.0
+
+
 @app.post("/api/cdp/report", dependencies=[Depends(operator)])
-def cdp_neighbor_report(req: BackfillRequest, db: Session = Depends(get_db)):
-    """CDP neighbor report: switch-to-switch visibility via SNMP CDP cache,
-    excluding access points and other non-network devices. Scoped to a site,
-    an IP list, or the whole network (blank site)."""
+def cdp_neighbor_report(req: CdpReportRequest, db: Session = Depends(get_db)):
+    """CDP neighbor report: switch-to-switch visibility, excluding access
+    points and other non-network devices. Scoped to a site, an IP list, or the
+    whole network (blank site). Collection via SNMP CDP cache or the SSH CLI
+    `show cdp neighbors detail` (method='ssh')."""
     import backfill
     from models import Device
 
@@ -1947,7 +1962,17 @@ def cdp_neighbor_report(req: BackfillRequest, db: Session = Depends(get_db)):
 
     communities = _vault_or_request_communities(db, req)
     snmpv3 = _snmpv3_dict(req)
+
+    ssh_creds = None
+    if req.method == "ssh":
+        if req.ssh_username:
+            ssh_creds = [(req.ssh_username, req.ssh_password, req.ssh_port)]
+        elif req.use_vault:
+            ssh_creds = [(c.username, c.password, 22)
+                         for c in repositories.vault_ssh_credentials(db)]
+
     return backfill.cdp_neighbor_report(db, devices, communities, snmpv3=snmpv3,
+                                        ssh_creds=ssh_creds,
                                         max_workers=req.max_workers,
                                         timeout=req.timeout)
 

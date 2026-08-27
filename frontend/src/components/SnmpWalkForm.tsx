@@ -50,6 +50,9 @@ export default function SnmpWalkForm() {
   const [linkSummary, setLinkSummary] = useState<BackfillSummary | null>(null)
   const [cdpResult, setCdpResult] = useState<CdpReport | null>(null)
   const [runningCdp, setRunningCdp] = useState(false)
+  const [cdpMethod, setCdpMethod] = useState<'snmp' | 'ssh'>('snmp')
+  const [sshUsername, setSshUsername] = useState('')
+  const [sshPassword, setSshPassword] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -101,7 +104,12 @@ export default function SnmpWalkForm() {
     setCdpResult(null)
     setError('')
     try {
-      setCdpResult(await cdpReport({ site: site || undefined, ...(v3Mode ? { snmpv3: scope.snmpv3 } : {}) }))
+      setCdpResult(await cdpReport({
+        site: site || undefined,
+        method: cdpMethod,
+        ...(v3Mode ? { snmpv3: scope.snmpv3 } : {}),
+        ...(cdpMethod === 'ssh' ? { ssh_username: sshUsername, ssh_password: sshPassword } : {}),
+      }))
     } catch (e) {
       setError(`CDP report failed: ${errDetail(e)}`)
     } finally {
@@ -187,6 +195,18 @@ export default function SnmpWalkForm() {
           Access points and non-network neighbors are excluded. Uses the scope above
           (site = one network, blank = entire network).
         </p>
+        <div className="flex items-center gap-2 flex-wrap mb-3">
+          <div className="flex items-center gap-1 bg-surface-2/70 backdrop-blur rounded-xl p-0.5">
+            <button type="button" onClick={() => setCdpMethod('snmp')} className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${cdpMethod === 'snmp' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'}`}>SNMP</button>
+            <button type="button" onClick={() => setCdpMethod('ssh')} className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${cdpMethod === 'ssh' ? 'bg-blue-600 text-white' : 'text-muted hover:text-text-primary'}`}>SSH (CLI)</button>
+          </div>
+          {cdpMethod === 'ssh' && (
+            <>
+              <Input value={sshUsername} onChange={(e) => setSshUsername(e.target.value)} placeholder="SSH username (blank = vault)" className="w-44" />
+              <Input type="password" value={sshPassword} onChange={(e) => setSshPassword(e.target.value)} placeholder="SSH password" className="w-44" />
+            </>
+          )}
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button onClick={runCdp} disabled={runningCdp}>
             {runningCdp ? 'Collecting CDP…' : 'Generate CDP neighbor report'}

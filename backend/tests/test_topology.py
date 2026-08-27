@@ -390,3 +390,57 @@ def test_cdp_neighbor_report_filters_access_points(monkeypatch):
     assert row["switch_hostname"] == "SW1"
     assert row["neighbor_hostname"] == "SW2"
     assert row["neighbor_ip"] == "10.40.0.2"
+
+
+def test_cdp_cli_parser_and_ssh_report(monkeypatch):
+    from conftest import make_client
+    from database import SessionLocal
+    from models import Device
+    from cdp_cli import parse_cdp_neighbors_detail
+    import backfill
+
+    sample = """
+-------------------------
+Device ID: SW2.amtrak.ad.nrpc
+Entry address(es):
+  IP address: 10.40.1.2
+Platform: cisco C9300-24P,  Capabilities: Switch IGMP
+Interface: Gi1/0/1,  Port ID (outgoing port): Gi1/0/2
+Holdtime : 122 sec
+-------------------------
+Device ID: AP1
+Entry address(es):
+  IP address: 10.40.1.9
+Platform: Cisco AIR-AP1832I, Capabilities: Host
+Interface: Gi1/0/24,  Port ID (outgoing port): Gi1/0/1
+"""
+    parsed = parse_cdp_neighbors_detail(sample)
+    assert len(parsed) == 2
+    sw = next(n for n in parsed if n["remote_device_id"].startswith("SW2"))
+    assert sw["remote_ip"] == "10.40.1.2"
+    assert sw["remote_platform"] == "cisco C9300-24P"
+    assert sw["local_port"] == "Gi1/0/1"
+    assert sw["remote_port"] == "Gi1/0/2"
+    assert sw["remote_capabilities"] & 0x08  # switch bit
+
+    with SessionLocal() as db:
+        db.query(Device).filter(Device.site == "CdpCliSite").delete()
+        db.add(Device(ip="10.40.1.1", hostname="SW1", device_type="core-switch", site="CdpCliSite"))
+        db.add(Device(ip="10.40.1.2", hostname="SW2", device_type="switch", site="CdpCliSite"))
+        db.commit()
+
+    def _fake_ssh_cdp(ip, *a, **k):
+        return parse_cdp_neighbors_detail(sample) if ip == "10.40.1.1" else []
+
+    monkeypatch.setattr("cdp_cli.collect_cdp_neighbors_detail", _fake_ssh_cdp)
+    client = make_client("operator")
+    resp = client.post("/api/cdp/report", json={
+        "method": "ssh", "site": "CdpCliSite",
+        "ssh_username": "user", "ssh_password": "pass",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["switches_checked"] == 1
+    assert data["excluded"] == 1          # AP excluded
+    assert len(data["rows"]) == 1
+    assert data["rows"][0]["neighbor_hostname"].startswith("SW2")

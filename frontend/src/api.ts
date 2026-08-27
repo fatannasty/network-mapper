@@ -794,7 +794,15 @@ export interface CdpReport {
   rows: CdpRow[]
 }
 
-export async function cdpReport(req: { site?: string; snmpv3?: SnmpV3Request }) {
+export async function cdpReport(req: {
+  site?: string
+  ips?: string[]
+  snmpv3?: SnmpV3Request
+  method?: string
+  ssh_username?: string
+  ssh_password?: string
+  ssh_port?: number
+}) {
   const r = await api.post('/api/cdp/report', req)
   return r.data as CdpReport
 }
