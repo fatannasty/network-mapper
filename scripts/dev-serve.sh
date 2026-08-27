@@ -19,6 +19,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DETACH="$ROOT/scripts/detach.py"
 PYTHON="$(command -v python3 || echo /usr/bin/python3)"
 
+# Load optional environment (SMTP, report schedule, poll intervals...) from
+# $ROOT/.env if present, so daemonized servers pick up the same config as Docker.
+if [ -f "$ROOT/.env" ]; then
+  set -a
+  . "$ROOT/.env"
+  set +a
+fi
+
 start_backend() {
   if lsof -tiTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then
     echo "backend already listening on :8000"

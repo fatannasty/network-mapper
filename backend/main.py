@@ -176,6 +176,7 @@ _LATENCY_POLL_INTERVAL = int(os.environ.get("LATENCY_POLL_INTERVAL", "60"))
 # (default off); override the exact cadence in minutes with EXEC_REPORT_INTERVAL_MIN.
 _EXEC_REPORT_SCHEDULE = os.environ.get("EXEC_REPORT_SCHEDULE", "off").lower()
 _EXEC_REPORT_INTERVAL_MIN = int(os.environ.get("EXEC_REPORT_INTERVAL_MIN", "0") or 0)
+_EXEC_REPORT_HOUR = int(os.environ.get("EXEC_REPORT_HOUR", "7") or 7)  # local time of day
 _SCHEDULE_MINUTES = {"hourly": 60, "daily": 1440, "weekly": 10080}
 _EXEC_REPORT_INTERVAL = (_EXEC_REPORT_INTERVAL_MIN or _SCHEDULE_MINUTES.get(_EXEC_REPORT_SCHEDULE, 0))
 
@@ -243,13 +244,22 @@ def _run_exec_report_job() -> dict:
 
 
 async def _exec_report_loop() -> None:
+    # Align the first run to the configured hour so reports land at a fixed
+    # time of day (e.g. 7am), then continue on the cadence.
+    from datetime import datetime, timedelta
+
+    now = datetime.now()
+    target = now.replace(hour=_EXEC_REPORT_HOUR % 24, minute=0, second=0, microsecond=0)
+    if target <= now:
+        target += timedelta(days=1)
+    await asyncio.sleep(int((target - now).total_seconds()))
     while True:
-        await asyncio.sleep(_EXEC_REPORT_INTERVAL * 60)
         try:
             result = await run_in_threadpool(_run_exec_report_job)
             logger.info("exec report generated: %s", result)
         except Exception as exc:  # noqa: BLE001
             logger.warning("exec report job failed: %s", exc)
+        await asyncio.sleep(_EXEC_REPORT_INTERVAL * 60)
 
 
 def _run_utilization_pass() -> dict:

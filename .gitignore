@@ -19,3 +19,7 @@ backend/*.db-wal
 backend/*.db-shm
 backend/.secret_key
 network_mapper.db
+
+# Local env / secrets / generated artifacts
+.env
+*.pdf
