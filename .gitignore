@@ -23,3 +23,5 @@ network_mapper.db
 # Local env / secrets / generated artifacts
 .env
 *.pdf
+*.db-wal
+*.db-shm
