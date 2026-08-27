@@ -155,6 +155,25 @@ def test_exec_pdf_robust_and_has_charts():
     assert _util_bars([{"hostname": "sw1", "ip": "10.0.0.1", "if_name": "Gi1",
                         "avg_in_rate": 1e6, "avg_out_rate": 5e5}]) is not None
 
+    # Full PDF build with real history + utilization (regression: line chart
+    # data must be y-values, not (x, y) tuples).
+    summary = {"total_devices": 120, "state": "warning", "score": 70,
+               "kpis": {"devices_up": 100, "devices_down": 5, "devices_degraded": 3,
+                        "devices_flapping": 2, "devices_unknown": 10,
+                        "up_pct": 85.8, "config_coverage": 88, "site_coverage": 92,
+                        "interface_coverage": 95, "link_validation": 70},
+               "sites": [{"site": "Chicago", "devices": 60, "up": 55, "down": 2,
+                          "degraded": 1, "flapping": 1, "unknown": 1}],
+               "risks": [], "spof_devices": []}
+    history = [{"t": f"2026-01-0{i}T00:00:00", "score": s} for i, s in enumerate([70, 72, 71, 75, 74])]
+    top_util = [{"hostname": f"sw{i}", "ip": f"10.0.0.{i}", "if_name": "Gi1",
+                 "avg_in_rate": 1e6, "avg_out_rate": 5e5} for i in range(1, 4)]
+    with tempfile.TemporaryDirectory() as tmp:
+        p = os.path.join(tmp, "charts.pdf")
+        build_exec_pdf(summary, p, history=history, top_util=top_util)
+        assert os.path.getsize(p) > 500
+        assert open(p, "rb").read()[:5] == b"%PDF-"
+
 
 def test_delete_exec_report_removes_pdf():
     import os

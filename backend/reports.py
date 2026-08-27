@@ -192,7 +192,7 @@ def _score_line(history):
     lp.y = 20
     lp.width = 240
     lp.height = 90
-    lp.data = [pts]
+    lp.data = [[s for _, s in pts]]
     lp.joinedLines = 1
     lp.lines[0].strokeColor = colors.HexColor("#22d3ee")
     lp.lines[0].strokeWidth = 2
