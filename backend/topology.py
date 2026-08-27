@@ -29,6 +29,7 @@ CDP_COL_ADDRESS = 3
 CDP_COL_DEVICE_ID = 6
 CDP_COL_DEVICE_PORT = 7
 CDP_COL_PLATFORM = 8
+CDP_COL_CAPABILITIES = 9
 
 
 def _fmt_octets(value) -> str:
@@ -88,6 +89,7 @@ def parse_cdp_neighbors(raw: dict) -> list[dict]:
             "remote_port": _to_str(vals.get(CDP_COL_DEVICE_PORT, "")),
             "remote_ip": _fmt_ipv4(vals.get(CDP_COL_ADDRESS, b"")),
             "remote_platform": _to_str(vals.get(CDP_COL_PLATFORM, "")),
+            "remote_capabilities": int(vals[CDP_COL_CAPABILITIES]) if CDP_COL_CAPABILITIES in vals else 0,
         })
     return neighbors
 

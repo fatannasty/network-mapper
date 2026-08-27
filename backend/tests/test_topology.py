@@ -350,3 +350,43 @@ def test_walk_report_returns_interfaces_and_links():
     resp_all = client.get("/api/topology/walk-report")
     assert resp_all.json()["interface_count"] >= 2
     assert resp_all.json()["link_count"] >= 2
+
+
+def test_cdp_neighbor_report_filters_access_points(monkeypatch):
+    from conftest import make_client
+    from database import SessionLocal
+    from models import Device
+    import backfill
+
+    with SessionLocal() as db:
+        db.query(Device).filter(Device.site == "CdpSite").delete()
+        db.add(Device(ip="10.40.0.1", hostname="SW1", device_type="core-switch", site="CdpSite"))
+        db.add(Device(ip="10.40.0.2", hostname="SW2", device_type="switch", site="CdpSite"))
+        db.add(Device(ip="10.40.0.9", hostname="AP1", device_type="access-point", site="CdpSite"))
+        db.commit()
+
+    def fake_cdp(host, community, port=161, timeout=2.0):
+        if host == "10.40.0.1":
+            return [
+                {"remote_device_id": "SW2", "remote_ip": "10.40.0.2",
+                 "remote_port": "Gi1/0/1", "local_port": "1",
+                 "remote_platform": "C9300", "remote_capabilities": 8},   # switch
+                {"remote_device_id": "AP1", "remote_ip": "10.40.0.9",
+                 "remote_port": "Gi1/0/24", "local_port": "2",
+                 "remote_platform": "AIR-AP", "remote_capabilities": 16}, # host/AP
+            ]
+        return []
+
+    monkeypatch.setattr("topology.collect_cdp_v2c", fake_cdp)
+    client = make_client("operator")
+    resp = client.post("/api/cdp/report", json={"site": "CdpSite"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["switches_checked"] == 1
+    assert data["neighbors_found"] == 2
+    assert data["excluded"] == 1  # the AP
+    assert len(data["rows"]) == 1
+    row = data["rows"][0]
+    assert row["switch_hostname"] == "SW1"
+    assert row["neighbor_hostname"] == "SW2"
+    assert row["neighbor_ip"] == "10.40.0.2"

@@ -1925,6 +1925,33 @@ def backfill_interfaces(req: BackfillRequest, db: Session = Depends(get_db)):
             "persisted_interfaces": saved_interfaces}
 
 
+@app.post("/api/cdp/report", dependencies=[Depends(operator)])
+def cdp_neighbor_report(req: BackfillRequest, db: Session = Depends(get_db)):
+    """CDP neighbor report: switch-to-switch visibility via SNMP CDP cache,
+    excluding access points and other non-network devices. Scoped to a site,
+    an IP list, or the whole network (blank site)."""
+    import backfill
+    from models import Device
+
+    q = db.query(Device)
+    if req.ips:
+        q = q.filter(Device.ip.in_(req.ips))
+    else:
+        q = q.filter(Device.device_type.in_(backfill.NETWORK_TYPES))
+        if req.site:
+            q = q.filter(Device.site == req.site)
+    q = q.order_by(Device.ip)
+    devices = [{"ip": d.ip, "hostname": d.hostname,
+                "device_type": d.device_type, "id": d.id, "site": d.site}
+               for d in q.all()]
+
+    communities = _vault_or_request_communities(db, req)
+    snmpv3 = _snmpv3_dict(req)
+    return backfill.cdp_neighbor_report(db, devices, communities, snmpv3=snmpv3,
+                                        max_workers=req.max_workers,
+                                        timeout=req.timeout)
+
+
 @app.post("/api/backfill/links", dependencies=[Depends(operator)])
 def backfill_links(req: BackfillRequest, db: Session = Depends(get_db)):
     """Walk LLDP/CDP on core/routers to validate (and later replace) Catalyst links."""

@@ -772,6 +772,33 @@ export async function backfillLinks(req?: BackfillRequest) {
   return r.data as BackfillSummary & { scan_id: string; validation_links: number }
 }
 
+export interface CdpRow {
+  switch_hostname: string
+  switch_ip: string
+  switch_site: string
+  neighbor_hostname: string
+  neighbor_ip: string
+  neighbor_port: string
+  local_port: string
+  neighbor_platform: string
+  neighbor_type: string
+}
+
+export interface CdpReport {
+  devices_targeted: number
+  switches_checked: number
+  neighbors_found: number
+  excluded: number
+  row_count: number
+  sample_errors: string[]
+  rows: CdpRow[]
+}
+
+export async function cdpReport(req: { site?: string; snmpv3?: SnmpV3Request }) {
+  const r = await api.post('/api/cdp/report', req)
+  return r.data as CdpReport
+}
+
 export async function classifyBlanks(limit = 0) {
   const r = await api.post('/api/backfill/classify-blanks', null, { params: { limit } })
   return r.data as { changed: number; total_scanned: number }

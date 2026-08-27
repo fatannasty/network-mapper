@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AxiosError } from 'axios'
-import { getDevices, backfillInterfaces, backfillLinks, type BackfillSummary } from '../api'
+import { getDevices, backfillInterfaces, backfillLinks, cdpReport, type BackfillSummary, type CdpReport, type CdpRow } from '../api'
 import Input from './ui/Input'
 import Select from './ui/Select'
 import Button from './ui/Button'
@@ -48,6 +48,8 @@ export default function SnmpWalkForm() {
   const [running, setRunning] = useState('')
   const [ifaceSummary, setIfaceSummary] = useState<BackfillSummary | null>(null)
   const [linkSummary, setLinkSummary] = useState<BackfillSummary | null>(null)
+  const [cdpResult, setCdpResult] = useState<CdpReport | null>(null)
+  const [runningCdp, setRunningCdp] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -92,6 +94,33 @@ export default function SnmpWalkForm() {
       }
     }
     setRunning('')
+  }
+
+  const runCdp = async () => {
+    setRunningCdp(true)
+    setCdpResult(null)
+    setError('')
+    try {
+      setCdpResult(await cdpReport({ site: site || undefined, ...(v3Mode ? { snmpv3: scope.snmpv3 } : {}) }))
+    } catch (e) {
+      setError(`CDP report failed: ${errDetail(e)}`)
+    } finally {
+      setRunningCdp(false)
+    }
+  }
+
+  const downloadCdpCsv = () => {
+    if (!cdpResult) return
+    const cols = ['switch_hostname', 'switch_ip', 'switch_site', 'neighbor_hostname', 'neighbor_ip', 'neighbor_port', 'local_port', 'neighbor_platform', 'neighbor_type']
+    const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
+    const text = [cols.join(','), ...cdpResult.rows.map((r) => cols.map((c) => esc(r[c as keyof CdpRow])).join(','))].join('\n')
+    const blob = new Blob([text], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `cdp-neighbors${site ? `-${site.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : '-all'}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -150,6 +179,60 @@ export default function SnmpWalkForm() {
       {error && <p className="text-sm text-red-400 mb-2">{error}</p>}
       {walkInterfaces && <JobResult summary={ifaceSummary} />}
       {walkLinks && <JobResult summary={linkSummary} />}
+
+      <div className="border-t border-border/30 pt-4 mt-4">
+        <h4 className="text-sm font-medium text-text-primary mb-1">CDP neighbor report</h4>
+        <p className="text-xs text-muted mb-3">
+          Switch-to-switch visibility via CDP (same data as &ldquo;show cdp neighbors detail&rdquo;).
+          Access points and non-network neighbors are excluded. Uses the scope above
+          (site = one network, blank = entire network).
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button onClick={runCdp} disabled={runningCdp}>
+            {runningCdp ? 'Collecting CDP…' : 'Generate CDP neighbor report'}
+          </Button>
+          {cdpResult && cdpResult.rows.length > 0 && (
+            <Button variant="secondary" onClick={downloadCdpCsv}>Download CSV</Button>
+          )}
+        </div>
+        {cdpResult && (
+          <div className="mt-3 text-xs text-muted space-y-1">
+            <p className="text-green-300">
+              {cdpResult.switches_checked} switches checked · {cdpResult.row_count} switch-to-switch neighbors
+              ({cdpResult.neighbors_found} found, {cdpResult.excluded} excluded — APs/other).
+            </p>
+            {(cdpResult.sample_errors?.length ?? 0) > 0 && (
+              <div className="text-red-400">{cdpResult.sample_errors!.slice(0, 5).map((e, i) => <p key={i}>{e}</p>)}</div>
+            )}
+            {cdpResult.rows.length > 0 && (
+              <div className="overflow-auto max-h-72 rounded-xl border border-border/40 mt-2">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-surface-2/80">
+                    <tr className="text-left text-muted uppercase tracking-wider">
+                      <th className="px-2 py-1.5">Switch</th>
+                      <th className="px-2 py-1.5">Neighbor</th>
+                      <th className="px-2 py-1.5">Neighbor IP</th>
+                      <th className="px-2 py-1.5">Port</th>
+                      <th className="px-2 py-1.5">Platform</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cdpResult.rows.slice(0, 100).map((r, i) => (
+                      <tr key={i} className="border-t border-border/30">
+                        <td className="px-2 py-1 font-mono">{r.switch_hostname || r.switch_ip}</td>
+                        <td className="px-2 py-1 font-mono">{r.neighbor_hostname}</td>
+                        <td className="px-2 py-1 font-mono text-muted">{r.neighbor_ip}</td>
+                        <td className="px-2 py-1 font-mono text-muted">{r.local_port} → {r.neighbor_port}</td>
+                        <td className="px-2 py-1 text-muted">{r.neighbor_platform}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </Card>
   )
 }
