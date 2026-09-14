@@ -872,7 +872,14 @@ def inventory_report(db: Session = Depends(get_db)):
 @app.get("/api/health/exec", dependencies=[Depends(authenticated)])
 def exec_health(db: Session = Depends(get_db)):
     """Executive health dashboard data: scorecard KPIs, per-site freshness, risks."""
-    return repositories.exec_health_summary(db)
+    now = _time.time()
+    if (_EXEC_HEALTH_CACHE["data"] is not None
+            and now - float(_EXEC_HEALTH_CACHE["ts"]) < _EXEC_HEALTH_CACHE_TTL):
+        return _EXEC_HEALTH_CACHE["data"]
+    data = repositories.exec_health_summary(db)
+    _EXEC_HEALTH_CACHE["ts"] = now
+    _EXEC_HEALTH_CACHE["data"] = data
+    return data
 
 
 @app.get("/api/inventory/report/export", dependencies=[Depends(authenticated)])
@@ -987,6 +994,11 @@ def download_configs(db: Session = Depends(get_db)):
 _TOPO_CACHE: dict[tuple, tuple[float, dict]] = {}
 _TOPO_CACHE_TTL = 60.0
 _TOPO_CACHE_MAX = 32
+
+# Executive health is expensive (Tarjan SPOF over all links each call). Cache
+# it briefly so the dashboard paints instantly on repeat loads.
+_EXEC_HEALTH_CACHE: dict[str, object] = {"ts": 0.0, "data": None}
+_EXEC_HEALTH_CACHE_TTL = 60.0
 
 
 def _topo_cache_get(key: tuple) -> dict | None:

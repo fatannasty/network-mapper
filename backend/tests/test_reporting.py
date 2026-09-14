@@ -80,6 +80,7 @@ def test_exec_health_summary():
     from database import SessionLocal
     from models import Device, Interface
     import main
+    main._EXEC_HEALTH_CACHE["data"] = None  # bypass TTL cache for a fresh read
 
     with SessionLocal() as db:
         db.query(Device).filter(Device.site == "ExecSite").delete()
