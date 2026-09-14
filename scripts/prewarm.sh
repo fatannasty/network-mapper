@@ -40,4 +40,5 @@ for site in "$@"; do
 done
 
 echo ">> done. Demo path is warm."
-echo "   tip: re-run nm-demo right before presenting or between sections (60s TTL)."
+echo "   caches are TTL-capped (CACHE_TTL_SECONDS, default 5 min) — re-run nm-demo"
+echo "   before presenting or if the demo runs long."

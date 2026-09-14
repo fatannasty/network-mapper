@@ -992,13 +992,13 @@ def download_configs(db: Session = Depends(get_db)):
 # TTL cache for the (expensive) full-topology response. Topology data only
 # changes on imports/backfills or the 60s latency poll, so a short TTL is safe.
 _TOPO_CACHE: dict[tuple, tuple[float, dict]] = {}
-_TOPO_CACHE_TTL = 60.0
+_TOPO_CACHE_TTL = float(os.environ.get("CACHE_TTL_SECONDS", "300"))
 _TOPO_CACHE_MAX = 32
 
 # Executive health is expensive (Tarjan SPOF over all links each call). Cache
 # it briefly so the dashboard paints instantly on repeat loads.
 _EXEC_HEALTH_CACHE: dict[str, object] = {"ts": 0.0, "data": None}
-_EXEC_HEALTH_CACHE_TTL = 60.0
+_EXEC_HEALTH_CACHE_TTL = float(os.environ.get("CACHE_TTL_SECONDS", "300"))
 
 
 def _topo_cache_get(key: tuple) -> dict | None:
