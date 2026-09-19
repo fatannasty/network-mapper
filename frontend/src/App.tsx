@@ -7,6 +7,7 @@ import TopologyViewer from './components/TopologyViewer'
 import DeviceInventory from './components/DeviceInventory'
 import DataQuality from './components/DataQuality'
 import OperationsDashboard from './components/OperationsDashboard'
+import MonitorDashboard from './components/MonitorDashboard'
 import AdminPage from './components/AdminPage'
 import { getMe, logout, setToken } from './api'
 
@@ -43,6 +44,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/topology" replace />} />
           <Route path="/dashboard" element={<OperationsDashboard />} />
+          <Route path="/monitor" element={<MonitorDashboard />} />
           <Route path="/topology" element={<TopologyViewer />} />
           <Route path="/ingest" element={<Ingest />} />
           <Route path="/inventory" element={<DeviceInventory />} />

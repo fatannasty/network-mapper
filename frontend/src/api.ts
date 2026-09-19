@@ -649,6 +649,33 @@ export async function getHealthHistory(days = 30) {
   return r.data as { days: number; points: HealthHistoryPoint[] }
 }
 
+export interface MonitorType {
+  device_type: string
+  total: number
+  up: number
+  down: number
+  degraded: number
+  flapping: number
+  unknown: number
+  avg_latency_ms: number | null
+  interfaces_up: number
+  interfaces_down: number
+  with_config: number
+  attention_count: number
+  attention: { ip: string; hostname: string; site: string; status: string; latency_ms: number | null }[]
+}
+
+export interface MonitorOverview {
+  generated_at: string
+  totals: { devices: number; up: number; down: number; degraded: number; flapping: number; unknown: number }
+  types: Record<string, MonitorType>
+}
+
+export async function getMonitor() {
+  const r = await api.get('/api/monitor')
+  return r.data as MonitorOverview
+}
+
 export interface ExecReportMeta {
   id: number
   created_at: string | null

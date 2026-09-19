@@ -240,3 +240,33 @@ def test_catalyst_import_recomputes_vlan90():
         db.query(DeviceConfig).filter(DeviceConfig.device_id == dev_id).delete()
         db.query(Device).filter(Device.id == dev_id).delete()
         db.commit()
+
+
+def test_monitor_overview():
+    from conftest import make_client
+    from database import SessionLocal
+    from models import Device, Interface
+
+    with SessionLocal() as db:
+        db.query(Device).filter(Device.site == "MonSite").delete()
+        db.add(Device(ip="10.50.0.1", hostname="SW-UP", device_type="switch", site="MonSite", latency_ms=2.5))
+        db.add(Device(ip="10.50.0.2", hostname="SW-DN", device_type="switch", site="MonSite"))
+        db.add(Device(ip="10.50.0.3", hostname="AP1", device_type="accesspoint", site="MonSite"))
+        db.flush()
+        devs = {d.ip: d.id for d in db.query(Device).all()}
+        db.add(Interface(device_id=devs["10.50.0.1"], if_name="Gi1", if_oper_status="up"))
+        db.add(Interface(device_id=devs["10.50.0.2"], if_name="Gi1", if_oper_status="down"))
+        db.commit()
+
+    client = make_client("admin")
+    data = client.get("/api/monitor").json()
+    assert data["totals"]["devices"] >= 3
+    assert "switch" in data["types"]
+    switch = data["types"]["switch"]
+    assert switch["total"] >= 2
+    assert switch["avg_latency_ms"] is not None
+    assert switch["interfaces_up"] >= 1
+    assert switch["interfaces_down"] >= 1
+    # The down switch appears in attention.
+    assert any(a["ip"] == "10.50.0.2" for a in switch["attention"])
+    assert "accesspoint" in data["types"]

@@ -804,6 +804,101 @@ def exec_health_summary(db: Session) -> dict:
     }
 
 
+# ── Grafana-style monitoring overview ────────────────────────────────────────
+
+_TYPE_ORDER = ("core-switch", "switch", "router", "firewall", "accesspoint",
+               "velocloud-edge", "sd-wan", "wireless-controller", "meraki",
+               "load-balancer")
+
+
+def monitor_overview(db: Session) -> dict:
+    """Single-page monitoring data: per-device-type operational status + metrics.
+
+    Powers the Grafana-style Monitor dashboard: status counts per type, avg
+    latency, interface up/down, config coverage, and an 'attention' list of
+    down/degraded/flapping devices per type.
+    """
+    from models import Device, DeviceConfig, Interface
+    from sqlalchemy import or_
+
+    devices = db.query(Device).all()
+    statuses = _device_status_snapshot(db, [d.id for d in devices])
+    flapping = flapping_ips(db)
+
+    iface_stats: dict[int, dict[str, int]] = {}
+    for dev_id, status in db.query(Interface.device_id, Interface.if_oper_status).all():
+        s = iface_stats.setdefault(dev_id, {"up": 0, "down": 0})
+        if status == "up":
+            s["up"] += 1
+        elif status == "down":
+            s["down"] += 1
+
+    with_config = {
+        r for (r,) in db.query(DeviceConfig.device_id)
+        .filter(DeviceConfig.config_type == "running",
+                or_(DeviceConfig.error.is_(None), DeviceConfig.error == ""))
+        .distinct().all()
+    }
+
+    totals = {"devices": len(devices), "up": 0, "down": 0,
+              "degraded": 0, "flapping": 0, "unknown": 0}
+    types: dict[str, dict] = {}
+
+    def slot(t: str) -> dict:
+        t = (t or "unknown")
+        return types.setdefault(t, {
+            "device_type": t, "total": 0, "up": 0, "down": 0, "degraded": 0,
+            "flapping": 0, "unknown": 0, "latency_sum": 0.0, "latency_count": 0,
+            "interfaces_up": 0, "interfaces_down": 0, "with_config": 0,
+            "attention": [],
+        })
+
+    for d in devices:
+        st = statuses.get(d.id, "unknown")
+        if d.ip in flapping:
+            st = "flapping"
+        ts = slot(d.device_type)
+        ts["total"] += 1
+        ts[st] = ts.get(st, 0) + 1
+        totals[st] = totals.get(st, 0) + 1
+        if d.latency_ms:
+            ts["latency_sum"] += d.latency_ms
+            ts["latency_count"] += 1
+        ist = iface_stats.get(d.id, {"up": 0, "down": 0})
+        ts["interfaces_up"] += ist["up"]
+        ts["interfaces_down"] += ist["down"]
+        if d.id in with_config:
+            ts["with_config"] += 1
+        if st in ("down", "degraded", "flapping"):
+            ts["attention"].append({
+                "ip": d.ip, "hostname": d.hostname, "site": d.site,
+                "status": st, "latency_ms": d.latency_ms,
+            })
+
+    ordered: dict[str, dict] = {}
+    for t in _TYPE_ORDER:
+        if t in types:
+            ordered[t] = types.pop(t)
+    for t, ts in sorted(types.items()):
+        ordered[t] = ts
+
+    for ts in ordered.values():
+        ts["attention"] = sorted(
+            ts["attention"], key=lambda r: r["status"] != "down")[:20]
+        ts["attention_count"] = len(ts["attention"])
+        ts["avg_latency_ms"] = (
+            round(ts["latency_sum"] / ts["latency_count"], 1)
+            if ts["latency_count"] else None)
+        ts.pop("latency_sum", None)
+        ts.pop("latency_count", None)
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "totals": totals,
+        "types": ordered,
+    }
+
+
 # ── Device Configs (Sprint 9) ─────────────────────────────────────────────────
 
 def save_device_config(db: Session, device_id: int, config_text: str,

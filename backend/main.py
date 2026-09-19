@@ -2693,6 +2693,12 @@ def notifications_check(db: Session = Depends(get_db)):
     return alerts.run_alert_check(db)
 
 
+@app.get("/api/monitor", dependencies=[Depends(authenticated)])
+def api_monitor(db: Session = Depends(get_db)):
+    """Grafana-style monitoring overview: per-device-type status + metrics."""
+    return repositories.monitor_overview(db)
+
+
 @app.get("/api/health/history", dependencies=[Depends(authenticated)])
 def health_history(days: int = 30, db: Session = Depends(get_db)):
     """Executive health score trend over time."""

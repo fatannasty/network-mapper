@@ -6,6 +6,7 @@ export interface NavItem {
 
 export const navItems: NavItem[] = [
   { to: '/dashboard',  label: 'Dashboard',  icon: 'M3 13h4v8H3v-8zm7-10h4v18h-4V3zm7 6h4v12h-4V9z' },
+  { to: '/monitor',    label: 'Monitor',    icon: 'M3 12h3m3-6v12m3-8v4m3-9v14' },
   { to: '/topology',   label: 'Topology',   icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1' },
   { to: '/inventory',  label: 'Inventory',  icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
   { to: '/ingest',     label: 'Import',     icon: 'M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16M9 11h6' },
