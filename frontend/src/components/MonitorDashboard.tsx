@@ -119,7 +119,48 @@ export default function MonitorDashboard() {
           ))}
         </div>
 
-        {/* Per-type panels */}
+        {/* Sites — where degradation is concentrated */}
+      <Card>
+        <CardHeader title={`Sites (${data.sites.length})`}>
+          <span className="text-xs text-muted">sorted by issues</span>
+        </CardHeader>
+        <div className="overflow-auto max-h-72 rounded-xl border border-border/40">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-surface-2/80 backdrop-blur-xl">
+              <tr className="text-left text-muted text-[11px] uppercase tracking-wider">
+                <th className="px-3 py-2 font-medium">Site</th>
+                <th className="px-3 py-2 font-medium text-right">Devices</th>
+                <th className="px-3 py-2 font-medium text-right">Up</th>
+                <th className="px-3 py-2 font-medium text-right">Degraded</th>
+                <th className="px-3 py-2 font-medium text-right">Down</th>
+                <th className="px-3 py-2 font-medium text-right">Flap</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.sites.map((s) => {
+                const issues = s.down + s.degraded + s.flapping
+                return (
+                  <tr key={s.site} className="border-t border-border/30 hover:bg-surface-3/50 transition-colors">
+                    <td className="px-3 py-1.5">
+                      <Link to={`/topology?site=${encodeURIComponent(s.site)}`} className="text-accent hover:underline">{s.site}</Link>
+                      {issues > 0 && (
+                        <span className="ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">{issues} issue{issues === 1 ? '' : 's'}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-xs">{s.total}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-xs text-green-300">{s.up}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-xs text-amber-300">{s.degraded}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-xs text-red-300">{s.down}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-xs text-orange-300">{s.flapping}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Per-type panels */}
         <div className="grid lg:grid-cols-2 gap-4">
           {Object.entries(data.types).map(([typeKey, ty]) => {
             const cfgPct = ty.total ? Math.round((100 * ty.with_config) / ty.total) : 0
@@ -174,6 +215,11 @@ export default function MonitorDashboard() {
                               <Link to={`/inventory?focus=${encodeURIComponent(a.ip)}`} className="text-accent hover:underline">
                                 <span className="font-mono">{a.hostname || a.ip}</span>
                               </Link>
+                              {a.down_ifaces.length > 0 && (
+                                <div className="text-[10px] text-red-300/80 mt-0.5">
+                                  down: {a.down_ifaces.join(', ')}
+                                </div>
+                              )}
                             </td>
                             <td className="px-2 py-1 text-muted">{a.site || '\u2014'}</td>
                             <td className="px-2 py-1 text-right">

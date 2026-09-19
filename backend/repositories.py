@@ -826,12 +826,18 @@ def monitor_overview(db: Session) -> dict:
     flapping = flapping_ips(db)
 
     iface_stats: dict[int, dict[str, int]] = {}
-    for dev_id, status in db.query(Interface.device_id, Interface.if_oper_status).all():
+    down_ifaces: dict[int, list[str]] = {}
+    for dev_id, status, name, descr in db.query(
+            Interface.device_id, Interface.if_oper_status,
+            Interface.if_name, Interface.if_descr).all():
         s = iface_stats.setdefault(dev_id, {"up": 0, "down": 0})
         if status == "up":
             s["up"] += 1
         elif status == "down":
             s["down"] += 1
+            label = (name or descr or "").strip()
+            if label:
+                down_ifaces.setdefault(dev_id, []).append(label)
 
     with_config = {
         r for (r,) in db.query(DeviceConfig.device_id)
@@ -843,6 +849,7 @@ def monitor_overview(db: Session) -> dict:
     totals = {"devices": len(devices), "up": 0, "down": 0,
               "degraded": 0, "flapping": 0, "unknown": 0}
     types: dict[str, dict] = {}
+    sites: dict[str, dict] = {}
 
     def slot(t: str) -> dict:
         t = (t or "unknown")
@@ -873,7 +880,15 @@ def monitor_overview(db: Session) -> dict:
             ts["attention"].append({
                 "ip": d.ip, "hostname": d.hostname, "site": d.site,
                 "status": st, "latency_ms": d.latency_ms,
+                "interfaces_down": len(down_ifaces.get(d.id, [])),
+                "down_ifaces": down_ifaces.get(d.id, [])[:5],
             })
+        site_key = d.site or "(unspecified)"
+        ss = sites.setdefault(site_key, {
+            "site": site_key, "total": 0, "up": 0, "down": 0,
+            "degraded": 0, "flapping": 0, "unknown": 0})
+        ss["total"] += 1
+        ss[st] = ss.get(st, 0) + 1
 
     ordered: dict[str, dict] = {}
     for t in _TYPE_ORDER:
@@ -896,6 +911,9 @@ def monitor_overview(db: Session) -> dict:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "totals": totals,
         "types": ordered,
+        "sites": sorted(sites.values(),
+                        key=lambda s: s["down"] + s["degraded"] + s["flapping"],
+                        reverse=True),
     }
 
 

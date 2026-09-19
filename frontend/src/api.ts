@@ -662,13 +662,24 @@ export interface MonitorType {
   interfaces_down: number
   with_config: number
   attention_count: number
-  attention: { ip: string; hostname: string; site: string; status: string; latency_ms: number | null }[]
+  attention: { ip: string; hostname: string; site: string; status: string; latency_ms: number | null; interfaces_down: number; down_ifaces: string[] }[]
+}
+
+export interface MonitorSite {
+  site: string
+  total: number
+  up: number
+  down: number
+  degraded: number
+  flapping: number
+  unknown: number
 }
 
 export interface MonitorOverview {
   generated_at: string
   totals: { devices: number; up: number; down: number; degraded: number; flapping: number; unknown: number }
   types: Record<string, MonitorType>
+  sites: MonitorSite[]
 }
 
 export async function getMonitor() {
