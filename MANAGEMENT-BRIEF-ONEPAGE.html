@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Network Mapper — One-Page Brief</title>
+<style>
+  :root { --blue:#003A70; --red:#C8102E; --ink:#1a2433; --muted:#5b6b7f; --line:#e3e8f0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Segoe UI",-apple-system,Roboto,Arial,sans-serif; background:#eef1f6; color:var(--ink); display:flex; align-items:center; justify-content:center; min-height:100vh; padding:22px; }
+  .slide { width:1120px; min-height:640px; max-width:100%; background:#fff; border-radius:14px; box-shadow:0 24px 48px -12px rgba(0,58,112,.25); overflow:hidden; position:relative; }
+  .topbar { background:linear-gradient(90deg,var(--blue),#124d8f 78%,#1c5a9e); padding:20px 36px 16px; color:#fff; display:flex; justify-content:space-between; align-items:flex-start; gap:20px; }
+  .topbar h1 { font-size:24px; font-weight:700; }
+  .topbar .sub { font-size:13px; opacity:.92; margin-top:2px; }
+  .topbar .meta { text-align:right; font-size:11.5px; opacity:.85; line-height:1.5; }
+  .body { padding:20px 36px 18px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--blue); margin:14px 0 6px; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:10px 22px; }
+  ul { list-style:none; }
+  ul li { font-size:12.5px; line-height:1.5; padding-left:16px; position:relative; margin-bottom:3px; color:#333c49; }
+  ul li:before { content:""; position:absolute; left:2px; top:7px; width:6px; height:6px; border-radius:50%; background:var(--red); }
+  .cols ul li:before { background:var(--blue); }
+  .chip { display:inline-block; margin:3px 4px 0 0; padding:2px 9px; border-radius:999px; font-size:11px; border:1px solid var(--line); background:#f6f9fc; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11.5px; font-weight:600; color:#fff; background:var(--blue); }
+  .badge.red { background:var(--red); }
+  .footer { position:absolute; bottom:0; left:0; right:0; padding:8px 36px; font-size:11px; color:var(--muted); border-top:1px solid var(--line); background:#f8fafc; display:flex; justify-content:space-between; }
+  .footer .rule { font-weight:700; color:var(--blue); }
+  @media print { body{background:#fff;padding:0;} .slide{box-shadow:none;border-radius:0;width:100%;min-height:100vh;} .cols{grid-template-columns:1fr 1fr;} }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="topbar">
+    <div>
+      <h1>Network Mapper — One-Page Brief</h1>
+      <div class="sub">A single platform to see, monitor, and report on the Amtrak network.</div>
+    </div>
+    <div class="meta" id="meta"></div>
+  </div>
+
+  <div class="body">
+    <div class="cols">
+      <div>
+        <h2>What it does</h2>
+        <ul>
+          <li><strong>Imports</strong> from Catalyst Center, SNMP (v2c/v3), Meraki &amp; VeloCloud SD-WAN — per site or whole network.</li>
+          <li><strong>Topology</strong> — interactive map of 3,900+ devices; health badges, single-point-of-failure markers, VLAN 90 tags.</li>
+          <li><strong>Monitor</strong> — one live page: switches, access points, VeloCloud edges, routers; status, latency, interface health, per-site rollups.</li>
+          <li><strong>Executive dashboard</strong> — health score, site freshness, risks, busiest links, trend.</li>
+          <li><strong>Config &amp; compliance</strong> — SSH config collection, color-coded diffs, change detection.</li>
+          <li><strong>Utilization &amp; alerts</strong> — interface traffic trends; flapping/down/SPOF alerts (in-app + email).</li>
+          <li><strong>Reporting</strong> — one-click executive reports (PDF/HTML with charts), scheduled &amp; emailed; CSV exports.</li>
+        </ul>
+      </div>
+      <div>
+        <h2>Built with</h2>
+        <div>
+          <span class="chip">Backend: Python 3.11</span><span class="chip">FastAPI</span><span class="chip">Pure-Python SNMP/SSH</span><span class="chip">SQLite → PostgreSQL-ready</span>
+          <span class="chip">Frontend: TypeScript</span><span class="chip">React 19</span><span class="chip">Tailwind</span><span class="chip">React Flow</span>
+          <span class="chip">239 backend tests + 7 e2e</span><span class="chip">Docker / nginx / CI</span>
+        </div>
+
+        <h2>Security</h2>
+        <ul>
+          <li>Role-based access (admin / operator / viewer) on every API.</li>
+          <li>Encrypted credential vault (AES) · scrypt password hashing.</li>
+          <li>Signed bearer tokens + httpOnly cookies · hashed, revocable API tokens.</li>
+          <li>Login rate limiting · secrets via environment (never committed).</li>
+        </ul>
+
+        <h2>Active Directory</h2>
+        <p style="font-size:12.5px;color:#333c49;"><strong>Yes — integrable.</strong> Recommended: <span class="badge">LDAPS + AD group → role mapping</span> then <span class="badge red">Entra ID / SAML SSO</span> for corporate sign-on + MFA.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="rule">AMTRAK NETWORK MAPPER</span>
+    <span>5-min demo: Monitor → Executive → Topology (site) → Executive report (PDF)</span>
+  </div>
+</div>
+<script>
+  document.getElementById("meta").innerHTML =
+    "Management Briefing<br>" + new Date().toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"});
+</script>
+</body>
+</html>
