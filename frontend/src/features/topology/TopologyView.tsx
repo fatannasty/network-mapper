@@ -356,7 +356,6 @@ export default function TopologyView() {
           <div>
             <h1 className="text-3xl font-bold text-text-primary tracking-tight">
               Network Topology
-              {siteFilter && <span className="ml-2 text-xl font-semibold text-accent">\u00b7 {siteFilter}</span>}
             </h1>
             <p className="text-sm text-muted mt-1.5 max-w-xl">
               An interactive map of your network — see how every device is connected, from edge to core.

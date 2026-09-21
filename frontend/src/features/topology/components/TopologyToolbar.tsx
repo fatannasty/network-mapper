@@ -1,6 +1,7 @@
 import type { TopologyData, PathResult, ScanInfo } from '../../../api'
 import type { ProtocolFilter, LayoutMode } from '../hooks/useTopology'
 import Select from '../../../components/ui/Select'
+import SiteSelect from './SiteSelect'
 
 interface Props {
   topology: TopologyData | null
@@ -124,17 +125,7 @@ export default function TopologyToolbar({
       </Select>
 
       {sites.length > 0 && (
-        <Select
-          value={site || ''}
-          onChange={(e) => onSiteChange(e.target.value)}
-          className="max-w-52 text-xs"
-          aria-label="Filter by site"
-        >
-          <option value="">All sites</option>
-          {sites.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </Select>
+        <SiteSelect value={site || ''} onChange={(v) => onSiteChange(v)} sites={sites} />
       )}
 
       <span className="text-muted">
