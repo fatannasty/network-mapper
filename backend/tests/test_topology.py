@@ -444,3 +444,35 @@ Interface: Gi1/0/24,  Port ID (outgoing port): Gi1/0/1
     assert data["excluded"] == 1          # AP excluded
     assert len(data["rows"]) == 1
     assert data["rows"][0]["neighbor_hostname"].startswith("SW2")
+
+
+def test_cross_site_velocloud_cleanup_and_guard():
+    from conftest import make_client
+    from database import SessionLocal
+    from models import Device, Link
+    import repositories
+
+    with SessionLocal() as db:
+        db.query(Link).filter(Link.scan_id == "vcsite").delete()
+        db.query(Device).filter(Device.site.in_(["MiamiFix", "StJosephFix"])).delete()
+        db.add(Device(ip="10.60.0.1", hostname="MIA-SW", device_type="switch", site="MiamiFix"))
+        db.add(Device(ip="10.60.0.2", hostname="STJ-VC1", device_type="velocloud-edge", site="StJosephFix"))
+        db.commit()
+        db.add_all([
+            Link(scan_id="vcsite", endpoint_a="10.60.0.1", endpoint_b="10.60.0.2",
+                 protocol="velocloud-lan", interface_a="GE1", interface_b="unknown"),
+        ])
+        db.commit()
+
+    client = make_client("admin")
+    # Guard: the foreign edge must NOT leak into Miami's view even with the bad link.
+    topo = client.get("/api/topology", params={"site": "MiamiFix"}).json()
+    assert all(n["id"] != "10.60.0.2" for n in topo["nodes"])
+
+    # Cleanup removes the cross-site link.
+    res = client.post("/api/backfill/cleanup-velocloud").json()
+    assert res["removed"] >= 1
+
+    # Still clean after cleanup.
+    topo2 = client.get("/api/topology", params={"site": "MiamiFix"}).json()
+    assert all(n["id"] != "10.60.0.2" for n in topo2["nodes"])

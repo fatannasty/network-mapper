@@ -1062,6 +1062,16 @@ def api_topology(scan_id: Optional[str] = Query(None), focus: Optional[str] = Qu
                 LinkModel.protocol.notin_(NON_TOPOLOGY_PROTOCOLS), LinkModel.endpoint_a != LinkModel.endpoint_b,
                 (LinkModel.endpoint_a.in_(site_ips)) | (LinkModel.endpoint_b.in_(site_ips)),
             ).all()
+            # Never leak a VeloCloud edge that belongs to another site into this
+            # site's view (cross-site velocloud-lan links are bad data).
+            foreign_edges = {
+                r for (r,) in db.query(Device.ip).filter(
+                    Device.device_type == "velocloud-edge",
+                    Device.site != "", Device.site != site).all()
+            }
+            touched = [l for l in touched
+                       if l.endpoint_a not in foreign_edges
+                       and l.endpoint_b not in foreign_edges]
             neighbor_ips = set()
             for l in touched:
                 neighbor_ips.add(l.endpoint_a)
@@ -2691,6 +2701,12 @@ def notifications_check(db: Session = Depends(get_db)):
     """Run the health-alert check now (on demand)."""
     import alerts
     return alerts.run_alert_check(db)
+
+
+@app.post("/api/backfill/cleanup-velocloud", dependencies=[Depends(operator)])
+def cleanup_velocloud_links(db: Session = Depends(get_db)):
+    """Delete cross-site velocloud-lan links that leak foreign edges into site views."""
+    return repositories.cleanup_cross_site_velocloud_links(db)
 
 
 @app.get("/api/monitor", dependencies=[Depends(authenticated)])

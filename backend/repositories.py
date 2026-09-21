@@ -917,6 +917,29 @@ def monitor_overview(db: Session) -> dict:
     }
 
 
+def cleanup_cross_site_velocloud_links(db: Session) -> dict:
+    """Delete velocloud-lan links whose endpoints belong to different sites.
+
+    A VeloCloud edge's LAN connections should only be within its own site; a
+    cross-site velocloud-lan link is bad data that leaks foreign edges into a
+    site's topology view.
+    """
+    from models import Device, Link
+
+    site_by_ip = {
+        d.ip: (d.site or "").strip() for d in db.query(Device).all()
+    }
+    removed: list[tuple] = []
+    for l in db.query(Link).filter(Link.protocol == "velocloud-lan").all():
+        sa = site_by_ip.get(l.endpoint_a, "")
+        sb = site_by_ip.get(l.endpoint_b, "")
+        if sa and sb and sa != sb:
+            removed.append((l.endpoint_a, l.endpoint_b, sa, sb))
+            db.delete(l)
+    db.commit()
+    return {"removed": len(removed), "samples": removed[:10]}
+
+
 # ── Device Configs (Sprint 9) ─────────────────────────────────────────────────
 
 def save_device_config(db: Session, device_id: int, config_text: str,
