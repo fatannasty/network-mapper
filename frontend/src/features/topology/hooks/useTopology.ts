@@ -3,7 +3,7 @@ import type { TopologyData, Device, PathResult, ScanInfo } from '../../../api'
 import { getTopology, getDevices, findPath, getScans } from '../../../api'
 
 export type ProtocolFilter = 'all' | 'lldp' | 'cdp'
-export type LayoutMode = 'tree' | 'free' | 'circle' | 'radial'
+export type LayoutMode = 'tree' | 'free' | 'circle' | 'radial' | 'hierarchy'
 
 export function useTopology(scanId?: string, focus?: string, site?: string) {
   const [topology, setTopology] = useState<TopologyData | null>(null)

@@ -34,9 +34,7 @@ interface Props {
 }
 
 function formatScanLabel(s: ScanInfo): string {
-  const date = s.started_at ? s.started_at.slice(0, 16).replace('T', ' ') : ''
-  const label = s.subnet || s.id.slice(0, 8)
-  return `${label} — ${s.device_count} devices${date ? ` — ${date}` : ''}`
+  return (s.subnet || s.id.slice(0, 8)).slice(0, 30)
 }
 
 export default function TopologyToolbar({
@@ -128,21 +126,8 @@ export default function TopologyToolbar({
         <SiteSelect value={site || ''} onChange={(v) => onSiteChange(v)} sites={sites} />
       )}
 
-      <span className="text-muted">
-        {topology?.nodes.length ?? 0} devices
-        {(topology?.links.length ?? 0) > 0 && (
-          <span className="ml-2">
-            &middot; {topology?.links.length} links
-          </span>
-        )}
-        {topology?.scan_meta && (
-          <span className="ml-3 text-[11px] text-muted/70">
-            &middot; Scan: <span className="text-text-secondary">{topology.scan_meta.subnet}</span>
-            {topology.scan_meta.scan_kind && (
-              <span className="ml-1">({topology.scan_meta.scan_kind})</span>
-            )}
-          </span>
-        )}
+      <span className="text-xs text-muted tabular-nums">
+        {topology?.nodes.length ?? 0} devices · {topology?.links.length ?? 0} links
       </span>
 
       <div className="flex-1" />
@@ -165,6 +150,15 @@ export default function TopologyToolbar({
           title="Concentric rings by distance from core"
         >
           Radial
+        </button>
+        <button
+          onClick={() => onLayoutModeChange('hierarchy')}
+          className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all duration-150 ${
+            layoutMode === 'hierarchy' ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30' : 'text-muted hover:text-text-primary'
+          }`}
+          title="Top-down hierarchy: edge-router, firewall, core, switch, access"
+        >
+          Hierarchy
         </button>
         <button
           onClick={() => onLayoutModeChange('circle')}

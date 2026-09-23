@@ -109,6 +109,80 @@ export function treeLayout(nodes: IdNode[], links: IdLink[]) {
 }
 
 /**
+ * Hierarchy layout: top-down bands ordered by network role
+ * (edge-router -> firewall -> core-switch -> switch -> access-point).
+ * Each role occupies its own horizontal band so the map reads like a
+ * proper network diagram (core at top, access at the bottom).
+ */
+export const HIERARCHY_RANK: Record<string, number> = {
+  'edge-router': 0,
+  router: 0,
+  'sd-wan': 1,
+  firewall: 1,
+  'velocloud-edge': 1,
+  'load-balancer': 1,
+  'core-switch': 2,
+  switch: 3,
+  'access-switch': 3,
+  'wireless-controller': 4,
+  'access-point': 4,
+  accesspoint: 4,
+}
+
+function _rank(node: IdNode): number {
+  const t = (node as unknown as { device_type?: string }).device_type || ''
+  return HIERARCHY_RANK[t] ?? 5
+}
+
+export function hierarchyLayout(nodes: IdNode[], links: IdLink[]) {
+  const adjacency = buildAdjacency(nodes, links)
+  const byRank = new Map<number, string[]>()
+  for (const n of nodes) {
+    const r = _rank(n)
+    const arr = byRank.get(r) || []
+    arr.push(n.id)
+    byRank.set(r, arr)
+  }
+
+  // Band index from the previous band (rank r-1) so we can order children
+  // near their parents and reduce edge crossings.
+  const prevOrder = new Map<string, number>()
+  const positions = new Map<string, { x: number; y: number }>()
+  const SX = 360
+  const SY = 240
+  const ranks = [...byRank.keys()].sort((a, b) => a - b)
+
+  for (const r of ranks) {
+    let ids = byRank.get(r)!
+    if (prevOrder.size > 0) {
+      ids = [...ids].sort((a, b) => {
+        const pa = _nearestParentIndex(prevOrder, adjacency.get(a) || [])
+        const pb = _nearestParentIndex(prevOrder, adjacency.get(b) || [])
+        if (pa !== pb) return pa - pb
+        return String(a).localeCompare(String(b))
+      })
+    } else {
+      ids = [...ids].sort((a, b) => String(a).localeCompare(String(b)))
+    }
+    const count = ids.length
+    ids.forEach((id, i) => {
+      positions.set(id, { x: (i - (count - 1) / 2) * SX, y: r * SY })
+      prevOrder.set(id, i)
+    })
+  }
+  return positions
+}
+
+function _nearestParentIndex(prevOrder: Map<string, number>, neighbors: string[]): number {
+  let min = Infinity
+  for (const n of neighbors) {
+    const idx = prevOrder.get(n)
+    if (idx !== undefined && idx < min) min = idx
+  }
+  return min === Infinity ? 1e9 : min
+}
+
+/**
  * Circle layout: arrange all nodes in a single ring.
  * Connected nodes are placed near each other via BFS ordering.
  */

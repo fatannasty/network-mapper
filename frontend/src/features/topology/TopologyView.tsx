@@ -8,7 +8,7 @@ import {
 import { useSearchParams } from 'react-router-dom'
 
 import { useTopology } from './hooks/useTopology'
-import { treeLayout, freeLayout, circleLayout, radialLayout } from './services/layout'
+import { treeLayout, freeLayout, circleLayout, radialLayout, hierarchyLayout } from './services/layout'
 import { normalizeType, pluralLabel } from './services/friendly'
 import { measureLatency, downloadPortTable, getTopologySummary, downloadWalkReport, type TopologySummaryData } from '../../api'
 import TopologyToolbar from './components/TopologyToolbar'
@@ -242,6 +242,7 @@ export default function TopologyView() {
     const layoutFn = layoutMode === 'tree' ? treeLayout
       : layoutMode === 'circle' ? circleLayout
       : layoutMode === 'radial' ? radialLayout
+      : layoutMode === 'hierarchy' ? hierarchyLayout
       : freeLayout
     const positions = layoutFn(topology.nodes as IdNode[], filteredLinks as IdLink[])
 
@@ -273,6 +274,9 @@ export default function TopologyView() {
         : l.protocol === 'poe' ? 'PoE'
         : l.protocol === 'velocloud-lan' ? 'VeloCloud'
         : l.protocol.toUpperCase()
+      const portLabel = l.source_interface && l.target_interface
+        ? `${l.source_interface} \u2194 ${l.target_interface}`
+        : ''
       const pathKey = `${l.source}->${l.target}-${i}`
       const isPath = pathEdgeIds.has(pathKey)
       const isDown = l.status === 'down'
@@ -282,7 +286,7 @@ export default function TopologyView() {
         id: `e-${l.source}-${l.target}-${i}`,
         source: l.source,
         target: l.target,
-        label: large ? undefined : protocolLabel,
+        label: large ? undefined : (portLabel || protocolLabel),
         data: { link: l },
         labelStyle: { fill: isPath ? '#22c55e' : '#94a3b8', fontSize: 10, fontWeight: 600 },
         labelBgStyle: { fill: isPath ? '#064e3b' : '#0f172a', fillOpacity: 0.9 },
@@ -357,8 +361,8 @@ export default function TopologyView() {
             <h1 className="text-3xl font-bold text-text-primary tracking-tight">
               Network Topology
             </h1>
-            <p className="text-sm text-muted mt-1.5 max-w-xl">
-              An interactive map of your network — see how every device is connected, from edge to core.
+            <p className="text-sm text-muted mt-1.5">
+              Interactive map of the network — every device, connection, and health signal.
             </p>
           </div>
           <div className="flex items-center gap-3">
