@@ -1019,6 +1019,12 @@ def build_scene(nodes: list[dict], links: list[dict], opts: dict) -> Scene:
             color = legend_color.get(role, C_LINK) if color_links else C_LINK
         ia_s = _port_label(l.get("source_interfaces", [l["source_interface"]]))
         ib_s = _port_label(l.get("target_interfaces", [l["target_interface"]]))
+        sv = l.get("source_vlan")
+        tv = l.get("target_vlan")
+        if sv:
+            ia_s = f"{ia_s}, VLAN {sv}" if ia_s else f"VLAN {sv}"
+        if tv:
+            ib_s = f"{ib_s}, VLAN {tv}" if ib_s else f"VLAN {tv}"
         if abs(pos[a][1] - pos[b][1]) < 1.0:
             # Same row: ride the gap below the row, both ends on the bottom edge.
             sx, sy = attach_x(a, "bottom", li), pos[a][1] + half_h(a)

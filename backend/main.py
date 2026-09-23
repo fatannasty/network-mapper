@@ -1433,8 +1433,37 @@ def _diagram_cache_payload(fmt: str, req: DiagramExportRequest) -> dict:
     }
 
 
+def _enrich_link_vlans(db, nodes: list[dict], links: list[dict]) -> list[dict]:
+    """Resolve source_vlan/target_vlan onto each link from interface data,
+    so exported diagrams can label ports as 'Gi0/10, VLAN 30'."""
+    from models import Device, Interface
+
+    ips = [n["ip"] for n in nodes]
+    vlan_by_key: dict[tuple[str, str], object] = {}
+    if ips:
+        devs = db.query(Device).filter(Device.ip.in_(ips)).all()
+        id_to_ip = {d.id: d.ip for d in devs}
+        if devs:
+            for itf in db.query(Interface).filter(
+                    Interface.device_id.in_([d.id for d in devs])).all():
+                ip = id_to_ip.get(itf.device_id)
+                if not ip or itf.vlan_id is None:
+                    continue
+                for name in (itf.if_name, itf.if_descr, itf.if_index):
+                    if name:
+                        vlan_by_key.setdefault((ip, name), itf.vlan_id)
+    enriched = [dict(l) for l in links]
+    for l in enriched:
+        l["source_vlan"] = vlan_by_key.get(
+            (l.get("source", ""), l.get("source_interface", "")))
+        l["target_vlan"] = vlan_by_key.get(
+            (l.get("target", ""), l.get("target_interface", "")))
+    return enriched
+
+
 @app.post("/api/topology/diagram", dependencies=[Depends(authenticated)])
-async def api_topology_diagram(req: DiagramExportRequest, request: Request):
+async def api_topology_diagram(req: DiagramExportRequest, request: Request,
+                               db: Session = Depends(get_db)):
     """Render the topology as an Amtrak engineering drawing sheet.
 
     PDF and Word are static renders; the Visio (.vsdx) output is built from
@@ -1473,7 +1502,8 @@ async def api_topology_diagram(req: DiagramExportRequest, request: Request):
             "scale": req.scale,
         }
         started = _time.monotonic()
-        data = await run_in_threadpool(diagram_export.export_diagram, req.nodes, req.links, fmt, opts)
+        links = _enrich_link_vlans(db, req.nodes, req.links)
+        data = await run_in_threadpool(diagram_export.export_diagram, req.nodes, links, fmt, opts)
         logger.info("rendered %s (%d nodes) in %.2fs", fmt, len(req.nodes), _time.monotonic() - started)
         _render_cache_set(cache_key, data)
 
@@ -1585,7 +1615,8 @@ def api_walk_report(site: Optional[str] = Query(None), db: Session = Depends(get
 
 
 @app.post("/api/topology/package", dependencies=[Depends(authenticated)])
-async def api_topology_package(req: DiagramExportRequest, request: Request):
+async def api_topology_package(req: DiagramExportRequest, request: Request,
+                               db: Session = Depends(get_db)):
     """One-click executive package: PDF + Word + port-table CSV in a ZIP."""
     import datetime
     import io
@@ -1621,9 +1652,10 @@ async def api_topology_package(req: DiagramExportRequest, request: Request):
         def _build_package():
             buf = io.BytesIO()
             with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-                z.writestr(f"{slug}.pdf", diagram_export.export_diagram(req.nodes, req.links, "pdf", opts))
-                z.writestr(f"{slug}.docx", diagram_export.export_diagram(req.nodes, req.links, "docx", opts))
-                z.writestr(f"{slug}-port-table.csv", diagram_export.build_port_table(req.nodes, req.links))
+                links = _enrich_link_vlans(db, req.nodes, req.links)
+                z.writestr(f"{slug}.pdf", diagram_export.export_diagram(req.nodes, links, "pdf", opts))
+                z.writestr(f"{slug}.docx", diagram_export.export_diagram(req.nodes, links, "docx", opts))
+                z.writestr(f"{slug}-port-table.csv", diagram_export.build_port_table(req.nodes, links))
             return buf.getvalue()
 
         started = _time.monotonic()

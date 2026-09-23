@@ -59,7 +59,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
   const [revision, setRevision] = useState('')
   const [colorLinks, setColorLinks] = useState(true)
   const [excludeEndpoints, setExcludeEndpoints] = useState(false)
-  const [topoMode, setTopoMode] = useState<'auto' | 'tree' | 'star' | 'ring' | 'bus'>('auto')
+  const [topoMode, setTopoMode] = useState<'auto' | 'tree' | 'star' | 'ring' | 'bus'>('tree')
   const [linkDetail, setLinkDetail] = useState<'full' | 'backbone' | 'core'>('full')
   const [legend, setLegend] = useState<DiagramLegendEntry[]>(DEFAULT_LEGEND)
   const [busy, setBusy] = useState(false)
@@ -72,7 +72,7 @@ export default function ExportDiagramDialog({ open, onClose, topology, defaultTi
     if (!open || !scanId) return
     getDiagramPrefs(scanId)
       .then((p) => {
-        setTopoMode(p.topology ?? 'auto')
+        setTopoMode(p.topology ?? 'tree')
         setLinkDetail(p.link_detail ?? 'full')
       })
       .catch(() => {})

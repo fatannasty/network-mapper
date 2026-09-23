@@ -252,3 +252,26 @@ def test_auto_topology_prefers_hierarchy_for_small_sites():
     big_nodes = [{"ip": f"10.1.{i//250}.{i%250}", "device_type": "switch"} for i in range(45)]
     big_links = [{"source": "10.1.0.1", "target": n["ip"]} for n in big_nodes[1:]]
     assert de._auto_topology(big_nodes, big_links) == "star"
+
+
+def test_export_link_vlan_enrichment():
+    from conftest import make_client
+    from database import SessionLocal
+    from models import Device, Interface
+    import main
+
+    with SessionLocal() as db:
+        db.query(Device).filter(Device.site == "VlanExp").delete()
+        d = Device(ip="10.70.0.1", hostname="SW-VLAN", device_type="switch", site="VlanExp")
+        db.add(d)
+        db.flush()
+        db.add(Interface(device_id=d.id, if_name="Gi0/10", if_descr="Gi0/10", vlan_id=30))
+        db.commit()
+
+    with SessionLocal() as db:
+        enriched = main._enrich_link_vlans(db,
+            [{"ip": "10.70.0.1"}],
+            [{"source": "10.70.0.1", "target": "10.70.0.2",
+              "source_interface": "Gi0/10", "target_interface": "Gi1/0/1"}])
+    assert enriched[0]["source_vlan"] == 30
+    assert enriched[0]["target_vlan"] is None
