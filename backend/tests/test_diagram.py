@@ -230,3 +230,25 @@ def test_diagram_legibility_no_obstructions():
     assert m["cable_switch_crossings"] == 0, m
     assert m["cable_label_crossings"] == 0, m
     assert m["label_label_overlaps"] == 0, m
+
+
+def test_auto_topology_prefers_hierarchy_for_small_sites():
+    import diagram_export as de
+
+    # Fullerton-like: 1 hub (edge) + 2 switches (3 nodes).
+    nodes = [
+        {"ip": "10.0.0.1", "device_type": "velocloud-edge"},
+        {"ip": "10.0.0.2", "device_type": "switch"},
+        {"ip": "10.0.0.3", "device_type": "switch"},
+    ]
+    links = [
+        {"source": "10.0.0.1", "target": "10.0.0.2"},
+        {"source": "10.0.0.1", "target": "10.0.0.3"},
+    ]
+    # Small hub-and-spoke must lay out as hierarchy, not a flat star row.
+    assert de._auto_topology(nodes, links) == "tree"
+
+    # A genuinely large hub (40+ nodes) may still use star.
+    big_nodes = [{"ip": f"10.1.{i//250}.{i%250}", "device_type": "switch"} for i in range(45)]
+    big_links = [{"source": "10.1.0.1", "target": n["ip"]} for n in big_nodes[1:]]
+    assert de._auto_topology(big_nodes, big_links) == "star"

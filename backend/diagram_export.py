@@ -744,9 +744,10 @@ def _layout_bus(layers, order, _max_dev_w):
 def _auto_topology(nodes: list[dict], links: list[dict]) -> str:
     """Recommend a layout topology from the network's shape.
 
-    - Star: a true hub-and-spoke (one hub links to most of the network, and
-      the rest are mostly degree-1 leaves).
-    - Tree: everything else (hierarchical default).
+    - Tree: the hierarchical default (edge -> core -> switch -> access), used
+      for everything except very large, unambiguous hub-and-spoke networks.
+    - Star: reserved for large hubs (40+ nodes) where the hierarchical tree
+      would be unwieldy; small sites must NOT collapse into a flat hub row.
     """
     n = len(nodes)
     if n == 0:
@@ -762,7 +763,7 @@ def _auto_topology(nodes: list[dict], links: list[dict]) -> str:
         return "tree"
     max_deg = max(degs)
     leaves = sum(1 for d in degs if d <= 1)
-    if n <= 30 and max_deg >= int(n * 0.5) and leaves >= int(n * 0.5):
+    if n > 40 and max_deg >= int(n * 0.6) and leaves >= int(n * 0.6):
         return "star"
     return "tree"
 
